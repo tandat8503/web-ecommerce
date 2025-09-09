@@ -59,6 +59,7 @@ model User {
   notifications    Notification[]
   loginHistory     LoginHistory[]
   sessions         UserSession[]
+  couponUsages     CouponUsage[]
 
   @@map("users")
 }
@@ -379,6 +380,7 @@ model Order {
   orderItems OrderItem[]
   payments   Payment[]
   reviews    ProductReview[]
+  couponUsages CouponUsage[]
 
   @@map("orders")
 }
