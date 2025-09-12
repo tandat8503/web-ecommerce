@@ -31,9 +31,12 @@ export const authenticateToken = async (req, res, next) => {
         lastName: true,
         role: true,
         isActive: true,
-        userType: 'admin'
+        //userType: 'admin'
       }
     })
+    if (user) {
+      user.userType = 'admin'
+    }
 
     // Nếu không tìm thấy admin, tìm user thường
     if (!user) {

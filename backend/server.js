@@ -5,7 +5,8 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
-import authRoutes from './routes/authRoutes.js'
+//import authRoutes from './routes/authRoutes.js'
+import Routes from './routes/index.js'
 
 // Load environment variables
 dotenv.config()
@@ -34,7 +35,8 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
 // Routes
-app.use('/api/auth', authRoutes)
+//app.use('/api/auth', authRoutes)
+Routes(app)
 
 // Health check
 app.get('/api/health', (req, res) => {
