@@ -1,15 +1,16 @@
 // server.js
+import dotenv from 'dotenv'
+// Load environment variables
+dotenv.config()
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 //import authRoutes from './routes/authRoutes.js'
 import Routes from './routes/index.js'
 
-// Load environment variables
-dotenv.config()
+
 
 const app = express()
 const PORT = process.env.PORT || 5000

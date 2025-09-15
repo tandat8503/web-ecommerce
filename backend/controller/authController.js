@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 import { JWT_CONFIG } from '../config/jwt.js'
+import { DEFAULT_AVATAR } from '../config/constants.js';
+
 
 const prisma = new PrismaClient()
 
@@ -68,6 +70,19 @@ export const login = async (req, res) => {
 
     // Tạo token
     const accessToken = generateAccessToken(user.id)
+
+    //  Ghi lịch sử đăng nhập
+      await prisma.loginHistory.create({
+        data: {
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          loginMethod: "EMAIL_PASSWORD", // 👈 thêm dòng này
+          isSuccessful: true
+        }
+      })
+
+    /////end ghi lịch sử đăng nhập
 
     // Trả về thông tin user (không bao gồm password)
     const userInfo = {
@@ -169,6 +184,7 @@ export const register = async (req, res) => {
         password: hashedPassword,
         firstName,
         lastName,
+        avatar: DEFAULT_AVATAR,
         phone: phone || null,
         isActive: true,
         isVerified: false
