@@ -1,31 +1,68 @@
 import prisma from "../config/prisma.js";
 
 /**
- * Lấy danh sách khách hàng
+ * Lấy danh sách khách hàng (có phân trang + tìm kiếm)
  */
 export const getCustomers = async (req, res) => {
+ const context = { path: "admin.customers.list", query: req.query };
   try {
-    const customers = await prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        isActive: true,
-        isVerified: true,
-        createdAt: true,
-        lastLoginAt: true,
-        _count: {
-          select: { orders: true },
-        },
-      },
-    });
+    console.log("START", context);
 
-    res.json(customers);
+    // Lấy query params: page, limit, q
+    const { page = 1, limit = 2, q } = req.query;
+
+    // Điều kiện tìm kiếm: theo tên, email hoặc số điện thoại
+    const where = q
+      ? {
+          OR: [
+            { firstName: { contains: q } },
+            { lastName: { contains: q } },
+            { email: { contains: q } },
+            { phone: { contains: q } },
+          ],
+        }
+      : undefined;
+
+    // Lấy data + tổng số khách hàng cùng lúc
+    const [items, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          isActive: true,
+          isVerified: true,
+          createdAt: true,
+          lastLoginAt: true,
+          _count: { select: { orders: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    // Trả về payload
+    const payload = {
+      items,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+    };
+
+    console.log("END", { ...context, total: payload.total });
+    return res.json(payload);
   } catch (error) {
-    res.status(500).json({ message: "Lỗi server", error: error.message });
+    console.error("ERROR", { ...context, error: error.message });
+    return res.status(500).json({
+      message: "Lỗi server",
+      error:
+        process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };
 
