@@ -2,11 +2,18 @@
 import authRouter from "./authRoutes.js ";
 import addressRouter from "./addressRouter.js ";
 import userRouter from "./user.router.js";
+import adminOrderRoutes from "./adminOrderRoutes.js";
+import adminCustomerRoutes from "./adminCustomerRoutes.js";
+
+
 
 const routes = (app) => {
   app.use("/api/auth", authRouter);
   app.use("/api/addresses", addressRouter);
   app.use("/api/users", userRouter);
+  app.use("/api/admin/orders", adminOrderRoutes);
+  app.use("/api/admin/customers", adminCustomerRoutes);
+
 }
 
 export default routes;
