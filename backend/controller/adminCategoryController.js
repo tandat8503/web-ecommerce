@@ -49,7 +49,7 @@ export const createCategory = async (req, res) => {
   const context = { path: 'admin.categories.create', body: req.body };
   try {
     console.log('START', context);
-    const { name, description, isActive } = req.body;
+    const { name, description, imageUrl, isActive } = req.body;
     const slug = (req.body.slug?.trim()) || slugify(name);
 
     const exists = await prisma.category.findUnique({ where: { slug } });
@@ -59,7 +59,7 @@ export const createCategory = async (req, res) => {
     }
 
     const created = await prisma.category.create({
-      data: { name, slug, description: description || null, isActive: isActive ?? true }
+      data: { name, slug, description: description || null, imageUrl: imageUrl || null, isActive: isActive ?? true }
     });
     console.log('END', { ...context, id: created.id });
     return res.status(201).json(created);
@@ -80,7 +80,7 @@ export const updateCategory = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
 
-    let { name, slug, description, isActive } = req.body;
+    let { name, slug, description, imageUrl, isActive } = req.body;
     if (!slug && name) slug = slugify(name);
 
     if (slug && slug !== found.slug) {
@@ -97,6 +97,7 @@ export const updateCategory = async (req, res) => {
         name: name ?? found.name,
         slug: slug ?? found.slug,
         description: description === undefined ? found.description : description,
+        imageUrl: imageUrl === undefined ? found.imageUrl : imageUrl,
         isActive: isActive ?? found.isActive
       }
     });
