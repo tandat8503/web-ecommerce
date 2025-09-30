@@ -149,7 +149,7 @@ export const register = async (req, res) => {
     const { email, password, firstName, lastName, phone } = req.body
 
     // Validation cơ bản
-    if (!email || !password || !firstName || !lastName) {
+    if (!email || !password || !firstName || !lastName ) {
       return res.status(400).json({
         success: false,
         message: 'Email, password, firstName và lastName là bắt buộc'
@@ -184,6 +184,19 @@ export const register = async (req, res) => {
         message: 'Email đã được sử dụng'
       })
     }
+// Kiểm tra số điện thoại đã tồn tại chưa (nếu có cung cấp)
+        if (phone) {
+          const existingPhone = await prisma.user.findUnique({
+            where: { phone: phone }
+          })
+
+          if (existingPhone) {
+            return res.status(409).json({
+              success: false,
+              message: 'Số điện thoại đã được sử dụng'
+            })
+          }
+        }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)

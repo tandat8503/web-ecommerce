@@ -9,16 +9,16 @@ export const getCustomers = async (req, res) => {
     console.log("START", context);
 
     // Lấy query params: page, limit, q
-    const { page = 1, limit = 2, q } = req.query;
+    const { page = 1, limit = 10, q } = req.query;
 
     // Điều kiện tìm kiếm: theo tên, email hoặc số điện thoại
     const where = q
       ? {
           OR: [
-            { firstName: { contains: q } },
-            { lastName: { contains: q } },
-            { email: { contains: q } },
-            { phone: { contains: q } },
+            { firstName: { contains: q, mode: "insensitive" } },
+            { lastName: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
           ],
         }
       : undefined;
