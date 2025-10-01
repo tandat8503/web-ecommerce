@@ -3,6 +3,7 @@ import { createBrowserRouter} from "react-router-dom";
 import AdminLayout from "@/layout/admin/AdminLayout";
 import Dashboard from "@/pages/admin/Dashboard";
 import AdminUser from "@/pages/admin/AdminUser";
+import AdminBanner from "@/pages/admin/AdminBanner";
 
 //User
 import UserLayout from "@/layout/user/UserLayout";
@@ -45,7 +46,7 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> }, // Default page khi /admin
       // Thêm route con khác sau này
       {path: "users", element: <AdminUser />},
-
+      {path: "banners", element: <AdminBanner />},
 
     ],
   },

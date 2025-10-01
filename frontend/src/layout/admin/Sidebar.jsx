@@ -1,13 +1,19 @@
 import { Layout, Menu } from "antd";
 import {
   FaUser,
+  FaUsers,
   FaShoppingCart,
   FaCog,
   FaTags,
   FaHome,
-  FaUsers,
   FaChevronLeft,
   FaChevronRight,
+  FaList,
+  FaTrademark,
+  FaBoxOpen,
+  FaShapes,
+  FaImage,
+  FaPhotoVideo
 } from "react-icons/fa";
 import { Link, useLocation } from "react-router-dom";
 
@@ -52,17 +58,17 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           },
           {
             key: "/admin/users",
-            icon: <FaUser />,
+            icon: <FaUsers />,
             label: <Link to="/admin/users">Quản lý người dùng</Link>,
           },
           {
             key: "/admin/categories",
-            icon: <FaCog />,
+            icon: <FaList />,
             label: <Link to="/admin/categories">Quản lý danh mục</Link>,
           },
           {
             key: "/admin/brands",
-            icon: <FaUsers />,
+            icon: <FaTrademark />,
             label: <Link to="/admin/brands">Quản lý thương hiệu</Link>,
           },
           {
@@ -72,19 +78,24 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           },
           {
             key: "/admin/products",
-            icon: <FaTags />,
+            icon: <FaBoxOpen />,
             label: <Link to="/admin/products">Quản lý sản phẩm</Link>,
           },
           {
             key: "/admin/product-variants",
-            icon: <FaCog />,
+            icon: <FaShapes />,
             label: <Link to="/admin/product-variants">Quản lý biến thể</Link>,
           },
           {
             key: "/admin/product-images",
-            icon: <FaTags />,
+            icon: <FaImage />,
             label: <Link to="/admin/product-images">Quản lý hình ảnh</Link>,
           },
+          {
+            key: "/admin/banners",
+            icon: <FaPhotoVideo />,
+            label: <Link to="/admin/banners">Quản lý banner</Link>,
+          }
         ]}
       />
 

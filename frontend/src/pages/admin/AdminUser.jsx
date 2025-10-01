@@ -221,6 +221,7 @@ export default function AdminUser() {
         cancelText="Hủy"
         onConfirm={() => handleToggleStatus(record.id, val)}
       >
+        <span>
         {isLoading ? (
           <Tag color="blue" className="flex items-center gap-1 cursor-wait">
             <div className="w-3 h-3 bg-gray-300 rounded animate-pulse"></div>
@@ -234,6 +235,7 @@ export default function AdminUser() {
             {val ? "Hoạt động" : "Vô hiệu hóa"}
           </Tag>
         )}
+        </span>
       </Popconfirm>
     );
   },
@@ -265,6 +267,7 @@ export default function AdminUser() {
             </Button>
           </Tooltip>
           <Tooltip title="Xóa">
+          <span>
             <Popconfirm
               title="Bạn có chắc muốn xóa user này?"
               onConfirm={() => handleDelete(record.id)}
@@ -273,7 +276,9 @@ export default function AdminUser() {
                 <FaTrash />
               </Button>
             </Popconfirm>
+            </span>
           </Tooltip>
+          
         </Space>
       ),
     },
