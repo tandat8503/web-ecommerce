@@ -1,11 +1,13 @@
-# Multi-stage build cho web-ecommerce
-FROM node:18-alpine AS base
+# Main Dockerfile - Sử dụng docker-compose để chạy riêng biệt
+# File này được giữ lại để tương thích ngược
+FROM node:18-alpine
 
 # Cài đặt dependencies cần thiết
 RUN apk add --no-cache \
     mysql-client \
     openssl \
-    netcat-openbsd
+    netcat-openbsd \
+    curl
 
 # Tạo thư mục app
 WORKDIR /app
