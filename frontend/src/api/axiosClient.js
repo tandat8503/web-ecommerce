@@ -1,8 +1,8 @@
 // cấu hình axios client để sử dụng trong toàn bộ ứng dụng
 import axios from "axios";
 
-// Sử dụng biến môi trường Vite, fallback về localhost:5000
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+// Hardcode API URL - không sử dụng environment variables
+const API_URL = "http://localhost:5000/api";
 
 const axiosClient = axios.create({
   baseURL: API_URL,
