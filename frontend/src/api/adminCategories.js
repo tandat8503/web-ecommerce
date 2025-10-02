@@ -35,7 +35,7 @@ export async function deleteCategory(id) {
   return await axiosClient.delete(`admin/categories/${id}`);
 }
 
-// Default export object chứa tất cả functions
+// Default export object chứa tất cả functions (để tương thích với AdminProducts, AdminBrands)
 const adminCategoriesAPI = {
   getCategories,
   getCategoryById,

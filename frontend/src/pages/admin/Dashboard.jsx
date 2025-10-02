@@ -3,9 +3,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts"
 import { Row, Col, Statistic } from "antd"
 import { useState, useEffect } from "react"
-import adminCategoriesAPI from "@/api/adminCategories"
-import adminBrandsAPI from "@/api/adminBrands"
-import adminProductsAPI from "@/api/adminProducts"
+import { getCategories } from "@/api/adminCategories"
+import { getBrands } from "@/api/adminBrands"
+import { getProducts } from "@/api/adminProducts"
 
 const chartData = [
   { name: "Hà Nội", value: 120 },
@@ -30,9 +30,9 @@ export default function Dashboard() {
   const fetchStats = async () => {
     try {
       const [categoriesRes, brandsRes, productsRes] = await Promise.all([
-        adminCategoriesAPI.getCategories({ limit: 1 }),
-        adminBrandsAPI.getBrands({ limit: 1 }),
-        adminProductsAPI.getProducts({ limit: 1 })
+        getCategories({ limit: 1 }),
+        getBrands({ limit: 1 }),
+        getProducts({ limit: 1 })
       ]);
 
       setStats({

@@ -1,45 +1,70 @@
-import { Modal, Form, Spin ,Button} from "antd";
+import { Modal, Form, Spin, Button } from "antd";
 import { useEffect } from "react";
 
+/**
+ * CrudModal - Modal component cho Create/Update operations
+ * @param {Object} props - Component props
+ * @param {boolean} props.open - Modal open state
+ * @param {Function} props.onCancel - Cancel handler
+ * @param {Function} props.onSubmit - Submit handler
+ * @param {Object} props.editingRecord - Record being edited (null for create)
+ * @param {Array} props.fields - Form fields configuration
+ * @param {string} props.title - Modal title
+ * @param {boolean} props.confirmLoading - Loading state
+ * @param {string} props.okText - OK button text
+ * @param {string} props.cancelText - Cancel button text
+ * @param {number} props.width - Modal width
+ * @param {boolean} props.destroyOnClose - Destroy modal on close
+ */
 export default function CrudModal({
   open,
   onCancel,
   onSubmit,
   editingRecord, // object: nếu null là tạo mới, có giá trị là edit
-  fields, // [{name, label, component, rules}]
+  fields, // [{name, label, component, rules, valuePropName, getValueFromEvent}]
   title, // string: tiêu đề của modal
   confirmLoading,
-  okText,
+  okText = "Lưu",
+  cancelText = "Hủy",
+  width = 600,
+  destroyOnClose = true,
 }) {
   const [form] = Form.useForm();
+
   // Khi mở modal -> fill dữ liệu nếu có
   useEffect(() => {
-    if (editingRecord)
-      form.setFieldsValue(
-        editingRecord
-      ); //nếu edit thì set giá trị ban đầu của form
-    else form.resetFields(); //nếu tạo mới thì reset form
+    if (editingRecord) {
+      form.setFieldsValue(editingRecord); // nếu edit thì set giá trị ban đầu của form
+    } else {
+      form.resetFields(); // nếu tạo mới thì reset form
+    }
   }, [editingRecord, form, open]);
 
   const handleOk = async () => {
     try {
-      const values = await form.validateFields(); //Nếu bấm OK mà dl để trống → validateFields sẽ throw lỗi (nằm trong catch)
-      await onSubmit(values, editingRecord); //Gọi submit từ cha
-      //form.resetFields();//reset form sau khi submit
+      const values = await form.validateFields(); // Nếu bấm OK mà dl để trống → validateFields sẽ throw lỗi (nằm trong catch)
+      await onSubmit(values, editingRecord); // Gọi submit từ cha
     } catch (err) {
       // lỗi validate thì ignore
       console.log("Validation Failed:", err);
     }
   };
 
+  const handleCancel = () => {
+    form.resetFields();
+    onCancel();
+  };
+
   return (
     <Modal
       title={title}
       open={open}
-      onCancel={onCancel}
+      onCancel={handleCancel}
+      width={width}
+      destroyOnClose={destroyOnClose}
       footer={[
-        <Button key="cancel" onClick={onCancel} disabled={confirmLoading}>
-          Hủy
+        <Button key="cancel" onClick={handleCancel} disabled={confirmLoading}>
+          {cancelText}
         </Button>,
         <Button
           key="ok"
@@ -47,22 +72,23 @@ export default function CrudModal({
           loading={confirmLoading}
           onClick={handleOk}
         >
-          {okText || "Lưu"}
+          {okText}
         </Button>,
       ]}
     >
       <Spin spinning={confirmLoading}>
         <Form form={form} layout="vertical">
-          {fields.map((f) => (
+          {fields?.map((field) => (
             <Form.Item
-              key={f.name}
-              name={f.name}
-              label={f.label}
-              rules={f.rules || []}
-              valuePropName={f.valuePropName}//hỗ trợ upload
-              getValueFromEvent={f.getValueFromEvent}
+              key={field.name}
+              name={field.name}
+              label={field.label}
+              rules={field.rules || []}
+              valuePropName={field.valuePropName} // hỗ trợ upload
+              getValueFromEvent={field.getValueFromEvent}
+              initialValue={field.initialValue}
             >
-              {f.component}
+              {field.component}
             </Form.Item>
           ))}
         </Form>

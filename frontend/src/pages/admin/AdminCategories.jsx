@@ -1,145 +1,156 @@
-import { useState, useEffect } from 'react';
-import { 
-  Table, 
-  Button, 
-  Input, 
-  Space, 
-  Modal, 
-  Form, 
-  message, 
-  Popconfirm, 
-  Card,
+import { useEffect, useState } from "react";
+import {
+  Table,
+  Input,
+  Space,
+  Popconfirm,
+  message,
   Row,
   Col,
+  Card,
   Tag,
   Image,
-  Pagination
-} from 'antd';
-import { 
-  PlusOutlined, 
-  EditOutlined, 
-  DeleteOutlined, 
-  SearchOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
-import adminCategoriesAPI from '@/api/adminCategories';
-import CrudModal from '@/pages/hepler/CrudModal';
+  Tooltip,
+  Badge
+} from "antd";
+import {
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaEye
+} from "react-icons/fa";
+import { Button } from "@/components/ui/button"; // shadcn/ui button
+import { TableSkeleton } from "@/components/ui/skeleton";
+import CrudModal from "@/pages/hepler/CrudModal";
+import DetailModal from "@/pages/hepler/DetailModal";
+import { toast } from "react-toastify";
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getCategoryById,
+} from "@/api/adminCategories";
 
 const { Search } = Input;
 
 export default function AdminCategories() {
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [form] = Form.useForm();
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 10,
-    total: 0
-  });
-  const [searchText, setSearchText] = useState('');
+  const [pagination, setPagination] = useState({ page: 1, limit: 5, total: 0 });
+  const [keyword, setKeyword] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [detailData, setDetailData] = useState(null);
+  const [loadingCategoryId, setLoadingCategoryId] = useState(null);
 
-  // Fetch categories
-  const fetchCategories = async (page = 1, search = '') => {
-    setLoading(true);
+  // debounce search
+  const [searchValue, setSearchValue] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPagination((prev) => ({ ...prev, page: 1 })); // reset về trang 1
+      setKeyword(searchValue);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
+
+  // Load danh sách categories
+  const fetchCategories = async () => {
+    setShowSkeleton(true);
     try {
-      const response = await adminCategoriesAPI.getCategories({
-        page,
-        limit: pagination.pageSize,
-        search
+      const response = await getCategories({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: keyword,
       });
-      
       setCategories(response.data.data || []);
-      setPagination(prev => ({
+      setPagination((prev) => ({
         ...prev,
-        current: page,
-        total: response.data.total || 0
+        total: response.data.total || 0,
       }));
     } catch (error) {
-      message.error('Lỗi khi tải danh sách danh mục');
-      console.error('Error fetching categories:', error);
+      toast.error("Lỗi khi tải danh sách danh mục");
+      console.error("Error fetching categories:", error);
     } finally {
-      setLoading(false);
+      setShowSkeleton(false);
     }
   };
 
   useEffect(() => {
     fetchCategories();
-  }, []);
-
-  // Handle search
-  const handleSearch = (value) => {
-    setSearchText(value);
-    fetchCategories(1, value);
-  };
-
-  // Handle pagination
-  const handleTableChange = (pagination) => {
-    fetchCategories(pagination.current, searchText);
-  };
+  }, [pagination.page, pagination.limit, keyword]);
 
   // Handle create/edit
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (values, editingRecord) => {
+    setModalLoading(true);
     try {
-      if (editingCategory) {
-        await adminCategoriesAPI.updateCategory(editingCategory.id, values);
-        message.success('Cập nhật danh mục thành công');
+      if (editingRecord) {
+        await updateCategory(editingRecord.id, values);
+        toast.success("Cập nhật danh mục thành công");
       } else {
-        await adminCategoriesAPI.createCategory(values);
-        message.success('Tạo danh mục thành công');
+        await createCategory(values);
+        toast.success("Tạo danh mục thành công");
       }
-      
-      setModalVisible(false);
-      setEditingCategory(null);
-      form.resetFields();
-      fetchCategories(pagination.current, searchText);
+      setModalOpen(false);
+      setEditingRecord(null);
+      fetchCategories();
     } catch (error) {
-      message.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
+    } finally {
+      setModalLoading(false);
     }
   };
 
   // Handle delete
   const handleDelete = async (id) => {
     try {
-      await adminCategoriesAPI.deleteCategory(id);
-      message.success('Xóa danh mục thành công');
-      fetchCategories(pagination.current, searchText);
+      await deleteCategory(id);
+      toast.success("Xóa danh mục thành công");
+      fetchCategories();
     } catch (error) {
-      message.error(error.response?.data?.message || 'Có lỗi xảy ra');
+      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
     }
   };
 
   // Handle edit
   const handleEdit = (record) => {
-    setEditingCategory(record);
-    form.setFieldsValue({
-      name: record.name,
-      description: record.description,
-      imageUrl: record.imageUrl,
-      isActive: record.isActive
-    });
-    setModalVisible(true);
+    setEditingRecord(record);
+    setModalOpen(true);
   };
 
   // Handle create
   const handleCreate = () => {
-    setEditingCategory(null);
-    form.resetFields();
-    setModalVisible(true);
+    setEditingRecord(null);
+    setModalOpen(true);
+  };
+
+  // Handle view detail
+  const handleViewDetail = async (id) => {
+    setLoadingCategoryId(id);
+    try {
+      const response = await getCategoryById(id);
+      setDetailData(response.data);
+      setDetailOpen(true);
+    } catch (error) {
+      toast.error("Lỗi khi tải chi tiết danh mục");
+    } finally {
+      setLoadingCategoryId(null);
+    }
   };
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
+      title: "ID",
+      dataIndex: "id",
+      key: "id",
       width: 80,
     },
     {
-      title: 'Hình ảnh',
-      dataIndex: 'imageUrl',
-      key: 'imageUrl',
+      title: "Hình ảnh",
+      dataIndex: "imageUrl",
+      key: "imageUrl",
       width: 100,
       render: (imageUrl) => (
         imageUrl ? (
@@ -167,71 +178,134 @@ export default function AdminCategories() {
       ),
     },
     {
-      title: 'Tên danh mục',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Tên danh mục",
+      dataIndex: "name",
+      key: "name",
       render: (text) => <strong>{text}</strong>,
     },
     {
-      title: 'Slug',
-      dataIndex: 'slug',
-      key: 'slug',
+      title: "Slug",
+      dataIndex: "slug",
+      key: "slug",
       render: (text) => <code>{text}</code>,
     },
     {
-      title: 'Mô tả',
-      dataIndex: 'description',
-      key: 'description',
+      title: "Mô tả",
+      dataIndex: "description",
+      key: "description",
       ellipsis: true,
     },
     {
-      title: 'Trạng thái',
-      dataIndex: 'isActive',
-      key: 'isActive',
+      title: "Trạng thái",
+      dataIndex: "isActive",
+      key: "isActive",
       width: 100,
       render: (isActive) => (
-        <Tag color={isActive ? 'green' : 'red'}>
-          {isActive ? 'Hoạt động' : 'Tạm dừng'}
+        <Tag color={isActive ? "green" : "red"}>
+          {isActive ? "Hoạt động" : "Tạm dừng"}
         </Tag>
       ),
     },
     {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
+      title: "Ngày tạo",
+      dataIndex: "createdAt",
+      key: "createdAt",
       width: 120,
-      render: (date) => new Date(date).toLocaleDateString('vi-VN'),
+      render: (date) => new Date(date).toLocaleDateString("vi-VN"),
     },
     {
-      title: 'Hành động',
-      key: 'actions',
+      title: "Hành động",
+      key: "actions",
       width: 150,
       render: (_, record) => (
         <Space>
-          <Button
-            type="primary"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            Sửa
-          </Button>
+          <Tooltip title="Xem chi tiết">
+            <Button
+              size="small"
+              icon={<FaEye />}
+              onClick={() => handleViewDetail(record.id)}
+              loading={loadingCategoryId === record.id}
+            />
+          </Tooltip>
+          <Tooltip title="Chỉnh sửa">
+            <Button
+              size="small"
+              icon={<FaEdit />}
+              onClick={() => handleEdit(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="Bạn có chắc chắn muốn xóa danh mục này?"
             onConfirm={() => handleDelete(record.id)}
             okText="Xóa"
             cancelText="Hủy"
           >
-            <Button
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-            >
-              Xóa
-            </Button>
+            <Tooltip title="Xóa">
+              <Button
+                size="small"
+                danger
+                icon={<FaTrash />}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
+    },
+  ];
+
+  // Định nghĩa fields cho CrudModal
+  const fields = [
+    {
+      name: "name",
+      label: "Tên danh mục",
+      component: <Input placeholder="Nhập tên danh mục" />,
+      rules: [
+        { required: true, message: "Vui lòng nhập tên danh mục" },
+        { min: 2, message: "Tên danh mục phải có ít nhất 2 ký tự" },
+      ],
+    },
+    {
+      name: "description",
+      label: "Mô tả",
+      component: <Input.TextArea rows={3} placeholder="Nhập mô tả danh mục" />,
+    },
+    {
+      name: "imageUrl",
+      label: "URL hình ảnh",
+      component: <Input placeholder="Nhập URL hình ảnh" />,
+    },
+    {
+      name: "isActive",
+      label: "Trạng thái",
+      component: <input type="checkbox" />,
+      valuePropName: "checked",
+    },
+  ];
+
+  // Định nghĩa fields cho DetailModal
+  const detailFields = [
+    { name: "id", label: "ID" },
+    { name: "name", label: "Tên danh mục" },
+    { name: "slug", label: "Slug" },
+    { name: "description", label: "Mô tả" },
+    { 
+      name: "imageUrl", 
+      label: "Hình ảnh",
+      render: (value) => value ? <Image width={100} src={value} /> : "Không có hình ảnh"
+    },
+    { 
+      name: "isActive", 
+      label: "Trạng thái",
+      render: (value) => (
+        <Tag color={value ? "green" : "red"}>
+          {value ? "Hoạt động" : "Tạm dừng"}
+        </Tag>
+      )
+    },
+    { 
+      name: "createdAt", 
+      label: "Ngày tạo",
+      render: (value) => new Date(value).toLocaleDateString("vi-VN")
     },
   ];
 
@@ -246,7 +320,7 @@ export default function AdminCategories() {
           <Col>
             <Button
               type="primary"
-              icon={<PlusOutlined />}
+              icon={<FaPlus />}
               onClick={handleCreate}
               size="large"
             >
@@ -260,9 +334,9 @@ export default function AdminCategories() {
             <Search
               placeholder="Tìm kiếm danh mục..."
               allowClear
-              enterButton={<SearchOutlined />}
               size="large"
-              onSearch={handleSearch}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               style={{ width: 300 }}
             />
           </Col>
@@ -273,90 +347,58 @@ export default function AdminCategories() {
           </Col>
         </Row>
 
-        <Table
-          columns={columns}
-          dataSource={categories}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => 
-              `${range[0]}-${range[1]} của ${total} danh mục`,
-          }}
-          onChange={handleTableChange}
-          scroll={{ x: 1000 }}
-        />
+        {showSkeleton ? (
+          <TableSkeleton />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={categories}
+            rowKey="id"
+            pagination={{
+              current: pagination.page,
+              pageSize: pagination.limit,
+              total: pagination.total,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} của ${total} danh mục`,
+              onChange: (page, pageSize) => {
+                setPagination((prev) => ({
+                  ...prev,
+                  page,
+                  limit: pageSize || prev.limit,
+                }));
+              },
+            }}
+            scroll={{ x: 1000 }}
+          />
+        )}
       </Card>
 
-      <Modal
-        title={editingCategory ? 'Sửa danh mục' : 'Thêm danh mục mới'}
-        open={modalVisible}
+      {/* CrudModal cho Create/Edit */}
+      <CrudModal
+        open={modalOpen}
         onCancel={() => {
-          setModalVisible(false);
-          setEditingCategory(null);
-          form.resetFields();
+          setModalOpen(false);
+          setEditingRecord(null);
         }}
-        footer={null}
+        onSubmit={handleSubmit}
+        editingRecord={editingRecord}
+        fields={fields}
+        title={editingRecord ? "Sửa danh mục" : "Thêm danh mục mới"}
+        confirmLoading={modalLoading}
+        okText={editingRecord ? "Cập nhật" : "Tạo mới"}
+      />
+
+      {/* DetailModal cho View */}
+      <DetailModal
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        title="Chi tiết danh mục"
+        data={detailData}
+        fields={detailFields}
         width={600}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-        >
-          <Form.Item
-            name="name"
-            label="Tên danh mục"
-            rules={[
-              { required: true, message: 'Vui lòng nhập tên danh mục' },
-              { min: 2, message: 'Tên danh mục phải có ít nhất 2 ký tự' }
-            ]}
-          >
-            <Input placeholder="Nhập tên danh mục" />
-          </Form.Item>
-
-          <Form.Item
-            name="description"
-            label="Mô tả"
-          >
-            <Input.TextArea 
-              rows={3} 
-              placeholder="Nhập mô tả danh mục"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="imageUrl"
-            label="URL hình ảnh"
-          >
-            <Input placeholder="Nhập URL hình ảnh" />
-          </Form.Item>
-
-          <Form.Item
-            name="isActive"
-            label="Trạng thái"
-            valuePropName="checked"
-            initialValue={true}
-          >
-            <input type="checkbox" /> Hoạt động
-          </Form.Item>
-
-          <Form.Item className="mb-0">
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {editingCategory ? 'Cập nhật' : 'Tạo mới'}
-              </Button>
-              <Button onClick={() => setModalVisible(false)}>
-                Hủy
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+      />
     </div>
   );
 }
