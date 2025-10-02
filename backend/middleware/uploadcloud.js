@@ -21,5 +21,7 @@ const createUpload = (folderName) => {
 // Các middleware upload tái sử dụng
 export const uploadAvatar = createUpload("Avatars");// Ảnh đại diện user
 export const uploadBanner = createUpload("Banners");      // Ảnh banner quảng cáo
+export const uploadCategory = createUpload("Categories");  // Ảnh danh mục sản phẩm
+
 
 

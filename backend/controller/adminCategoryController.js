@@ -1,136 +1,177 @@
-import prisma from '../config/prisma.js';
-import { slugify } from '../utils/slugify.js';
+import prisma from "../config/prisma.js";
+import cloudinary from "../config/cloudinary.js";
+import { slugify } from "../utils/slugify.js";
 
+// ============================
+// DANH SÁCH CATEGORY
+// ============================
 export const listCategories = async (req, res) => {
-  const context = { path: 'admin.categories.list', query: req.query };
+  const context = { path: "admin.categories.list", query: req.query };
   try {
-    console.log('START', context);
     const { page = 1, limit = 10, q } = req.query;
-    const where = q ? { name: { contains: q, mode: 'insensitive' } } : undefined;
+    const where = q ? { name: { contains: q, mode: "insensitive" } } : undefined;
 
     const [items, total] = await Promise.all([
       prisma.category.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip: (Number(page) - 1) * Number(limit),
-        take: Number(limit)
+        take: Number(limit),
       }),
-      prisma.category.count({ where })
+      prisma.category.count({ where }),
     ]);
 
     const payload = { items, total, page: Number(page), limit: Number(limit) };
-    console.log('END', { ...context, total: payload.total });
     return res.json(payload);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({
+      message: "Server error",
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };
 
+// ============================
+// LẤY CATEGORY THEO ID
+// ============================
 export const getCategory = async (req, res) => {
-  const context = { path: 'admin.categories.get', params: req.params };
   try {
-    console.log('START', context);
     const id = Number(req.params.id);
     const category = await prisma.category.findUnique({ where: { id } });
-    if (!category) {
-      console.warn('NOT_FOUND', context);
-      return res.status(404).json({ message: 'Not found' });
-    }
-    console.log('END', context);
+    if (!category) return res.status(404).json({ message: "Not found" });
     return res.json(category);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({
+      message: "Server error",
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };
 
+// ============================
+// TẠO CATEGORY
+// ============================
 export const createCategory = async (req, res) => {
-  const context = { path: 'admin.categories.create', body: req.body };
   try {
-    console.log('START', context);
-    const { name, description, imageUrl, isActive } = req.body;
+    const { name, description, isActive } = req.body;
     const slug = (req.body.slug?.trim()) || slugify(name);
 
+    // Check slug trùng
     const exists = await prisma.category.findUnique({ where: { slug } });
     if (exists) {
-      console.warn('CONFLICT_SLUG', { ...context, slug });
-      return res.status(409).json({ message: 'Slug already exists' });
+      return res.status(409).json({ message: "Slug already exists" });
+    }
+
+    let imageUrl = null;
+    let imagePublicId = null;
+    if (req.file) {
+      imageUrl = req.file.path;
+      imagePublicId = req.file.filename;
     }
 
     const created = await prisma.category.create({
-      data: { name, slug, description: description || null, imageUrl: imageUrl || null, isActive: isActive ?? true }
+      data: {
+        name,
+        slug,
+        description: description || null,
+        imageUrl,
+        imagePublicId,
+        isActive: isActive === "true",
+      },
     });
-    console.log('END', { ...context, id: created.id });
+
     return res.status(201).json(created);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({
+      message: "Server error",
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };
 
+// ============================
+// CẬP NHẬT CATEGORY
+// ============================
 export const updateCategory = async (req, res) => {
-  const context = { path: 'admin.categories.update', params: req.params, body: req.body };
   try {
-    console.log('START', context);
     const id = Number(req.params.id);
     const found = await prisma.category.findUnique({ where: { id } });
-    if (!found) {
-      console.warn('NOT_FOUND', context);
-      return res.status(404).json({ message: 'Not found' });
-    }
+    if (!found) return res.status(404).json({ message: "Not found" });
 
-    let { name, slug, description, imageUrl, isActive } = req.body;
+    let { name, slug, description, isActive } = req.body;
+
     if (!slug && name) slug = slugify(name);
 
+    // Kiểm tra slug trùng
     if (slug && slug !== found.slug) {
       const duplicate = await prisma.category.findUnique({ where: { slug } });
       if (duplicate) {
-        console.warn('CONFLICT_SLUG', { ...context, slug });
-        return res.status(409).json({ message: 'Slug already exists' });
+        return res.status(409).json({ message: "Slug already exists" });
       }
+    }
+
+    // Convert isActive về boolean
+    const parsedIsActive =
+      isActive === undefined
+        ? found.isActive
+        : (isActive === "true" || isActive === true);
+
+    let updateData = {
+      name: name ?? found.name,
+      slug: slug ?? found.slug,
+      description: description === undefined ? found.description : description,
+      isActive: parsedIsActive,
+    };
+
+    // Nếu có ảnh mới
+    if (req.file) {
+      if (found.imagePublicId) {
+        await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+      }
+      updateData.imageUrl = req.file.path;
+      updateData.imagePublicId = req.file.filename;
     }
 
     const updated = await prisma.category.update({
       where: { id },
-      data: {
-        name: name ?? found.name,
-        slug: slug ?? found.slug,
-        description: description === undefined ? found.description : description,
-        imageUrl: imageUrl === undefined ? found.imageUrl : imageUrl,
-        isActive: isActive ?? found.isActive
-      }
+      data: updateData,
     });
-    console.log('END', { ...context, id: updated.id });
+
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({
+      message: "Server error",
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };
 
+
+// ============================
+// XOÁ CATEGORY
+// ============================
 export const deleteCategory = async (req, res) => {
-  const context = { path: 'admin.categories.delete', params: req.params };
   try {
-    console.log('START', context);
     const id = Number(req.params.id);
     const found = await prisma.category.findUnique({ where: { id } });
-    if (!found) {
-      console.warn('NOT_FOUND', context);
-      return res.status(404).json({ message: 'Not found' });
-    }
+    if (!found) return res.status(404).json({ message: "Not found" });
 
     const productCount = await prisma.product.count({ where: { categoryId: id } });
     if (productCount > 0) {
-      console.warn('HAS_PRODUCTS', { ...context, productCount });
-      return res.status(400).json({ message: 'Cannot delete: category has products' });
+      return res.status(400).json({ message: "Cannot delete: category has products" });
+    }
+
+    // Xoá ảnh Cloudinary nếu có
+    if (found.imagePublicId) {
+      await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
     }
 
     await prisma.category.delete({ where: { id } });
-    console.log('END', context);
     return res.json({ success: true });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({
+      message: "Server error",
+      error: process.env.NODE_ENV !== "production" ? error.message : undefined,
+    });
   }
 };

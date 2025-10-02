@@ -5,14 +5,16 @@ import { createCategorySchema, updateCategorySchema } from '../validators/catego
 import {
   listCategories, getCategory, createCategory, updateCategory, deleteCategory
 } from '../controller/adminCategoryController.js';
+import { uploadCategory} from "../middleware/uploadcloud.js";
+
 
 const router = Router();
 router.use(authenticateToken, requireAdmin);
 
 router.get('/', listCategories);
 router.get('/:id', getCategory);
-router.post('/', validate(createCategorySchema), createCategory);
-router.put('/:id', validate(updateCategorySchema), updateCategory);
+router.post('/', uploadCategory.single("image"), validate(createCategorySchema), createCategory);
+router.put('/:id', uploadCategory.single("image"), updateCategory);
 router.delete('/:id', deleteCategory);
 
 export default router;
