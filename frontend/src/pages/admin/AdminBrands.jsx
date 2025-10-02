@@ -4,22 +4,16 @@ import {
   Input,
   Space,
   Popconfirm,
-  message,
   Row,
   Col,
   Card,
   Tag,
   Image,
   Tooltip,
-  Badge
+  Badge,
 } from "antd";
-import {
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaEye
-} from "react-icons/fa";
-import { Button } from "@/components/ui/button"; // shadcn/ui button
+import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import { Button } from "@/components/ui/button"; // shadcn/ui
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
@@ -46,11 +40,14 @@ export default function AdminBrands() {
   const [detailData, setDetailData] = useState(null);
   const [loadingBrandId, setLoadingBrandId] = useState(null);
 
+  // Hàm delay
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   // debounce search
   const [searchValue, setSearchValue] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 })); // reset về trang 1
+      setPagination((prev) => ({ ...prev, page: 1 }));
       setKeyword(searchValue);
     }, 500);
     return () => clearTimeout(timer);
@@ -65,11 +62,13 @@ export default function AdminBrands() {
         limit: pagination.limit,
         search: keyword,
       });
-      setBrands(response.data.data || []);
+      setBrands(response.data.items || []); // backend trả items
       setPagination((prev) => ({
         ...prev,
         total: response.data.total || 0,
       }));
+      // ép skeleton hiển thị ít nhất 500ms (hoặc 800ms )
+    await sleep(800);
     } catch (error) {
       toast.error("Lỗi khi tải danh sách thương hiệu");
       console.error("Error fetching brands:", error);
@@ -114,12 +113,6 @@ export default function AdminBrands() {
     }
   };
 
-  // Handle edit
-  const handleEdit = (record) => {
-    setEditingRecord(record);
-    setModalOpen(true);
-  };
-
   // Handle create
   const handleCreate = () => {
     setEditingRecord(null);
@@ -141,122 +134,113 @@ export default function AdminBrands() {
   };
 
   const columns = [
-    {
-      title: "ID",
-      dataIndex: "id",
-      key: "id",
-      width: 80,
-    },
+    { title: "ID", dataIndex: "id", key: "id", width: 80 },
     {
       title: "Logo",
       dataIndex: "logoUrl",
       key: "logoUrl",
       width: 100,
-      render: (logoUrl) => (
+      render: (logoUrl) =>
         logoUrl ? (
           <Image
             width={60}
             height={60}
             src={logoUrl}
-            style={{ objectFit: 'cover', borderRadius: 8 }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0rHgQGS3kSq0LGI7HcSm4vBQJ8gDOKi4tS0YjK2CTGUQBXh/wwMCTUyMFgWH6eA1ccl4GBgBkeEqQgxJhGBjY2BgYUiFCzQYG9gYGhlYpCxKJAdUOS09i2CgxrHAxWCxMWC2a0oA4cEicvVcZQYGMJkMDiGlpSZmFgYc/0kIz7pLAIBUlYyq3nf8cRkYGuUQzA1YHgA0f4UwA0oUhgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
+            style={{ objectFit: "cover", borderRadius: 8 }}
           />
         ) : (
-          <div style={{ 
-            width: 60, 
-            height: 60, 
-            backgroundColor: '#f0f0f0', 
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#999'
-          }}>
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              background: "#f0f0f0",
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#999",
+            }}
+          >
             No Logo
           </div>
-        )
-      ),
+        ),
     },
     {
       title: "Tên thương hiệu",
       dataIndex: "name",
       key: "name",
-      render: (text) => <strong>{text}</strong>,
+      render: (t) => <strong>{t}</strong>,
     },
     {
       title: "Quốc gia",
       dataIndex: "country",
       key: "country",
-      render: (country) => country ? <Tag color="blue">{country}</Tag> : '-',
+      render: (country) => (country ? <Tag color="blue">{country}</Tag> : "-"),
     },
     {
       title: "Trạng thái",
       dataIndex: "isActive",
       key: "isActive",
       width: 100,
-      render: (isActive) => (
-        <Tag color={isActive ? "green" : "red"}>
-          {isActive ? "Hoạt động" : "Tạm dừng"}
-        </Tag>
+      render: (v) => (
+        <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>
       ),
     },
     {
       title: "Ngày tạo",
       dataIndex: "createdAt",
       key: "createdAt",
-      width: 120,
-      render: (date) => new Date(date).toLocaleDateString("vi-VN"),
+      render: (d) => new Date(d).toLocaleDateString("vi-VN"),
     },
     {
-      title: "Hành động",
-      key: "actions",
-      width: 150,
+      title: "Thao tác",
       render: (_, record) => (
         <Space>
           <Tooltip title="Xem chi tiết">
             <Button
-              size="small"
-              icon={<FaEye />}
+              variant="secondary"
+              size="sm"
               onClick={() => handleViewDetail(record.id)}
-              loading={loadingBrandId === record.id}
-            />
+            >
+              <FaEye />
+            </Button>
           </Tooltip>
-          <Tooltip title="Chỉnh sửa">
+          <Tooltip title="Sửa">
             <Button
-              size="small"
-              icon={<FaEdit />}
-              onClick={() => handleEdit(record)}
-            />
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              size="sm"
+              onClick={() => {
+                setEditingRecord(record);
+                setModalOpen(true);
+              }}
+            >
+              <FaEdit />
+            </Button>
           </Tooltip>
-          <Popconfirm
-            title="Bạn có chắc chắn muốn xóa thương hiệu này?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Xóa"
-            cancelText="Hủy"
-          >
-            <Tooltip title="Xóa">
-              <Button
-                size="small"
-                danger
-                icon={<FaTrash />}
-              />
-            </Tooltip>
-          </Popconfirm>
+          <Tooltip title="Xóa">
+            <span>
+              <Popconfirm
+                title="Bạn có chắc muốn xóa thương hiệu này?"
+                onConfirm={() => handleDelete(record.id)}
+              >
+                <Button variant="destructive" size="sm">
+                  <FaTrash />
+                </Button>
+              </Popconfirm>
+            </span>
+          </Tooltip>
         </Space>
       ),
     },
   ];
 
-  // Định nghĩa fields cho CrudModal
+  // Modal fields
   const fields = [
     {
       name: "name",
       label: "Tên thương hiệu",
       component: <Input placeholder="Nhập tên thương hiệu" />,
-      rules: [
-        { required: true, message: "Vui lòng nhập tên thương hiệu" },
-        { min: 2, message: "Tên thương hiệu phải có ít nhất 2 ký tự" },
-      ],
+      rules: [{ required: true, message: "Vui lòng nhập tên thương hiệu" }],
     },
     {
       name: "country",
@@ -276,99 +260,110 @@ export default function AdminBrands() {
     },
   ];
 
-  // Định nghĩa fields cho DetailModal
+  // Detail fields
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "name", label: "Tên thương hiệu" },
     { name: "country", label: "Quốc gia" },
-    { 
-      name: "logoUrl", 
+    {
+      name: "logoUrl",
       label: "Logo",
-      render: (value) => value ? <Image width={100} src={value} /> : "Không có logo"
+      render: (v) =>
+        v ? <Image width={100} src={v} /> : <Tag color="default">Không có</Tag>,
     },
-    { 
-      name: "isActive", 
+    {
+      name: "isActive",
       label: "Trạng thái",
-      render: (value) => (
-        <Tag color={value ? "green" : "red"}>
-          {value ? "Hoạt động" : "Tạm dừng"}
-        </Tag>
-      )
+      render: (v) => (
+        <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>
+      ),
     },
-    { 
-      name: "createdAt", 
+    {
+      name: "createdAt",
       label: "Ngày tạo",
-      render: (value) => new Date(value).toLocaleDateString("vi-VN")
+      render: (v) => new Date(v).toLocaleDateString("vi-VN"),
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <Row justify="space-between" align="middle" className="mb-4">
-          <Col>
-            <h1 className="text-2xl font-bold mb-0">Quản lý Thương hiệu</h1>
-            <p className="text-gray-600">Quản lý thương hiệu sản phẩm</p>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<FaPlus />}
-              onClick={handleCreate}
-              size="large"
-            >
-              Thêm thương hiệu
-            </Button>
-          </Col>
-        </Row>
-
-        <Row justify="space-between" align="middle" className="mb-4">
-          <Col>
-            <Search
-              placeholder="Tìm kiếm thương hiệu..."
-              allowClear
-              size="large"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              style={{ width: 300 }}
-            />
-          </Col>
-          <Col>
-            <span className="text-gray-600">
-              Tổng: {pagination.total} thương hiệu
-            </span>
-          </Col>
-        </Row>
-
-        {showSkeleton ? (
-          <TableSkeleton />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={brands}
-            rowKey="id"
-            pagination={{
-              current: pagination.page,
-              pageSize: pagination.limit,
-              total: pagination.total,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} của ${total} thương hiệu`,
-              onChange: (page, pageSize) => {
-                setPagination((prev) => ({
-                  ...prev,
-                  page,
-                  limit: pageSize || prev.limit,
-                }));
-              },
+    <>
+      <style>
+        {`
+          @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}
+      </style>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Badge.Ribbon
+            text="Quản lý Thương hiệu"
+            color="#667eea"
+            style={{
+              background:
+                "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
+              backgroundSize: "300% 300%",
+              animation: "gradientShift 4s ease infinite",
+              fontWeight: "bold",
+              fontSize: "16px",
+              padding: "8px 20px",
+              height: "40px",
+              lineHeight: "24px",
             }}
-            scroll={{ x: 1000 }}
-          />
-        )}
-      </Card>
+          >
+            <Card className="shadow rounded-2xl">
+              <div className="flex justify-between mb-4">
+                <div className="flex gap-4">
+                  <Button variant="default" onClick={handleCreate}>
+                    <FaPlus /> Thêm thương hiệu
+                  </Button>
 
-      {/* CrudModal cho Create/Edit */}
+                  <Search
+                    placeholder="Tìm kiếm thương hiệu..."
+                    allowClear
+                    size="large"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    style={{ width: 300 }}
+                  />
+                </div>
+                <div>Tổng: {pagination.total} thương hiệu</div>
+              </div>
+
+              {showSkeleton ? (
+                <TableSkeleton />
+              ) : (
+                <Table
+                  columns={columns}
+                  dataSource={brands}
+                  rowKey="id"
+                  pagination={{
+                    current: pagination.page,
+                    pageSize: pagination.limit,
+                    total: pagination.total,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) =>
+                      `${range[0]}-${range[1]} của ${total} thương hiệu`,
+                    onChange: (page, pageSize) => {
+                      setPagination((prev) => ({
+                        ...prev,
+                        page,
+                        limit: pageSize || prev.limit,
+                      }));
+                    },
+                  }}
+                  scroll={{ x: 1000 }}
+                />
+              )}
+            </Card>
+          </Badge.Ribbon>
+        </Col>
+      </Row>
+
+      {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
         onCancel={() => {
@@ -378,12 +373,12 @@ export default function AdminBrands() {
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         fields={fields}
-        title={editingRecord ? "Sửa thương hiệu" : "Thêm thương hiệu mới"}
+        title={editingRecord ? "Sửa thương hiệu" : "Thêm thương hiệu"}
         confirmLoading={modalLoading}
         okText={editingRecord ? "Cập nhật" : "Tạo mới"}
       />
 
-      {/* DetailModal cho View */}
+      {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
@@ -392,6 +387,6 @@ export default function AdminBrands() {
         fields={detailFields}
         width={600}
       />
-    </div>
+    </>
   );
 }

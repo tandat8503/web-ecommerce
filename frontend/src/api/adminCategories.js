@@ -18,14 +18,18 @@ export async function getCategoryById(id) {
  * Thêm mới category (admin)
  */
 export async function createCategory(data) {
-  return await axiosClient.post("admin/categories", data);
+  return await axiosClient.post("admin/categories", data,{
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 }
 
 /**
  * Cập nhật category (admin)
  */
 export async function updateCategory(id, data) {
-  return await axiosClient.put(`admin/categories/${id}`, data);
+  return await axiosClient.put(`admin/categories/${id}`, data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 }
 
 /**

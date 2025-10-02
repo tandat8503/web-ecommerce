@@ -4,7 +4,6 @@ import {
   Input,
   Space,
   Popconfirm,
-  message,
   Row,
   Col,
   Card,
@@ -13,14 +12,10 @@ import {
   Tooltip,
   Badge,
   Select,
-  InputNumber
+  InputNumber,
 } from "antd";
-import {
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaEye
-} from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button"; // shadcn/ui button
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
@@ -33,12 +28,8 @@ import {
   deleteProduct,
   getProductById,
 } from "@/api/adminProducts";
-import {
-  getCategories,
-} from "@/api/adminCategories";
-import {
-  getBrands,
-} from "@/api/adminBrands";
+import { getCategories } from "@/api/adminCategories";
+import { getBrands } from "@/api/adminBrands";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -57,17 +48,20 @@ export default function AdminProducts() {
   const [detailData, setDetailData] = useState(null);
   const [loadingProductId, setLoadingProductId] = useState(null);
 
+  // Hàm delay
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
   // debounce search
   const [searchValue, setSearchValue] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 })); // reset về trang 1
+      setPagination((prev) => ({ ...prev, page: 1 }));
       setKeyword(searchValue);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchValue]);
 
-  // Load danh sách products
+  // fetch list products
   const fetchProducts = async () => {
     setShowSkeleton(true);
     try {
@@ -76,28 +70,29 @@ export default function AdminProducts() {
         limit: pagination.limit,
         search: keyword,
       });
-      setProducts(response.data.data || []);
+      setProducts(response.data.items || []);
       setPagination((prev) => ({
         ...prev,
         total: response.data.total || 0,
       }));
+      // ép skeleton hiển thị ít nhất 500ms (hoặc 800ms tuỳ bạn muốn chậm bao nhiêu)
+      await sleep(800);
     } catch (error) {
       toast.error("Lỗi khi tải danh sách sản phẩm");
-      console.error("Error fetching products:", error);
     } finally {
       setShowSkeleton(false);
     }
   };
 
-  // Load categories và brands cho select options
+  // fetch categories & brands
   const fetchSelectOptions = async () => {
     try {
       const [categoriesRes, brandsRes] = await Promise.all([
         getCategories({ limit: 1000 }),
-        getBrands({ limit: 1000 })
+        getBrands({ limit: 1000 }),
       ]);
-      setCategories(categoriesRes.data.data || []);
-      setBrands(brandsRes.data.data || []);
+      setCategories(categoriesRes.data.items || []);
+      setBrands(brandsRes.data.items || []);
     } catch (error) {
       console.error("Error fetching select options:", error);
     }
@@ -108,7 +103,7 @@ export default function AdminProducts() {
     fetchSelectOptions();
   }, [pagination.page, pagination.limit, keyword]);
 
-  // Handle create/edit
+  // CRUD actions
   const handleSubmit = async (values, editingRecord) => {
     setModalLoading(true);
     try {
@@ -129,7 +124,6 @@ export default function AdminProducts() {
     }
   };
 
-  // Handle delete
   const handleDelete = async (id) => {
     try {
       await deleteProduct(id);
@@ -140,19 +134,6 @@ export default function AdminProducts() {
     }
   };
 
-  // Handle edit
-  const handleEdit = (record) => {
-    setEditingRecord(record);
-    setModalOpen(true);
-  };
-
-  // Handle create
-  const handleCreate = () => {
-    setEditingRecord(null);
-    setModalOpen(true);
-  };
-
-  // Handle view detail
   const handleViewDetail = async (id) => {
     setLoadingProductId(id);
     try {
@@ -167,286 +148,185 @@ export default function AdminProducts() {
   };
 
   const columns = [
-    {
-      title: "ID",
-      dataIndex: "id",
-      key: "id",
-      width: 80,
-    },
+    { title: "ID", dataIndex: "id", key: "id", width: 80 },
     {
       title: "Hình ảnh",
       dataIndex: "imageUrl",
       key: "imageUrl",
-      width: 100,
-      render: (imageUrl) => (
-        imageUrl ? (
-          <Image
-            width={60}
-            height={60}
-            src={imageUrl}
-            style={{ objectFit: 'cover', borderRadius: 8 }}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0rHgQGS3kSq0LGI7HcSm4vBQJ8gDOKi4tS0YjK2CTGUQBXh/wwMCTUyMFgWH6eA1ccl4GBgBkeEqQgxJhGBjY2BgYUiFCzQYG9gYGhlYpCxKJAdUOS09i2CgxrHAxWCxMWC2a0oA4cEicvVcZQYGMJkMDiGlpSZmFgYc/0kIz7pLAIBUlYyq3nf8cRkYGuUQzA1YHgA0f4UwA0oUhgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
-          />
+      render: (v) =>
+        v ? (
+          <Image width={60} height={60} src={v} style={{ borderRadius: 8 }} />
         ) : (
-          <div style={{ 
-            width: 60, 
-            height: 60, 
-            backgroundColor: '#f0f0f0', 
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#999'
-          }}>
+          <div className="w-[60px] h-[60px] bg-gray-100 text-gray-400 flex items-center justify-center rounded">
             No Image
           </div>
-        )
-      ),
+        ),
     },
+    { title: "Tên sản phẩm", dataIndex: "name", key: "name", render: (t) => <strong>{t}</strong> },
+    { title: "Danh mục", dataIndex: "category", render: (c) => c ? <Tag color="blue">{c.name}</Tag> : "-" },
+    { title: "Thương hiệu", dataIndex: "brand", render: (b) => b ? <Tag color="green">{b.name}</Tag> : "-" },
+    { title: "Giá", dataIndex: "price", render: (p) => p ? `$${p.toLocaleString()}` : "-" },
+    { title: "Trạng thái", dataIndex: "isActive", render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag> },
+    { title: "Ngày tạo", dataIndex: "createdAt", render: (d) => new Date(d).toLocaleDateString("vi-VN") },
     {
-      title: "Tên sản phẩm",
-      dataIndex: "name",
-      key: "name",
-      render: (text) => <strong>{text}</strong>,
-    },
-    {
-      title: "Danh mục",
-      dataIndex: "category",
-      key: "category",
-      render: (category) => category ? <Tag color="blue">{category.name}</Tag> : '-',
-    },
-    {
-      title: "Thương hiệu",
-      dataIndex: "brand",
-      key: "brand",
-      render: (brand) => brand ? <Tag color="green">{brand.name}</Tag> : '-',
-    },
-    {
-      title: "Giá",
-      dataIndex: "price",
-      key: "price",
-      render: (price) => price ? `$${price.toLocaleString()}` : '-',
-    },
-    {
-      title: "Trạng thái",
-      dataIndex: "isActive",
-      key: "isActive",
-      width: 100,
-      render: (isActive) => (
-        <Tag color={isActive ? "green" : "red"}>
-          {isActive ? "Hoạt động" : "Tạm dừng"}
-        </Tag>
-      ),
-    },
-    {
-      title: "Ngày tạo",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      width: 120,
-      render: (date) => new Date(date).toLocaleDateString("vi-VN"),
-    },
-    {
-      title: "Hành động",
-      key: "actions",
-      width: 150,
+      title: "Thao tác",
       render: (_, record) => (
         <Space>
-          <Tooltip title="Xem chi tiết">
+          <Tooltip title="Chi tiết">
             <Button
-              size="small"
-              icon={<FaEye />}
+              size="sm"
+              variant="secondary"
               onClick={() => handleViewDetail(record.id)}
-              loading={loadingProductId === record.id}
-            />
+              disabled={loadingProductId === record.id}
+            >
+              {loadingProductId === record.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FaEye />
+              )}
+            </Button>
           </Tooltip>
-          <Tooltip title="Chỉnh sửa">
+          <Tooltip title="Sửa">
             <Button
-              size="small"
-              icon={<FaEdit />}
-              onClick={() => handleEdit(record)}
-            />
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              size="sm"
+              onClick={() => {
+                setEditingRecord(record);
+                setModalOpen(true);
+              }}
+            >
+              <FaEdit />
+            </Button>
           </Tooltip>
-          <Popconfirm
-            title="Bạn có chắc chắn muốn xóa sản phẩm này?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Xóa"
-            cancelText="Hủy"
-          >
-            <Tooltip title="Xóa">
-              <Button
-                size="small"
-                danger
-                icon={<FaTrash />}
-              />
-            </Tooltip>
-          </Popconfirm>
+          <Tooltip title="Xóa">
+            <Popconfirm
+              title="Bạn có chắc chắn muốn xóa sản phẩm này?"
+              onConfirm={() => handleDelete(record.id)}
+            >
+              <Button variant="destructive" size="sm">
+                <FaTrash />
+              </Button>
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
   ];
 
-  // Định nghĩa fields cho CrudModal
   const fields = [
-    {
-      name: "name",
-      label: "Tên sản phẩm",
-      component: <Input placeholder="Nhập tên sản phẩm" />,
-      rules: [
-        { required: true, message: "Vui lòng nhập tên sản phẩm" },
-        { min: 2, message: "Tên sản phẩm phải có ít nhất 2 ký tự" },
-      ],
-    },
-    {
-      name: "description",
-      label: "Mô tả",
-      component: <Input.TextArea rows={3} placeholder="Nhập mô tả sản phẩm" />,
-    },
-    {
-      name: "price",
-      label: "Giá",
-      component: <InputNumber placeholder="Nhập giá sản phẩm" style={{ width: '100%' }} />,
-      rules: [
-        { required: true, message: "Vui lòng nhập giá sản phẩm" },
-        { type: 'number', min: 0, message: "Giá phải lớn hơn 0" },
-      ],
-    },
+    { name: "name", label: "Tên sản phẩm", component: <Input placeholder="Tên sản phẩm" />, rules: [{ required: true, message: "Bắt buộc nhập" }] },
+    { name: "description", label: "Mô tả", component: <Input.TextArea rows={3} placeholder="Mô tả" /> },
+    { name: "price", label: "Giá", component: <InputNumber placeholder="Giá" style={{ width: "100%" }} />, rules: [{ required: true, message: "Nhập giá" }] },
     {
       name: "categoryId",
       label: "Danh mục",
       component: (
-        <Select placeholder="Chọn danh mục" allowClear>
-          {categories.map(category => (
-            <Option key={category.id} value={category.id}>
-              {category.name}
-            </Option>
-          ))}
+        <Select placeholder="Chọn danh mục">
+          {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
         </Select>
       ),
-      rules: [{ required: true, message: "Vui lòng chọn danh mục" }],
+      rules: [{ required: true, message: "Chọn danh mục" }],
     },
     {
       name: "brandId",
       label: "Thương hiệu",
       component: (
-        <Select placeholder="Chọn thương hiệu" allowClear>
-          {brands.map(brand => (
-            <Option key={brand.id} value={brand.id}>
-              {brand.name}
-            </Option>
-          ))}
+        <Select placeholder="Chọn thương hiệu">
+          {brands.map((b) => <Option key={b.id} value={b.id}>{b.name}</Option>)}
         </Select>
       ),
-      rules: [{ required: true, message: "Vui lòng chọn thương hiệu" }],
+      rules: [{ required: true, message: "Chọn thương hiệu" }],
     },
-    {
-      name: "imageUrl",
-      label: "URL hình ảnh",
-      component: <Input placeholder="Nhập URL hình ảnh" />,
-    },
-    {
-      name: "isActive",
-      label: "Trạng thái",
-      component: <input type="checkbox" />,
-      valuePropName: "checked",
-    },
+    { name: "imageUrl", label: "URL hình ảnh", component: <Input placeholder="Nhập URL hình ảnh" /> },
+    { name: "isActive", label: "Trạng thái", component: <input type="checkbox" />, valuePropName: "checked" },
   ];
 
-  // Định nghĩa fields cho DetailModal
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "name", label: "Tên sản phẩm" },
     { name: "description", label: "Mô tả" },
-    { name: "price", label: "Giá", render: (value) => value ? `$${value.toLocaleString()}` : '-' },
-    { name: "category", label: "Danh mục", render: (value) => value?.name || '-' },
-    { name: "brand", label: "Thương hiệu", render: (value) => value?.name || '-' },
-    { 
-      name: "imageUrl", 
-      label: "Hình ảnh",
-      render: (value) => value ? <Image width={100} src={value} /> : "Không có hình ảnh"
-    },
-    { 
-      name: "isActive", 
-      label: "Trạng thái",
-      render: (value) => (
-        <Tag color={value ? "green" : "red"}>
-          {value ? "Hoạt động" : "Tạm dừng"}
-        </Tag>
-      )
-    },
-    { 
-      name: "createdAt", 
-      label: "Ngày tạo",
-      render: (value) => new Date(value).toLocaleDateString("vi-VN")
-    },
+    { name: "price", label: "Giá", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
+    { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },
+    { name: "brand", label: "Thương hiệu", render: (v) => v?.name || "-" },
+    { name: "imageUrl", label: "Hình ảnh", render: (v) => v ? <Image width={100} src={v} /> : "Không có hình ảnh" },
+    { name: "isActive", label: "Trạng thái", render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag> },
+    { name: "createdAt", label: "Ngày tạo", render: (v) => new Date(v).toLocaleDateString("vi-VN") },
   ];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <Row justify="space-between" align="middle" className="mb-4">
-          <Col>
-            <h1 className="text-2xl font-bold mb-0">Quản lý Sản phẩm</h1>
-            <p className="text-gray-600">Quản lý sản phẩm trong hệ thống</p>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<FaPlus />}
-              onClick={handleCreate}
-              size="large"
-            >
-              Thêm sản phẩm
-            </Button>
-          </Col>
-        </Row>
-
-        <Row justify="space-between" align="middle" className="mb-4">
-          <Col>
-            <Search
-              placeholder="Tìm kiếm sản phẩm..."
-              allowClear
-              size="large"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              style={{ width: 300 }}
-            />
-          </Col>
-          <Col>
-            <span className="text-gray-600">
-              Tổng: {pagination.total} sản phẩm
-            </span>
-          </Col>
-        </Row>
-
-        {showSkeleton ? (
-          <TableSkeleton />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={products}
-            rowKey="id"
-            pagination={{
-              current: pagination.page,
-              pageSize: pagination.limit,
-              total: pagination.total,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} của ${total} sản phẩm`,
-              onChange: (page, pageSize) => {
-                setPagination((prev) => ({
-                  ...prev,
-                  page,
-                  limit: pageSize || prev.limit,
-                }));
-              },
+    <>
+      <style>
+        {`
+          @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}
+      </style>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
+          <Badge.Ribbon
+            text="Quản lý Sản phẩm"
+            color="#667eea"
+            style={{
+              background:
+                "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
+              backgroundSize: "300% 300%",
+              animation: "gradientShift 4s ease infinite",
+              fontWeight: "bold",
+              fontSize: "16px",
+              padding: "8px 20px",
             }}
-            scroll={{ x: 1200 }}
-          />
-        )}
-      </Card>
+          >
+            <Card className="shadow rounded-2xl">
+              <div className="flex justify-between mb-4">
+                <div className="flex gap-4">
+                  <Button variant="default" onClick={() => { setEditingRecord(null); setModalOpen(true); }}>
+                    <FaPlus /> Thêm sản phẩm
+                  </Button>
+                  <Search
+                    placeholder="Tìm kiếm sản phẩm..."
+                    allowClear
+                    size="large"
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    style={{ width: 300 }}
+                  />
+                </div>
+                <div>Tổng: {pagination.total} sản phẩm</div>
+              </div>
 
-      {/* CrudModal cho Create/Edit */}
+              {showSkeleton ? (
+                <TableSkeleton />
+              ) : (
+                <Table
+                  columns={columns}
+                  dataSource={products}
+                  rowKey="id"
+                  pagination={{
+                    current: pagination.page,
+                    pageSize: pagination.limit,
+                    total: pagination.total,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
+                    onChange: (page, pageSize) => {
+                      setPagination((prev) => ({
+                        ...prev,
+                        page,
+                        limit: pageSize || prev.limit,
+                      }));
+                    },
+                  }}
+                />
+              )}
+            </Card>
+          </Badge.Ribbon>
+        </Col>
+      </Row>
+
+      {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
         onCancel={() => {
@@ -456,12 +336,12 @@ export default function AdminProducts() {
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         fields={fields}
-        title={editingRecord ? "Sửa sản phẩm" : "Thêm sản phẩm mới"}
+        title={editingRecord ? "Sửa sản phẩm" : "Thêm sản phẩm"}
         confirmLoading={modalLoading}
         okText={editingRecord ? "Cập nhật" : "Tạo mới"}
       />
 
-      {/* DetailModal cho View */}
+      {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
         onCancel={() => setDetailOpen(false)}
@@ -470,6 +350,6 @@ export default function AdminProducts() {
         fields={detailFields}
         width={600}
       />
-    </div>
+    </>
   );
 }
