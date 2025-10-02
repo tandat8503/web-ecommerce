@@ -1,8 +1,11 @@
 // cấu hình axios client để sử dụng trong toàn bộ ứng dụng
 import axios from "axios";
 
+// Sử dụng biến môi trường Vite, fallback về localhost:5000
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 const axiosClient = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -22,7 +25,7 @@ axiosClient.interceptors.request.use((config) => {
 
 // Tạo axios client riêng cho API public (không cần token)
 export const publicAxiosClient = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },

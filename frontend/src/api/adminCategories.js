@@ -34,3 +34,14 @@ export async function updateCategory(id, data) {
 export async function deleteCategory(id) {
   return await axiosClient.delete(`admin/categories/${id}`);
 }
+
+// Default export object chứa tất cả functions
+const adminCategoriesAPI = {
+  getCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory
+};
+
+export default adminCategoriesAPI;
