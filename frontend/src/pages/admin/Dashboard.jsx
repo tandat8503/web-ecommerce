@@ -1,7 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts"
-import { Row, Col } from "antd"
+import { Row, Col, Statistic } from "antd"
+import { useState, useEffect } from "react"
+import adminCategoriesAPI from "@/api/adminCategories"
+import adminBrandsAPI from "@/api/adminBrands"
+import adminProductsAPI from "@/api/adminProducts"
 
 const chartData = [
   { name: "Hà Nội", value: 120 },
@@ -11,6 +15,39 @@ const chartData = [
 ]
 
 export default function Dashboard() {
+  const [stats, setStats] = useState({
+    categories: 0,
+    brands: 0,
+    products: 0,
+    orders: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const [categoriesRes, brandsRes, productsRes] = await Promise.all([
+        adminCategoriesAPI.getCategories({ limit: 1 }),
+        adminBrandsAPI.getBrands({ limit: 1 }),
+        adminProductsAPI.getProducts({ limit: 1 })
+      ]);
+
+      setStats({
+        categories: categoriesRes.data.total || 0,
+        brands: brandsRes.data.total || 0,
+        products: productsRes.data.total || 0,
+        orders: 0 // Chưa có API orders
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold mb-4">Dashboard - Thống kê</h1>
@@ -20,32 +57,48 @@ export default function Dashboard() {
         <Col span={6}>
           <Card>
             <CardContent className="p-4">
-              <p className="text-gray-600">Tổng số người dùng</p>
-              <p className="text-xl font-bold text-green-600">2</p>
+              <Statistic
+                title="Tổng số danh mục"
+                value={stats.categories}
+                valueStyle={{ color: '#3f8600' }}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
             <CardContent className="p-4">
-              <p className="text-gray-600">Đơn hàng mới</p>
-              <p className="text-xl font-bold text-red-600">0</p>
+              <Statistic
+                title="Tổng số thương hiệu"
+                value={stats.brands}
+                valueStyle={{ color: '#cf1322' }}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
             <CardContent className="p-4">
-              <p className="text-gray-600">Sản phẩm bán chạy</p>
-              <p className="text-xl font-bold text-blue-600">0</p>
+              <Statistic
+                title="Tổng số sản phẩm"
+                value={stats.products}
+                valueStyle={{ color: '#1890ff' }}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Col>
         <Col span={6}>
           <Card>
             <CardContent className="p-4">
-              <p className="text-gray-600">Doanh thu hôm nay</p>
-              <p className="text-xl font-bold text-green-700">0 VNĐ</p>
+              <Statistic
+                title="Tổng số đơn hàng"
+                value={stats.orders}
+                valueStyle={{ color: '#722ed1' }}
+                loading={loading}
+              />
             </CardContent>
           </Card>
         </Col>
