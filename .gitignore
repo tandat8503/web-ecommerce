@@ -281,9 +281,8 @@ public/uploads/
 # ===========================
 # Docker
 .dockerignore
-Dockerfile
-docker-compose.yml
-docker-compose.override.yml
+# Keep Dockerfile and docker-compose.yml for project setup
+# docker-compose.override.yml
 
 # ===========================
 # MISC
@@ -311,9 +310,13 @@ docker-compose.override.yml
 # ===========================
 # Your specific files
 apikey.txt
+apikey_env.txt
 *.txt
 !README.txt
 !CHANGELOG.txt
+!SIMPLIFIED_ADMIN_PLAN.txt
+!TASK_DIVISION_PLAN.txt
+!giaithich_db.txt
 
 # Database dumps
 *.sql
@@ -323,3 +326,107 @@ apikey.txt
 config/local.js
 config/production.js
 config/development.js
+
+# ===========================
+# ADDITIONAL IGNORE PATTERNS
+# ===========================
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Log files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Build artifacts
+build/
+dist/
+out/
+.next/
+.nuxt/
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/

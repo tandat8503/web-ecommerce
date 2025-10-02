@@ -1,0 +1,342 @@
+# 📋 KẾ HOẠCH CHIA TASK - CHỨC NĂNG QUẢN TRỊ VÀ PHÂN TÍCH
+
+## 🎯 TỔNG QUAN DỰ ÁN
+- **Mục tiêu:** Xây dựng hệ thống quản trị và phân tích cho e-commerce
+- **Thời gian:** 3-4 tuần
+- **Số người tham gia:** 2 người
+- **Công nghệ:** Node.js, Express, Prisma, MySQL, Cloudinary
+
+---
+
+## 👥 PHÂN CHIA NHIỆM VỤ
+
+### 🔧 NGƯỜI 1: QUẢN TRỊ CƠ BẢN (ADMIN CORE)
+**Mục tiêu:** Xây dựng hệ thống quản trị cơ bản
+**Thời gian ước tính:** 2-3 tuần
+**Độ phức tạp:** Trung bình
+
+#### 📦 1. QUẢN LÝ SẢN PHẨM (Product Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/products           // Danh sách sản phẩm
+POST   /api/admin/products           // Tạo sản phẩm mới
+GET    /api/admin/products/:id       // Chi tiết sản phẩm
+PUT    /api/admin/products/:id       // Cập nhật sản phẩm
+DELETE /api/admin/products/:id       // Xóa sản phẩm
+POST   /api/admin/products/:id/images // Upload ảnh sản phẩm
+DELETE /api/admin/products/:id/images/:imageId // Xóa ảnh
+```
+
+**Files cần tạo:**
+- `controller/adminProductController.js`
+- `routes/adminProductRoutes.js`
+- `validators/product.valid.js`
+- `middleware/adminAuth.js`
+
+**Chức năng chi tiết:**
+- CRUD sản phẩm (tên, mô tả, giá, tồn kho, kích thước, chất liệu, màu sắc, trọng lượng, bảo hành)
+- Upload nhiều ảnh sản phẩm
+- Quản lý ảnh chính/ảnh phụ
+- Tìm kiếm và lọc sản phẩm
+- Validation đầy đủ
+
+#### 🏷️ 2. QUẢN LÝ DANH MỤC & HÃNG (Categories & Brands)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/categories         // Danh sách danh mục
+POST   /api/admin/categories         // Tạo danh mục mới
+PUT    /api/admin/categories/:id     // Cập nhật danh mục
+DELETE /api/admin/categories/:id     // Xóa danh mục
+
+GET    /api/admin/brands             // Danh sách hãng
+POST   /api/admin/brands             // Tạo hãng mới
+PUT    /api/admin/brands/:id         // Cập nhật hãng
+DELETE /api/admin/brands/:id         // Xóa hãng
+```
+
+**Files cần tạo:**
+- `controller/adminCategoryController.js`
+- `controller/adminBrandController.js`
+- `routes/adminCategoryRoutes.js`
+- `routes/adminBrandRoutes.js`
+- `validators/category.valid.js`
+- `validators/brand.valid.js`
+
+**Chức năng chi tiết:**
+- CRUD danh mục (tên, slug, mô tả, ảnh)
+- CRUD hãng sản xuất (tên, quốc gia, mô tả, logo)
+- Quản lý thứ tự hiển thị
+- Kiểm tra ràng buộc khi xóa
+
+#### 📦 3. QUẢN LÝ ĐƠN HÀNG (Order Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/orders             // Danh sách đơn hàng
+GET    /api/admin/orders/:id         // Chi tiết đơn hàng
+PUT    /api/admin/orders/:id/status  // Cập nhật trạng thái đơn hàng
+PUT    /api/admin/orders/:id/notes   // Thêm ghi chú đơn hàng
+GET    /api/admin/orders/export      // Xuất danh sách đơn hàng
+```
+
+**Files cần tạo:**
+- `controller/adminOrderController.js`
+- `routes/adminOrderRoutes.js`
+- `validators/order.valid.js`
+
+**Chức năng chi tiết:**
+- Xem danh sách đơn hàng với filter
+- Chi tiết đơn hàng và sản phẩm
+- Cập nhật trạng thái đơn hàng
+- Thêm ghi chú cho đơn hàng
+- Xuất báo cáo đơn hàng
+
+#### 👥 4. QUẢN LÝ KHÁCH HÀNG (Customer Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/customers          // Danh sách khách hàng
+GET    /api/admin/customers/:id      // Chi tiết khách hàng
+PUT    /api/admin/customers/:id/status // Kích hoạt/vô hiệu hóa tài khoản
+GET    /api/admin/customers/:id/orders // Đơn hàng của khách hàng
+GET    /api/admin/customers/export   // Xuất danh sách khách hàng
+```
+
+**Files cần tạo:**
+- `controller/adminCustomerController.js`
+- `routes/adminCustomerRoutes.js`
+
+**Chức năng chi tiết:**
+- Xem danh sách khách hàng
+- Chi tiết thông tin khách hàng
+- Quản lý trạng thái tài khoản
+- Lịch sử đơn hàng của khách hàng
+- Thống kê khách hàng
+
+---
+
+### 📊 NGƯỜI 2: PHÂN TÍCH & MARKETING (ANALYTICS & MARKETING)
+**Mục tiêu:** Xây dựng hệ thống phân tích và marketing
+
+
+#### 📈 1. DASHBOARD & THỐNG KÊ (Analytics Dashboard)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/dashboard/overview     // Tổng quan dashboard
+GET    /api/admin/dashboard/revenue      // Thống kê doanh thu
+GET    /api/admin/dashboard/orders       // Thống kê đơn hàng
+GET    /api/admin/dashboard/customers    // Thống kê khách hàng
+GET    /api/admin/dashboard/products     // Thống kê sản phẩm
+GET    /api/admin/dashboard/export       // Xuất báo cáo
+```
+
+**Files cần tạo:**
+- `controller/adminAnalyticsController.js`
+- `routes/adminAnalyticsRoutes.js`
+- `services/analyticsService.js`
+- `utils/chartDataGenerator.js`
+
+**Chức năng chi tiết:**
+- Dashboard tổng quan (doanh thu, đơn hàng, khách hàng)
+- Thống kê doanh thu theo thời gian
+- Thống kê đơn hàng theo trạng thái
+- Thống kê sản phẩm bán chạy
+- Biểu đồ và báo cáo trực quan
+
+#### 🎫 2. QUẢN LÝ MÃ GIẢM GIÁ (Coupon Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/coupons             // Danh sách mã giảm giá
+POST   /api/admin/coupons             // Tạo mã giảm giá mới
+PUT    /api/admin/coupons/:id         // Cập nhật mã giảm giá
+DELETE /api/admin/coupons/:id         // Xóa mã giảm giá
+GET    /api/admin/coupons/:id/usage   // Lịch sử sử dụng mã
+GET    /api/admin/coupons/export      // Xuất báo cáo mã giảm giá
+```
+
+**Files cần tạo:**
+- `controller/adminCouponController.js`
+- `routes/adminCouponRoutes.js`
+- `validators/coupon.valid.js`
+- `services/couponService.js`
+
+**Chức năng chi tiết:**
+- CRUD mã giảm giá
+- Quản lý điều kiện áp dụng
+- Theo dõi lịch sử sử dụng
+- Thống kê hiệu quả mã giảm giá
+- Tự động hết hạn mã
+
+#### 🖼️ 3. QUẢN LÝ BANNER (Banner Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/banners             // Danh sách banner
+POST   /api/admin/banners             // Tạo banner mới
+PUT    /api/admin/banners/:id         // Cập nhật banner
+DELETE /api/admin/banners/:id         // Xóa banner
+PUT    /api/admin/banners/:id/status  // Kích hoạt/vô hiệu hóa banner
+GET    /api/admin/banners/export      // Xuất danh sách banner
+```
+
+**Files cần tạo:**
+- `controller/adminBannerController.js`
+- `routes/adminBannerRoutes.js`
+- `validators/banner.valid.js`
+
+**Chức năng chi tiết:**
+- CRUD banner quảng cáo
+- Upload ảnh banner
+- Quản lý vị trí hiển thị
+- Quản lý thời gian hiển thị
+- Thống kê hiệu quả banner
+
+#### ⚙️ 4. QUẢN LÝ CÀI ĐẶT (Settings Management)
+**API Endpoints cần làm:**
+```
+GET    /api/admin/settings            // Lấy cài đặt hệ thống
+PUT    /api/admin/settings            // Cập nhật cài đặt hệ thống
+GET    /api/admin/settings/shipping   // Cài đặt phí vận chuyển
+PUT    /api/admin/settings/shipping   // Cập nhật phí vận chuyển
+GET    /api/admin/settings/export     // Xuất cài đặt
+```
+
+**Files cần tạo:**
+- `controller/adminSettingsController.js`
+- `routes/adminSettingsRoutes.js`
+- `validators/settings.valid.js`
+
+**Chức năng chi tiết:**
+- Quản lý cài đặt website
+- Cài đặt phí vận chuyển
+- Cài đặt thông tin liên hệ
+- Cài đặt email template
+- Backup và restore cài đặt
+
+---
+
+## 📅 TIMELINE CHI TIẾT
+
+### TUẦN 1: SETUP & CORE FEATURES
+**Người 1:**
+- [ ] Setup admin authentication middleware
+- [ ] Tạo Product Management cơ bản
+- [ ] Implement CRUD sản phẩm
+- [ ] Test API với Postman
+
+**Người 2:**
+- [ ] Setup analytics service
+- [ ] Tạo Dashboard cơ bản
+- [ ] Implement thống kê doanh thu
+- [ ] Test API với Postman
+
+### TUẦN 2: EXPAND FEATURES
+**Người 1:**
+- [ ] Hoàn thiện Categories & Brands
+- [ ] Implement Order Management
+- [ ] Tạo validation cho tất cả
+- [ ] Integration testing
+
+**Người 2:**
+- [ ] Hoàn thiện Analytics Dashboard
+- [ ] Implement Coupon Management
+- [ ] Implement Banner Management
+- [ ] Integration testing
+
+### TUẦN 3: ADVANCED FEATURES
+**Người 1:**
+- [ ] Implement Customer Management
+- [ ] Tạo export functions
+- [ ] Performance optimization
+- [ ] Documentation
+
+**Người 2:**
+- [ ] Implement Settings Management
+- [ ] Tạo advanced analytics
+- [ ] Export và reporting
+- [ ] Documentation
+
+### TUẦN 4: INTEGRATION & TESTING
+**Cả hai:**
+- [ ] Integration testing
+- [ ] Bug fixes
+- [ ] Performance testing
+- [ ] Security testing
+- [ ] Final documentation
+
+---
+
+## 🔗 DEPENDENCY & INTEGRATION
+
+### CẦN LÀM TRƯỚC (SHARED):
+1. **Admin Authentication** - Middleware phân quyền admin
+2. **Database Schema** - Đã có sẵn
+3. **Upload System** - Đã có sẵn (Cloudinary)
+4. **Error Handling** - Xử lý lỗi thống nhất
+
+### CẦN TÍCH HỢP:
+1. **Admin Routes** - Thêm vào `routes/index.js`
+2. **Admin Middleware** - Phân quyền admin
+3. **Shared Services** - Services dùng chung
+4. **API Documentation** - Swagger/OpenAPI
+
+---
+
+## 📋 CHECKLIST HOÀN THÀNH
+
+### NGƯỜI 1 - QUẢN TRỊ CƠ BẢN:
+- [ ] Product Management (CRUD + Images)
+- [ ] Category Management (CRUD)
+- [ ] Brand Management (CRUD)
+- [ ] Order Management (View + Update)
+- [ ] Customer Management (View + Control)
+- [ ] Admin Authentication
+- [ ] Validation & Error Handling
+- [ ] API Testing
+- [ ] Documentation
+
+### NGƯỜI 2 - PHÂN TÍCH & MARKETING:
+- [ ] Analytics Dashboard
+- [ ] Revenue Analytics
+- [ ] Order Analytics
+- [ ] Customer Analytics
+- [ ] Product Analytics
+- [ ] Coupon Management
+- [ ] Banner Management
+- [ ] Settings Management
+- [ ] Export & Reporting
+- [ ] API Testing
+- [ ] Documentation
+
+---
+
+## 🚀 KHUYẾN NGHỊ
+
+### NGƯỜI 1 NÊN LÀM:
+- Có kinh nghiệm với CRUD operations
+- Quen với Prisma và database
+- Thích làm phần cơ sở
+- Có thể làm việc độc lập
+
+### NGƯỜI 2 NÊN LÀM:
+- Có kinh nghiệm với analytics
+- Quen với data processing
+- Thích làm phần phức tạp
+- Có thể tạo báo cáo trực quan
+
+---
+
+## 📞 LIÊN HỆ & HỖ TRỢ
+
+**Khi cần hỗ trợ:**
+1. Tạo issue trên GitHub
+2. Liên hệ qua Slack/Discord
+3. Code review hàng ngày
+4. Standup meeting hàng tuần
+
+**Tài liệu tham khảo:**
+- Prisma Documentation
+- Express.js Guide
+- Cloudinary API
+- JWT Authentication
+
+---
+
+**Chúc cả hai thành công! 🎉**

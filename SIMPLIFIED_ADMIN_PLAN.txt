@@ -1,0 +1,178 @@
+# 📋 KẾ HOẠCH ĐƠN GIẢN - CHỨC NĂNG QUẢN TRỊ
+
+## 🎯 MỤC TIÊU
+- **Tập trung:** Chỉ làm chức năng quản trị cơ bản trước
+- **Thời gian:** 2 tuần
+- **Số người:** 2 người
+- **Ưu tiên:** Hoàn thành core admin features trước
+
+---
+
+## 👥 CHIA TASK ĐƠN GIẢN
+
+### 🔧 NGƯỜI 1: SẢN PHẨM & DANH MỤC
+**Mục tiêu:** Quản lý sản phẩm và danh mục
+**Thời gian:** 1 tuần
+
+#### 📦 1. QUẢN LÝ SẢN PHẨM
+**API cần làm:**
+```
+GET    /api/admin/products           // Danh sách sản phẩm
+POST   /api/admin/products           // Tạo sản phẩm mới
+GET    /api/admin/products/:id       // Chi tiết sản phẩm
+PUT    /api/admin/products/:id       // Cập nhật sản phẩm
+DELETE /api/admin/products/:id       // Xóa sản phẩm
+POST   /api/admin/products/:id/images // Upload ảnh
+```
+
+**Files cần tạo:**
+- `controller/adminProductController.js`
+- `routes/adminProductRoutes.js`
+- `validators/product.valid.js`
+
+#### 🏷️ 2. QUẢN LÝ DANH MỤC & HÃNG
+**API cần làm:**
+```
+GET    /api/admin/categories         // Danh sách danh mục
+POST   /api/admin/categories         // Tạo danh mục mới
+PUT    /api/admin/categories/:id     // Cập nhật danh mục
+DELETE /api/admin/categories/:id     // Xóa danh mục
+
+GET    /api/admin/brands             // Danh sách hãng
+POST   /api/admin/brands             // Tạo hãng mới
+PUT    /api/admin/brands/:id         // Cập nhật hãng
+DELETE /api/admin/brands/:id         // Xóa hãng
+```
+
+**Files cần tạo:**
+- `controller/adminCategoryController.js`
+- `controller/adminBrandController.js`
+- `routes/adminCategoryRoutes.js`
+- `routes/adminBrandRoutes.js`
+
+---
+
+### 📊 NGƯỜI 2: ĐƠN HÀNG & KHÁCH HÀNG
+**Mục tiêu:** Quản lý đơn hàng và khách hàng
+**Thời gian:** 1 tuần
+
+#### 📦 1. QUẢN LÝ ĐƠN HÀNG
+**API cần làm:**
+```
+GET    /api/admin/orders             // Danh sách đơn hàng
+GET    /api/admin/orders/:id         // Chi tiết đơn hàng
+PUT    /api/admin/orders/:id/status  // Cập nhật trạng thái
+PUT    /api/admin/orders/:id/notes   // Thêm ghi chú
+```
+
+**Files cần tạo:**
+- `controller/adminOrderController.js`
+- `routes/adminOrderRoutes.js`
+
+#### 👥 2. QUẢN LÝ KHÁCH HÀNG
+**API cần làm:**
+```
+GET    /api/admin/customers          // Danh sách khách hàng
+GET    /api/admin/customers/:id      // Chi tiết khách hàng
+PUT    /api/admin/customers/:id/status // Kích hoạt/vô hiệu hóa
+GET    /api/admin/customers/:id/orders // Đơn hàng của khách hàng
+```
+
+**Files cần tạo:**
+- `controller/adminCustomerController.js`
+- `routes/adminCustomerRoutes.js`
+
+---
+
+## 📅 TIMELINE ĐƠN GIẢN
+
+### TUẦN 1: CORE FEATURES
+**Người 1:**
+- [ ] Setup admin authentication
+- [ ] Tạo Product Management
+- [ ] Tạo Category Management
+- [ ] Tạo Brand Management
+- [ ] Test API
+
+**Người 2:**
+- [ ] Setup admin authentication
+- [ ] Tạo Order Management
+- [ ] Tạo Customer Management
+- [ ] Test API
+
+### TUẦN 2: INTEGRATION & TESTING
+**Cả hai:**
+- [ ] Merge code
+- [ ] Integration testing
+- [ ] Bug fixes
+- [ ] Documentation
+
+---
+
+## 🔗 SHARED COMPONENTS
+
+### CẦN LÀM TRƯỚC (CẢ HAI):
+1. **Admin Authentication Middleware**
+   - File: `middleware/adminAuth.js`
+   - Chức năng: Phân quyền admin
+
+2. **Admin Routes Integration**
+   - File: `routes/index.js`
+   - Chức năng: Thêm admin routes
+
+3. **Error Handling**
+   - File: `middleware/errorHandler.js`
+   - Chức năng: Xử lý lỗi thống nhất
+
+---
+
+## 📋 CHECKLIST HOÀN THÀNH
+
+### NGƯỜI 1 - SẢN PHẨM & DANH MỤC:
+- [ ] Product CRUD (Create, Read, Update, Delete)
+- [ ] Product Image Upload
+- [ ] Category CRUD
+- [ ] Brand CRUD
+- [ ] Validation cho tất cả
+- [ ] API Testing
+- [ ] Documentation
+
+### NGƯỜI 2 - ĐƠN HÀNG & KHÁCH HÀNG:
+- [ ] Order Management (View, Update Status)
+- [ ] Order Notes
+- [ ] Customer Management (View, Control)
+- [ ] Customer Orders History
+- [ ] API Testing
+- [ ] Documentation
+
+---
+
+## 🚀 KHUYẾN NGHỊ
+
+### NGƯỜI 1 NÊN LÀM:
+- Có kinh nghiệm với CRUD operations
+- Quen với Prisma và database
+- Thích làm phần cơ sở
+
+### NGƯỜI 2 NÊN LÀM:
+- Có kinh nghiệm với business logic
+- Quen với order management
+- Thích làm phần phức tạp
+
+---
+
+## 📞 COMMUNICATION
+
+**Hàng ngày:**
+- Standup meeting 15 phút
+- Báo cáo tiến độ
+- Thông báo thay đổi
+
+**Hàng tuần:**
+- Code review
+- Demo progress
+- Plan next week
+
+---
+
+**Chúc cả hai thành công! 🎉**
