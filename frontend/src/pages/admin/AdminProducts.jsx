@@ -61,24 +61,25 @@ export default function AdminProducts() {
     return () => clearTimeout(timer);
   }, [searchValue]);
 
-  // fetch list products
+  // Load danh sách products
   const fetchProducts = async () => {
     setShowSkeleton(true);
     try {
       const response = await getProducts({
         page: pagination.page,
         limit: pagination.limit,
-        search: keyword,
+        q: keyword, // Thay đổi từ 'search' thành 'q' để nhất quán
       });
       setProducts(response.data.items || []);
       setPagination((prev) => ({
         ...prev,
         total: response.data.total || 0,
       }));
-      // ép skeleton hiển thị ít nhất 500ms (hoặc 800ms tuỳ bạn muốn chậm bao nhiêu)
+      // ép skeleton hiển thị ít nhất 800ms
       await sleep(800);
     } catch (error) {
       toast.error("Lỗi khi tải danh sách sản phẩm");
+      console.error("Error fetching products:", error);
     } finally {
       setShowSkeleton(false);
     }
@@ -103,7 +104,7 @@ export default function AdminProducts() {
     fetchSelectOptions();
   }, [pagination.page, pagination.limit, keyword]);
 
-  // CRUD actions
+  // Handle create/edit
   const handleSubmit = async (values, editingRecord) => {
     setModalLoading(true);
     try {
@@ -124,6 +125,7 @@ export default function AdminProducts() {
     }
   };
 
+  // Handle delete
   const handleDelete = async (id) => {
     try {
       await deleteProduct(id);
@@ -134,6 +136,13 @@ export default function AdminProducts() {
     }
   };
 
+  // Handle create
+  const handleCreate = () => {
+    setEditingRecord(null);
+    setModalOpen(true);
+  };
+
+  // Handle view detail
   const handleViewDetail = async (id) => {
     setLoadingProductId(id);
     try {
@@ -153,29 +162,54 @@ export default function AdminProducts() {
       title: "Hình ảnh",
       dataIndex: "imageUrl",
       key: "imageUrl",
-      render: (v) =>
-        v ? (
-          <Image width={60} height={60} src={v} style={{ borderRadius: 8 }} />
+      width: 100,
+      render: (imageUrl) =>
+        imageUrl ? (
+          <Image width={60} height={60} src={imageUrl} style={{ objectFit: "cover", borderRadius: 8 }} />
         ) : (
-          <div className="w-[60px] h-[60px] bg-gray-100 text-gray-400 flex items-center justify-center rounded">
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              background: "#f0f0f0",
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#999",
+            }}
+          >
             No Image
           </div>
         ),
     },
     { title: "Tên sản phẩm", dataIndex: "name", key: "name", render: (t) => <strong>{t}</strong> },
+    { title: "SKU", dataIndex: "sku", key: "sku", render: (t) => <code>{t}</code> },
     { title: "Danh mục", dataIndex: "category", render: (c) => c ? <Tag color="blue">{c.name}</Tag> : "-" },
     { title: "Thương hiệu", dataIndex: "brand", render: (b) => b ? <Tag color="green">{b.name}</Tag> : "-" },
     { title: "Giá", dataIndex: "price", render: (p) => p ? `$${p.toLocaleString()}` : "-" },
-    { title: "Trạng thái", dataIndex: "isActive", render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag> },
-    { title: "Ngày tạo", dataIndex: "createdAt", render: (d) => new Date(d).toLocaleDateString("vi-VN") },
+    { title: "Tồn kho", dataIndex: "stockQuantity", render: (s) => s || 0 },
+    {
+      title: "Trạng thái",
+      dataIndex: "isActive",
+      key: "isActive",
+      width: 100,
+      render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>,
+    },
+    {
+      title: "Ngày tạo",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (d) => new Date(d).toLocaleDateString("vi-VN"),
+    },
     {
       title: "Thao tác",
       render: (_, record) => (
         <Space>
-          <Tooltip title="Chi tiết">
+          <Tooltip title="Xem chi tiết">
             <Button
-              size="sm"
               variant="secondary"
+              size="sm"
               onClick={() => handleViewDetail(record.id)}
               disabled={loadingProductId === record.id}
             >
@@ -199,58 +233,118 @@ export default function AdminProducts() {
             </Button>
           </Tooltip>
           <Tooltip title="Xóa">
-            <Popconfirm
-              title="Bạn có chắc chắn muốn xóa sản phẩm này?"
-              onConfirm={() => handleDelete(record.id)}
-            >
-              <Button variant="destructive" size="sm">
-                <FaTrash />
-              </Button>
-            </Popconfirm>
+            <span>
+              <Popconfirm
+                title="Bạn có chắc muốn xóa sản phẩm này?"
+                onConfirm={() => handleDelete(record.id)}
+              >
+                <Button variant="destructive" size="sm">
+                  <FaTrash />
+                </Button>
+              </Popconfirm>
+            </span>
           </Tooltip>
         </Space>
       ),
     },
   ];
 
+  // Modal fields
   const fields = [
-    { name: "name", label: "Tên sản phẩm", component: <Input placeholder="Tên sản phẩm" />, rules: [{ required: true, message: "Bắt buộc nhập" }] },
-    { name: "description", label: "Mô tả", component: <Input.TextArea rows={3} placeholder="Mô tả" /> },
-    { name: "price", label: "Giá", component: <InputNumber placeholder="Giá" style={{ width: "100%" }} />, rules: [{ required: true, message: "Nhập giá" }] },
+    {
+      name: "name",
+      label: "Tên sản phẩm",
+      component: <Input placeholder="Nhập tên sản phẩm" />,
+      rules: [{ required: true, message: "Vui lòng nhập tên sản phẩm" }],
+    },
+    {
+      name: "sku",
+      label: "SKU",
+      component: <Input placeholder="Nhập SKU" />,
+      rules: [{ required: true, message: "Vui lòng nhập SKU" }],
+    },
+    {
+      name: "description",
+      label: "Mô tả",
+      component: <Input.TextArea rows={3} placeholder="Nhập mô tả" />,
+    },
+    {
+      name: "price",
+      label: "Giá",
+      component: <InputNumber placeholder="Nhập giá" style={{ width: "100%" }} />,
+      rules: [{ required: true, message: "Vui lòng nhập giá" }],
+    },
+    {
+      name: "stock",
+      label: "Tồn kho",
+      component: <InputNumber placeholder="Nhập số lượng tồn kho" style={{ width: "100%" }} />,
+    },
     {
       name: "categoryId",
       label: "Danh mục",
       component: (
         <Select placeholder="Chọn danh mục">
-          {categories.map((c) => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+          {categories.map((c) => (
+            <Option key={c.id} value={c.id}>
+              {c.name}
+            </Option>
+          ))}
         </Select>
       ),
-      rules: [{ required: true, message: "Chọn danh mục" }],
+      rules: [{ required: true, message: "Vui lòng chọn danh mục" }],
     },
     {
       name: "brandId",
       label: "Thương hiệu",
       component: (
         <Select placeholder="Chọn thương hiệu">
-          {brands.map((b) => <Option key={b.id} value={b.id}>{b.name}</Option>)}
+          {brands.map((b) => (
+            <Option key={b.id} value={b.id}>
+              {b.name}
+            </Option>
+          ))}
         </Select>
       ),
-      rules: [{ required: true, message: "Chọn thương hiệu" }],
+      rules: [{ required: true, message: "Vui lòng chọn thương hiệu" }],
     },
-    { name: "imageUrl", label: "URL hình ảnh", component: <Input placeholder="Nhập URL hình ảnh" /> },
-    { name: "isActive", label: "Trạng thái", component: <input type="checkbox" />, valuePropName: "checked" },
+    {
+      name: "imageUrl",
+      label: "URL hình ảnh",
+      component: <Input placeholder="Nhập URL hình ảnh" />,
+    },
+    {
+      name: "isActive",
+      label: "Trạng thái",
+      component: <input type="checkbox" />,
+      valuePropName: "checked",
+    },
   ];
 
+  // Detail fields
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "name", label: "Tên sản phẩm" },
+    { name: "sku", label: "SKU" },
     { name: "description", label: "Mô tả" },
     { name: "price", label: "Giá", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
+    { name: "stockQuantity", label: "Tồn kho", render: (v) => v || 0 },
     { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },
     { name: "brand", label: "Thương hiệu", render: (v) => v?.name || "-" },
-    { name: "imageUrl", label: "Hình ảnh", render: (v) => v ? <Image width={100} src={v} /> : "Không có hình ảnh" },
-    { name: "isActive", label: "Trạng thái", render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag> },
-    { name: "createdAt", label: "Ngày tạo", render: (v) => new Date(v).toLocaleDateString("vi-VN") },
+    {
+      name: "imageUrl",
+      label: "Hình ảnh",
+      render: (v) => (v ? <Image width={100} src={v} /> : "Không có"),
+    },
+    {
+      name: "isActive",
+      label: "Trạng thái",
+      render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>,
+    },
+    {
+      name: "createdAt",
+      label: "Ngày tạo",
+      render: (v) => new Date(v).toLocaleDateString("vi-VN"),
+    },
   ];
 
   return (
@@ -277,12 +371,14 @@ export default function AdminProducts() {
               fontWeight: "bold",
               fontSize: "16px",
               padding: "8px 20px",
+              height: "40px",
+              lineHeight: "24px",
             }}
           >
             <Card className="shadow rounded-2xl">
               <div className="flex justify-between mb-4">
                 <div className="flex gap-4">
-                  <Button variant="default" onClick={() => { setEditingRecord(null); setModalOpen(true); }}>
+                  <Button variant="default" onClick={handleCreate}>
                     <FaPlus /> Thêm sản phẩm
                   </Button>
                   <Search
@@ -310,7 +406,8 @@ export default function AdminProducts() {
                     total: pagination.total,
                     showSizeChanger: true,
                     showQuickJumper: true,
-                    showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} sản phẩm`,
+                    showTotal: (total, range) =>
+                      `${range[0]}-${range[1]} của ${total} sản phẩm`,
                     onChange: (page, pageSize) => {
                       setPagination((prev) => ({
                         ...prev,
@@ -319,6 +416,7 @@ export default function AdminProducts() {
                       }));
                     },
                   }}
+                  scroll={{ x: 1000 }}
                 />
               )}
             </Card>
