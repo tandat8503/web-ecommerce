@@ -266,3 +266,71 @@ export const logout = async (req, res) => {
     console.log('END', context)
   }
 }
+
+
+
+
+// Đăng nhập bằng Google
+import { OAuth2Client } from "google-auth-library";
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleLogin = async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ mess: 'Thiếu token từ frontend' });
+  }
+
+  try {
+    // Xác thực token với Google
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, given_name, family_name, picture, sub: googleId } = payload;
+
+    // Kiểm tra user đã tồn tại chưa
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      // Nếu chưa có → tạo mới
+      user = await prisma.user.create({
+        data: {
+          email,
+          firstName: given_name || "",
+          lastName: family_name || "",
+          avatar: picture,
+          googleId,
+          isActive: true,
+          isVerified: true,
+        },
+      });
+    }
+
+    // Tạo JWT cho client
+   
+const jwtToken = jwt.sign(
+  {
+    userId: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    role: "USER",
+  },
+  JWT_CONFIG.secret,
+  { expiresIn: "1d" }
+);
+
+
+    res.status(200).json({
+      mess: "Đăng nhập Google thành công",
+      token: jwtToken,
+      user,
+    });
+  } catch (err) {
+    console.error("Google Login Failed:", err);
+    res.status(401).json({ mess: "Xác thực Google thất bại", error: err.message });
+  }
+};
+

@@ -20,6 +20,16 @@ export const authenticateToken = async (req, res, next) => {
 
     // Xác thực token
     const decoded = jwt.verify(token, JWT_CONFIG.secret)
+
+    // Lấy userId từ payload (ưu tiên userId, fallback sang id)
+    const userId = decoded.userId || decoded.id
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ (không có userId)'
+      })
+    }
     
     // Tìm user trong database (có thể là admin hoặc user thường)
     let user = await prisma.adminUser.findUnique({
