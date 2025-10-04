@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { login } from "@/api/auth";
 import { getUserProfile } from "@/api/userProfile";
 import { toast } from "react-toastify";
-
+import LoginGoogle from "./LoginGoogle";
 const { Title, Text } = Typography;
 
 export default function LoginForm({ onSwitchToRegister }) {
@@ -100,10 +100,7 @@ export default function LoginForm({ onSwitchToRegister }) {
     }
   };
 
-  const handleGoogleLogin = () => {
-    toast.info("Tính năng đăng nhập Google đang được phát triển!");
-  };
-
+ 
   return (
     <div className="w-full">
       {/* Header with Decoration */}
@@ -228,13 +225,8 @@ export default function LoginForm({ onSwitchToRegister }) {
             <Text className="text-gray-400 text-xs font-medium px-4 bg-white">Hoặc đăng nhập với</Text>
           </Divider>
 
-          <Button
-            onClick={handleGoogleLogin}
-            className="w-full h-12 border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
-          >
-            <FaGoogle className="text-xl text-red-500" />
-            <span>Google</span>
-          </Button>
+                <LoginGoogle />
+
 
           <div className="text-center mt-6">
             <Text className="text-gray-600 text-base">

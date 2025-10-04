@@ -27,3 +27,8 @@ export async function getProfile() {
 export async function logout() {
   return await axiosClient.post("auth/logout");
 }
+
+// Google OAuth Login
+export async function googleLogin(token) {
+  return await axiosClient.post("auth/google", { token });
+}
