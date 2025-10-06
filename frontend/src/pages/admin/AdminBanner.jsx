@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Select } from "antd";
-import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Select, Upload, Button as AntButton } from "antd";
+import { FaPlus, FaEdit, FaTrash, FaEye, FaUpload } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import { toast } from "react-toastify";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { UploadOutlined } from "@ant-design/icons";
 
 import {
   getBanners,
@@ -46,24 +47,30 @@ export default function AdminBanner() {
     setConfirmLoading(true);
     try {
       const formData = new FormData();
-      Object.keys(values).forEach((key) => {
-        if (values[key] !== undefined) formData.append(key, values[key]);
-      });
-      if (values.image && values.image.file) {
-        formData.append("image", values.image.file.originFileObj);
+      
+      // Xử lý từng field riêng biệt
+      if (values.title) formData.append('title', values.title);
+      if (values.isActive !== undefined) {
+        formData.append('isActive', values.isActive ? 'true' : 'false');
+      }
+      
+      // Thêm file ảnh nếu có
+      if (values.image && values.image[0]?.originFileObj) {
+        formData.append('image', values.image[0].originFileObj);
       }
 
       if (record) {
         await updateBanner(record.id, formData);
-        toast.success("Cập nhật thành công");
+        toast.success("Cập nhật banner thành công");
       } else {
         await createBanner(formData);
-        toast.success("Tạo mới thành công");
+        toast.success("Tạo banner thành công");
       }
       setModalOpen(false);
+      setEditingRecord(null);
       fetchBanners();
     } catch (err) {
-        console.error(err);
+      console.error(err);
       toast.error("Lỗi khi lưu banner");
     }
     setConfirmLoading(false);
@@ -100,16 +107,6 @@ export default function AdminBanner() {
       rules: [{ required: true, message: "Vui lòng nhập tiêu đề" }],
     },
     {
-      name: "linkUrl",
-      label: "Link",
-      component: <Input placeholder="Nhập link liên kết" />,
-    },
-    {
-      name: "sortOrder",
-      label: "Thứ tự",
-      component: <Input type="number" placeholder="Nhập thứ tự hiển thị" />,
-    },
-    {
       name: "isActive",
       label: "Trạng thái",
       component: (
@@ -122,10 +119,20 @@ export default function AdminBanner() {
     {
       name: "image",
       label: "Ảnh banner",
-      valuePropName: "file",
-      getValueFromEvent: (e) =>
-        Array.isArray(e) ? e : e && e.target.files ? e.target.files[0] : null,
-      component: <Input type="file" accept="image/*" />,
+      valuePropName: "fileList",
+      getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
+      component: (
+        <Upload 
+          name="image" 
+          listType="picture" 
+          maxCount={1} 
+          beforeUpload={() => false}
+          accept="image/*"
+        >
+          <AntButton icon={<UploadOutlined />}>Chọn ảnh banner</AntButton>
+        </Upload>
+      ),
+      rules: [{ required: true, message: "Vui lòng chọn ảnh banner" }],
     },
   ];
 
@@ -133,8 +140,6 @@ export default function AdminBanner() {
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "title", label: "Tiêu đề" },
-    { name: "linkUrl", label: "Link" },
-    { name: "sortOrder", label: "Thứ tự" },
     { name: "isActive", label: "Trạng thái", render: (v) => (v ? "Hiển thị" : "Ẩn") },
     { name: "imageUrl", label: "Ảnh", render: (v) => <Image width={200} src={v} /> },
   ];
@@ -142,9 +147,11 @@ export default function AdminBanner() {
   const columns = [
     { title: "ID", dataIndex: "id", width: 80 },
     { title: "Tiêu đề", dataIndex: "title" },
-    { title: "Ảnh", dataIndex: "imageUrl", render: (url) => <Image width={100} src={url} /> },
-    { title: "Link", dataIndex: "linkUrl" },
-    { title: "Thứ tự", dataIndex: "sortOrder" },
+    { 
+      title: "Ảnh", 
+      dataIndex: "imageUrl", 
+      render: (url) => <Image width={100} height={60} src={url} style={{ objectFit: 'cover' }} /> 
+    },
     {
       title: "Trạng thái",
       dataIndex: "isActive",

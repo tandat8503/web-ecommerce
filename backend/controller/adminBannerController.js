@@ -6,7 +6,7 @@ import cloudinary from "../config/cloudinary.js";
 // ============================
 export const createBanner = async (req, res) => {
   try {
-    const { title, linkUrl, sortOrder, isActive } = req.body;
+    const { title, isActive } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ message: "Vui lòng upload ảnh banner" });
@@ -15,8 +15,6 @@ export const createBanner = async (req, res) => {
     const banner = await prisma.banner.create({
       data: {
         title,
-        linkUrl,
-        sortOrder: Number(sortOrder) || 0,
         isActive: isActive === "true",
         imageUrl: req.file.path,
         bannerPublicId: req.file.filename,
@@ -35,7 +33,7 @@ export const createBanner = async (req, res) => {
 export const getBanners = async (req, res) => {
   try {
     const banners = await prisma.banner.findMany({
-      orderBy: { sortOrder: "asc" },
+      orderBy: { createdAt: "desc" },
     });
     res.json({ code: 200, data: banners });
   } catch (error) {
@@ -65,15 +63,13 @@ export const getBannerById = async (req, res) => {
 export const updateBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, linkUrl, sortOrder, isActive } = req.body;
+    const { title, isActive } = req.body;
 
     const banner = await prisma.banner.findUnique({ where: { id: Number(id) } });
     if (!banner) return res.status(404).json({ message: "Không tìm thấy banner" });
 
     let updateData = {
       title,
-      linkUrl,
-      sortOrder: Number(sortOrder) || banner.sortOrder,
       isActive: isActive !== undefined ? isActive === "true" : banner.isActive,
     };
 
