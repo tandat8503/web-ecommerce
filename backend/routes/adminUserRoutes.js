@@ -6,11 +6,11 @@ import {
   updateUser,
   deleteUser,
 } from "../controller/adminUserController.js";
-//import { authenticateToken, requireAdmin } from "../middleware/auth.js";
+import { authenticateToken, requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 // Áp dụng middleware xác thực + quyền admin
-//router.use(authenticateToken, requireAdmin);
+router.use(authenticateToken, requireAdmin);
 
 router.get("/", getUsers);
 router.get("/:id", getUserById);

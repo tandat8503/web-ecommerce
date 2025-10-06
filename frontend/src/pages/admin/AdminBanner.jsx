@@ -142,6 +142,27 @@ export default function AdminBanner() {
     { name: "title", label: "Tiêu đề" },
     { name: "isActive", label: "Trạng thái", render: (v) => (v ? "Hiển thị" : "Ẩn") },
     { name: "imageUrl", label: "Ảnh", render: (v) => <Image width={200} src={v} /> },
+    {
+      name: "createdAt",
+      label: "Ngày tạo",
+      render: (v) => {
+        const d = new Date(v);
+        const date = d.toLocaleDateString("vi-VN");   // 6/10/2025
+        const time = d.toLocaleTimeString("vi-VN");   // 10:23:28
+        return `${time} ${date}`;
+      },
+    },
+      {
+        name: "updatedAt",
+        label: "Ngày cập nhật",
+        render: (v) => {
+          const d = new Date(v);
+          const date = d.toLocaleDateString("vi-VN");
+          const time = d.toLocaleTimeString("vi-VN");
+          return `${time} ${date}`;
+        },
+      },
+
   ];
 
   const columns = [
@@ -153,21 +174,14 @@ export default function AdminBanner() {
       render: (url) => <Image width={100} height={60} src={url} style={{ objectFit: 'cover' }} /> 
     },
     {
-      title: "Trạng thái",
-      dataIndex: "isActive",
-      render: (val, record) => (
-        <Popconfirm
-          title={`Bạn có chắc muốn ${val ? "ẩn" : "hiển thị"} banner này?`}
-          okText="Xác nhận"
-          cancelText="Hủy"
-          onConfirm={() => handleSubmit({ isActive: !val }, record)}
-        >
-          <Tag color={val ? "green" : "red"} className="cursor-pointer">
-            {val ? "Hiển thị" : "Ẩn"}
+        title: "Trạng thái",
+        dataIndex: "isActive",
+        render: (val) => (
+          <Tag color={val ? "green" : "red"}>
+            {val ? "Hoạt động" : "Tạm dừng"}
           </Tag>
-        </Popconfirm>
-      ),
-    },
+        ),
+      },
     {
       title: "Hành động",
       render: (_, record) => (

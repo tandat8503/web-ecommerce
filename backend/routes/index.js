@@ -12,6 +12,8 @@ import adminProductImageRoutes from "./adminProductImageRoutes.js";
 import adminBrandRoutes from "./adminBrandRoutes.js";
 import adminUserRoutes from "./adminUserRoutes.js";
 import adminBannerRoutes from "./adminBannerRouters.js"; 
+import adminProductVariantRoutes from "./adminProductVariantRoutes.js";
+import adminProductSpecificationRoutes from"./adminProductSpecificationRoutes.js";
 
 
 const routes = (app) => {
@@ -28,6 +30,8 @@ const routes = (app) => {
   app.use("/api/admin/customers", adminCustomerRoutes);
   app.use("/api/admin/users", adminUserRoutes);
   app.use("/api/admin/banners", adminBannerRoutes); 
-}
+  app.use("/api/admin/product-variants", adminProductVariantRoutes);
+  app.use("/api/admin/product-specifications", adminProductSpecificationRoutes);
+};
 
 export default routes;
