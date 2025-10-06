@@ -169,7 +169,7 @@ export default function AdminUser() {
     {
       name: "email",
       label: "Email",
-      component: <Input type="email" />,
+      component: <Input placeholder="Nhập email" type="email" />,
       rules: [
         { required: true, message: "Bắt buộc" },
         { type: "email", message: "Email không hợp lệ" }
@@ -178,13 +178,13 @@ export default function AdminUser() {
     {
       name: "firstName",
       label: "Họ",
-      component: <Input />,
+      component: <Input placeholder="Nhập họ" />,
       rules: [{ required: true, message: "Bắt buộc" }],
     },
     {
       name: "lastName",
       label: "Tên",
-      component: <Input />,
+      component: <Input placeholder="Nhập tên" />,
       rules: [{ required: true, message: "Bắt buộc" }],
     },
     {
@@ -204,7 +204,11 @@ export default function AdminUser() {
   // Table columns
   const columns = [
     { title: "ID", dataIndex: "id", width: 70 },
-    { title: "Email", dataIndex: "email" },
+    {
+    title: "Email",
+    dataIndex: "email",
+    render: (text) => <strong>{text}</strong>,
+  },
     { title: "Họ", dataIndex: "firstName" },
     { title: "Tên", dataIndex: "lastName" },
     { title: "SĐT", dataIndex: "phone" },
@@ -387,9 +391,33 @@ export default function AdminUser() {
           {
             name: "isActive",
             label: "Trạng thái",
-            render: (val) => (val ? "Hoạt động" : "vô hiệu hóa"),
+            render: (v) => (
+              <Tag color={v ? "green" : "red"}>
+                {v ? "Hoạt động" : "Tạm dừng"}
+              </Tag>
+            ),
           },
-          { name: "createdAt", label: "Ngày tạo" },
+
+        {
+          name: "createdAt",
+          label: "Ngày tạo",
+          render: (v) => {
+            const d = new Date(v);
+            const date = d.toLocaleDateString("vi-VN");   // 6/10/2025
+            const time = d.toLocaleTimeString("vi-VN");   // 10:23:28
+            return `${time} ${date}`;
+          },
+        },
+        {
+          name: "updatedAt",
+          label: "Ngày cập nhật",
+          render: (v) => {
+            const d = new Date(v);
+            const date = d.toLocaleDateString("vi-VN");
+            const time = d.toLocaleTimeString("vi-VN");
+            return `${time} ${date}`;
+          },
+        },
         ]}
       />
       </Row>

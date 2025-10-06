@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Select } from "antd";
+import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Switch } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
@@ -109,16 +109,15 @@ export default function AdminBanner() {
       label: "Thứ tự",
       component: <Input type="number" placeholder="Nhập thứ tự hiển thị" />,
     },
-    {
-      name: "isActive",
-      label: "Trạng thái",
-      component: (
-        <Select placeholder="Chọn trạng thái">
-          <Select.Option value={true}>Hiển thị</Select.Option>
-          <Select.Option value={false}>Ẩn</Select.Option>
-        </Select>
-      ),
-    },
+     // ✅ Đổi Select thành Switch
+  {
+    name: "isActive",
+    label: "Trạng thái",
+    component: (
+      <Switch checkedChildren="Hoạt động" unCheckedChildren="Tạm dừng" />
+    ),
+    valuePropName: "checked",
+  },
     {
       name: "image",
       label: "Ảnh banner",
@@ -135,32 +134,54 @@ export default function AdminBanner() {
     { name: "title", label: "Tiêu đề" },
     { name: "linkUrl", label: "Link" },
     { name: "sortOrder", label: "Thứ tự" },
-    { name: "isActive", label: "Trạng thái", render: (v) => (v ? "Hiển thị" : "Ẩn") },
+    {
+      name: "isActive",
+      label: "Trạng thái",
+      render: (v) => (
+        <Tag color={v ? "green" : "red"}>
+          {v ? "Hoạt động" : "Tạm dừng"}
+        </Tag>
+      ),
+    },
     { name: "imageUrl", label: "Ảnh", render: (v) => <Image width={200} src={v} /> },
+    {
+      name: "createdAt",
+      label: "Ngày tạo",
+      render: (v) => {
+        const d = new Date(v);
+        const date = d.toLocaleDateString("vi-VN");   // 6/10/2025
+        const time = d.toLocaleTimeString("vi-VN");   // 10:23:28
+        return `${time} ${date}`;
+      },
+    },
+      {
+        name: "updatedAt",
+        label: "Ngày cập nhật",
+        render: (v) => {
+          const d = new Date(v);
+          const date = d.toLocaleDateString("vi-VN");
+          const time = d.toLocaleTimeString("vi-VN");
+          return `${time} ${date}`;
+        },
+      },
+
   ];
 
   const columns = [
     { title: "ID", dataIndex: "id", width: 80 },
-    { title: "Tiêu đề", dataIndex: "title" },
+    { title: "Tiêu đề", dataIndex: "title", render: (text) => <strong>{text}</strong> },
     { title: "Ảnh", dataIndex: "imageUrl", render: (url) => <Image width={100} src={url} /> },
     { title: "Link", dataIndex: "linkUrl" },
     { title: "Thứ tự", dataIndex: "sortOrder" },
     {
-      title: "Trạng thái",
-      dataIndex: "isActive",
-      render: (val, record) => (
-        <Popconfirm
-          title={`Bạn có chắc muốn ${val ? "ẩn" : "hiển thị"} banner này?`}
-          okText="Xác nhận"
-          cancelText="Hủy"
-          onConfirm={() => handleSubmit({ isActive: !val }, record)}
-        >
-          <Tag color={val ? "green" : "red"} className="cursor-pointer">
-            {val ? "Hiển thị" : "Ẩn"}
+        title: "Trạng thái",
+        dataIndex: "isActive",
+        render: (val) => (
+          <Tag color={val ? "green" : "red"}>
+            {val ? "Hoạt động" : "Tạm dừng"}
           </Tag>
-        </Popconfirm>
-      ),
-    },
+        ),
+      },
     {
       title: "Hành động",
       render: (_, record) => (
