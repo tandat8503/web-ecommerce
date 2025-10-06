@@ -11,7 +11,15 @@ export const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
 
+    console.log('Auth middleware - Headers:', {
+      authorization: authHeader,
+      token: token ? `${token.substring(0, 20)}...` : 'null',
+      url: req.url,
+      method: req.method
+    });
+
     if (!token) {
+      console.log('Auth middleware - No token provided');
       return res.status(401).json({ 
         success: false, 
         message: 'Token không được cung cấp' 

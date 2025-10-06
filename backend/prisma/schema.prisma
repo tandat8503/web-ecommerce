@@ -156,7 +156,6 @@ model Brand {
   id        Int      @id @default(autoincrement())
   name      String
   country   String?
-  logoUrl   String?  @map("logo_url")
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -185,6 +184,8 @@ model Product {
   costPrice       Decimal?      @map("cost_price") @db.Decimal(12, 2)
   stockQuantity   Int           @default(0) @map("stock_quantity")
   minStockLevel   Int           @default(5) @map("min_stock_level")
+  imageUrl        String?       @map("image_url")
+  imagePublicId   String?       @map("image_public_id")
   metaTitle       String?       @map("meta_title")
   metaDescription String?       @map("meta_description")
   viewCount       Int           @default(0) @map("view_count")

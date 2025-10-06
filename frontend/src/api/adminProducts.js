@@ -18,14 +18,18 @@ export async function getProductById(id) {
  * Thêm mới product (admin)
  */
 export async function createProduct(data) {
-  return await axiosClient.post('admin/products', data);
+  return await axiosClient.post('admin/products', data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 }
 
 /**
  * Cập nhật product (admin)
  */
 export async function updateProduct(id, data) {
-  return await axiosClient.put(`admin/products/${id}`, data);
+  return await axiosClient.put(`admin/products/${id}`, data, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 }
 
 /**

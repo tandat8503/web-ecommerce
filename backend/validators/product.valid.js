@@ -9,7 +9,12 @@ export const createProductSchema = Joi.object({
     description: Joi.string().allow('', null),
     categoryId: Joi.number().integer().required(),
     brandId: Joi.number().integer().required(),
-    isActive: Joi.boolean().default(true)
+    isActive: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false').custom((value, helpers) => {
+        return value === 'true';
+      })
+    ).default(true)
   });
   
   export const updateProductSchema = Joi.object({
@@ -21,5 +26,10 @@ export const createProductSchema = Joi.object({
     description: Joi.string().allow('', null),
     categoryId: Joi.number().integer().optional(),
     brandId: Joi.number().integer().optional(),
-    isActive: Joi.boolean().optional()
+    isActive: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false').custom((value, helpers) => {
+        return value === 'true';
+      })
+    ).optional()
   });

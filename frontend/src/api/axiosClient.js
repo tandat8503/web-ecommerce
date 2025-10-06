@@ -23,6 +23,26 @@ axiosClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Interceptor để xử lý response lỗi
+axiosClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token hết hạn hoặc không hợp lệ
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      
+      // Redirect về trang login
+      if (window.location.pathname.startsWith('/admin')) {
+        window.location.href = '/auth';
+      } else {
+        window.location.href = '/auth';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Tạo axios client riêng cho API public (không cần token)
 export const publicAxiosClient = axios.create({
   baseURL: API_URL,
