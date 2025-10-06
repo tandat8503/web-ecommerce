@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - AI Labeling System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="text-center mb-4">
+            <i class="fas fa-brain me-2"></i>AI Labeling System
+            <small class="text-muted d-block">Hệ thống đánh nhãn dữ liệu AI cho E-commerce</small>
+        </h1>
+    </div>
+</div>
+
+<!-- Upload Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="content-box text-center">
+            <h5><i class="fas fa-upload me-2"></i>Upload Dữ Liệu</h5>
+            <p class="text-muted">Import dữ liệu từ file CSV để bắt đầu đánh nhãn</p>
+            <a href="/upload" class="btn btn-primary btn-custom">
+                <i class="fas fa-file-upload me-2"></i>Upload CSV Data
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Model Cards -->
+<div class="row">
+    <!-- Sentiment Analysis -->
+    <div class="col-md-4">
+        <div class="stats-card">
+            <h5><i class="fas fa-heart me-2"></i>Sentiment Analysis</h5>
+            <div class="row">
+                <div class="col-6">
+                    <small>Chờ đánh nhãn: {{ stats.sentiment.pending if stats.sentiment else 0 }}</small>
+                </div>
+                <div class="col-6">
+                    <small>Đã đánh nhãn: {{ stats.sentiment.labeled if stats.sentiment else 0 }}</small>
+                </div>
+            </div>
+            <div class="mt-3">
+                <a href="/labeling/sentiment" class="btn btn-light btn-sm me-2">
+                    <i class="fas fa-edit me-1"></i>Đánh nhãn
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="trainModel('sentiment')">
+                    <i class="fas fa-cogs me-1"></i>Training
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot -->
+    <div class="col-md-4">
+        <div class="stats-card">
+            <h5><i class="fas fa-robot me-2"></i>Chatbot</h5>
+            <div class="row">
+                <div class="col-6">
+                    <small>Chờ đánh nhãn: {{ stats.chatbot.pending if stats.chatbot else 0 }}</small>
+                </div>
+                <div class="col-6">
+                    <small>Đã đánh nhãn: {{ stats.chatbot.labeled if stats.chatbot else 0 }}</small>
+                </div>
+            </div>
+            <div class="mt-3">
+                <a href="/labeling/chatbot" class="btn btn-light btn-sm me-2">
+                    <i class="fas fa-edit me-1"></i>Đánh nhãn
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="trainModel('chatbot')">
+                    <i class="fas fa-cogs me-1"></i>Training
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="col-md-4">
+        <div class="stats-card">
+            <h5><i class="fas fa-thumbs-up me-2"></i>Recommendation</h5>
+            <div class="row">
+                <div class="col-6">
+                    <small>Chờ đánh nhãn: {{ stats.recommendation.pending if stats.recommendation else 0 }}</small>
+                </div>
+                <div class="col-6">
+                    <small>Đã đánh nhãn: {{ stats.recommendation.labeled if stats.recommendation else 0 }}</small>
+                </div>
+            </div>
+            <div class="mt-3">
+                <a href="/labeling/recommendation" class="btn btn-light btn-sm me-2">
+                    <i class="fas fa-edit me-1"></i>Đánh nhãn
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="trainModel('recommendation')">
+                    <i class="fas fa-cogs me-1"></i>Training
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="content-box">
+            <h5><i class="fas fa-chart-bar me-2"></i>Thống Kê Chi Tiết</h5>
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h3 class="text-primary">{{ stats.sentiment_labels or 0 }}</h3>
+                        <small>Sentiment Labels</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h3 class="text-success">{{ stats.chatbot_labels or 0 }}</h3>
+                        <small>Chatbot Labels</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h3 class="text-warning">{{ stats.recommendation_labels or 0 }}</h3>
+                        <small>Recommendation Labels</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center">
+                        <h3 class="text-info">{{ (stats.sentiment_labels or 0) + (stats.chatbot_labels or 0) + (stats.recommendation_labels or 0) }}</h3>
+                        <small>Tổng Labels</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="content-box">
+            <h5><i class="fas fa-download me-2"></i>Export Dữ Liệu Đã Đánh Nhãn</h5>
+            <p class="text-muted">Tải xuống dữ liệu đã đánh nhãn để sử dụng cho training models</p>
+            <div class="btn-group" role="group">
+                <button class="btn btn-success btn-custom" onclick="exportData('sentiment')">
+                    <i class="fas fa-download me-1"></i>Export Sentiment
+                </button>
+                <button class="btn btn-success btn-custom" onclick="exportData('chatbot')">
+                    <i class="fas fa-download me-1"></i>Export Chatbot
+                </button>
+                <button class="btn btn-success btn-custom" onclick="exportData('recommendation')">
+                    <i class="fas fa-download me-1"></i>Export Recommendation
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Start Guide -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="content-box">
+            <h5><i class="fas fa-rocket me-2"></i>Hướng Dẫn Sử Dụng Nhanh</h5>
+            <div class="row">
+                <div class="col-md-4">
+                    <h6><i class="fas fa-upload me-2"></i>1. Upload Dữ Liệu</h6>
+                    <p class="text-muted">Chọn file CSV có cột "text" và upload lên hệ thống</p>
+                </div>
+                <div class="col-md-4">
+                    <h6><i class="fas fa-edit me-2"></i>2. Đánh Nhãn</h6>
+                    <p class="text-muted">Click vào từng loại model để bắt đầu đánh nhãn dữ liệu</p>
+                </div>
+                <div class="col-md-4">
+                    <h6><i class="fas fa-cogs me-2"></i>3. Training</h6>
+                    <p class="text-muted">Sau khi đánh nhãn, click "Training" để train models</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function trainModel(modelType) {
+    showAlert('info', `🚀 Đang training ${modelType} model...`);
+    
+    axios.get(`/train/${modelType}`)
+        .then(response => {
+            if (response.data.success) {
+                showAlert('success', `✅ ${response.data.message}`);
+                if (response.data.result.accuracy) {
+                    showAlert('success', `📊 Accuracy: ${response.data.result.accuracy.toFixed(4)}`);
+                } else if (response.data.result.mse) {
+                    showAlert('success', `📊 MSE: ${response.data.result.mse.toFixed(4)}`);
+                }
+            } else {
+                showAlert('danger', `❌ ${response.data.message}`);
+            }
+        })
+        .catch(error => {
+            showAlert('danger', `❌ Error: ${error.message}`);
+        });
+}
+
+function exportData(dataType) {
+    showAlert('info', `📤 Đang export ${dataType} data...`);
+    
+    axios.get(`/export/${dataType}`)
+        .then(response => {
+            if (response.data.success) {
+                // Tạo link download
+                const link = document.createElement('a');
+                link.href = response.data.download_url;
+                link.download = `exported_${dataType}_labeled.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showAlert('success', `✅ ${response.data.message}`);
+            } else {
+                showAlert('danger', `❌ ${response.data.message}`);
+            }
+        })
+        .catch(error => {
+            showAlert('danger', `❌ Error: ${error.message}`);
+        });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show alert-custom`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.querySelector('.main-container').insertBefore(alertDiv, document.querySelector('.row'));
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Auto refresh stats every 30 seconds
+setInterval(() => {
+    axios.get('/api/stats')
+        .then(response => {
+            // Update stats display
+            location.reload();
+        })
+        .catch(error => {
+            console.log('Stats refresh failed:', error);
+        });
+}, 30000);
+</script>
+{% endblock %}

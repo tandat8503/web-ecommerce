@@ -33,10 +33,12 @@ export default function CrudModal({
 
   // Khi mở modal -> fill dữ liệu nếu có
   useEffect(() => {
-    if (editingRecord) {
-      form.setFieldsValue(editingRecord); // nếu edit thì set giá trị ban đầu của form
-    } else {
-      form.resetFields(); // nếu tạo mới thì reset form
+    if (open) {
+      if (editingRecord) {
+        form.setFieldsValue(editingRecord); // nếu edit thì set giá trị ban đầu của form
+      } else {
+        form.resetFields(); // nếu tạo mới thì reset form
+      }
     }
   }, [editingRecord, form, open]);
 
@@ -61,7 +63,7 @@ export default function CrudModal({
       open={open}
       onCancel={handleCancel}
       width={width}
-      destroyOnClose={destroyOnClose}
+      destroyOnHidden={destroyOnClose}
       footer={[
         <Button key="cancel" onClick={handleCancel} disabled={confirmLoading}>
           {cancelText}

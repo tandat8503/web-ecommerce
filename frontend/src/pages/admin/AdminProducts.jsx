@@ -13,13 +13,16 @@ import {
   Badge,
   Select,
   InputNumber,
+  Upload,
+  Button as AntButton,
 } from "antd";
-import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaEye, FaImages } from "react-icons/fa";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button"; // shadcn/ui button
+import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
+import ProductImageModal from "./ProductImageModal";
 import { toast } from "react-toastify";
 import {
   getProducts,
@@ -30,6 +33,7 @@ import {
 } from "@/api/adminProducts";
 import { getCategories } from "@/api/adminCategories";
 import { getBrands } from "@/api/adminBrands";
+import { UploadOutlined } from "@ant-design/icons";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -47,6 +51,8 @@ export default function AdminProducts() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [loadingProductId, setLoadingProductId] = useState(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   // Hàm delay
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,21 +110,45 @@ export default function AdminProducts() {
     fetchSelectOptions();
   }, [pagination.page, pagination.limit, keyword]);
 
+
   // Handle create/edit
   const handleSubmit = async (values, editingRecord) => {
     setModalLoading(true);
     try {
+      // Tạo FormData để gửi file
+      const formData = new FormData();
+      
+      // Xử lý từng field riêng biệt
+      if (values.name) formData.append('name', values.name);
+      if (values.sku) formData.append('sku', values.sku);
+      if (values.description) formData.append('description', values.description);
+      if (values.price) formData.append('price', values.price);
+      if (values.stock !== undefined) formData.append('stock', values.stock);
+      if (values.categoryId) formData.append('categoryId', values.categoryId);
+      if (values.brandId) formData.append('brandId', values.brandId);
+      
+      // Xử lý isActive - convert boolean to string
+      if (values.isActive !== undefined) {
+        formData.append('isActive', values.isActive ? 'true' : 'false');
+      }
+      
+      // Thêm file nếu có
+      if (values.image && values.image[0]?.originFileObj) {
+        formData.append('image', values.image[0].originFileObj);
+      }
+
       if (editingRecord) {
-        await updateProduct(editingRecord.id, values);
+        await updateProduct(editingRecord.id, formData);
         toast.success("Cập nhật sản phẩm thành công");
       } else {
-        await createProduct(values);
+        await createProduct(formData);
         toast.success("Tạo sản phẩm thành công");
       }
       setModalOpen(false);
       setEditingRecord(null);
       fetchProducts();
     } catch (error) {
+      console.error('Error updating product:', error);
       toast.error(error.response?.data?.message || "Có lỗi xảy ra");
     } finally {
       setModalLoading(false);
@@ -154,6 +184,12 @@ export default function AdminProducts() {
     } finally {
       setLoadingProductId(null);
     }
+  };
+
+  // Handle manage images
+  const handleManageImages = (product) => {
+    setSelectedProduct(product);
+    setImageModalOpen(true);
   };
 
   const columns = [
@@ -218,6 +254,15 @@ export default function AdminProducts() {
               ) : (
                 <FaEye />
               )}
+            </Button>
+          </Tooltip>
+          <Tooltip title="Quản lý ảnh">
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-white"
+              size="sm"
+              onClick={() => handleManageImages(record)}
+            >
+              <FaImages />
             </Button>
           </Tooltip>
           <Tooltip title="Sửa">
@@ -308,9 +353,15 @@ export default function AdminProducts() {
       rules: [{ required: true, message: "Vui lòng chọn thương hiệu" }],
     },
     {
-      name: "imageUrl",
-      label: "URL hình ảnh",
-      component: <Input placeholder="Nhập URL hình ảnh" />,
+      name: "image",
+      label: "Hình ảnh",
+      valuePropName: "fileList",
+      getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
+      component: (
+        <Upload name="image" listType="picture" maxCount={1} beforeUpload={() => false}>
+          <AntButton icon={<UploadOutlined />}>Chọn ảnh</AntButton>
+        </Upload>
+      ),
     },
     {
       name: "isActive",
@@ -447,6 +498,17 @@ export default function AdminProducts() {
         data={detailData}
         fields={detailFields}
         width={600}
+      />
+
+      {/* Modal Quản lý ảnh */}
+      <ProductImageModal
+        open={imageModalOpen}
+        onCancel={() => {
+          setImageModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        productId={selectedProduct?.id}
+        productName={selectedProduct?.name}
       />
     </>
   );

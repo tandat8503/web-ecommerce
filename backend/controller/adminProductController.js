@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { slugify } from '../utils/slugify.js';
+import cloudinary from '../config/cloudinary.js';
 
 const includeBasic = {
   category: { select: { id: true, name: true, slug: true } },
@@ -68,6 +69,14 @@ export const createProduct = async (req, res) => {
       categoryId, brandId, isActive
     } = req.body;
 
+    // Xử lý image upload
+    const imageUrl = req.file ? req.file.path : null;
+    const imagePublicId = req.file ? req.file.filename : null;
+    
+    if (req.file) {
+      console.log('Image uploaded to Cloudinary:', { imageUrl, imagePublicId });
+    }
+
     const [cat, br] = await Promise.all([
       prisma.category.findUnique({ where: { id: Number(categoryId) } }),
       prisma.brand.findUnique({ where: { id: Number(brandId) } })
@@ -102,6 +111,8 @@ export const createProduct = async (req, res) => {
         brandId: Number(brandId),
         status: 'ACTIVE',
         isFeatured: false,
+        imageUrl, // Thêm mới
+        imagePublicId, // Thêm mới
       },
       include: includeBasic
     });
@@ -128,6 +139,19 @@ export const updateProduct = async (req, res) => {
     }
 
     const data = { ...req.body };
+    
+    // Xử lý image upload
+    if (req.file) {
+      // Xóa ảnh cũ nếu có
+      if (found.imagePublicId) {
+        await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+        console.log('Old image deleted from Cloudinary:', found.imagePublicId);
+      }
+      data.imageUrl = req.file.path;
+      data.imagePublicId = req.file.filename;
+      console.log('New image uploaded to Cloudinary:', { imageUrl: data.imageUrl, imagePublicId: data.imagePublicId });
+    }
+
     if (data.name && !data.slug) data.slug = slugify(data.name);
 
     if (data.slug && data.slug !== found.slug) {
@@ -194,9 +218,61 @@ export const deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
 
+    // Xóa ảnh Cloudinary nếu có
+    if (found.imagePublicId) {
+      await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+    }
+
     await prisma.product.delete({ where: { id } });
     console.log('END', { ...context, id });
     return res.json({ success: true });
+  } catch (error) {
+    console.error('ERROR', { ...context, error: error.message });
+    const payload = { message: 'Server error' };
+    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
+    return res.status(500).json(payload);
+  }
+};
+
+// Cập nhật ảnh chính của product
+export const updateProductPrimaryImage = async (req, res) => {
+  const context = { path: 'admin.products.updatePrimaryImage', params: req.params, body: req.body };
+  try {
+    console.log('START', context);
+    const productId = Number(req.params.id);
+    const { imageUrl, imagePublicId } = req.body;
+
+    // Validation dữ liệu đầu vào
+    if (!imageUrl) {
+      console.warn('MISSING_IMAGE_URL', { ...context });
+      return res.status(400).json({ message: 'imageUrl is required' });
+    }
+
+    if (!imagePublicId) {
+      console.warn('MISSING_IMAGE_PUBLIC_ID', { ...context });
+      return res.status(400).json({ message: 'imagePublicId is required' });
+    }
+
+    // Kiểm tra product tồn tại
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) {
+      console.warn('PRODUCT_NOT_FOUND', { ...context, productId });
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    console.log('Updating product primary image:', { productId, imageUrl, imagePublicId });
+
+    // Cập nhật ảnh chính
+    const updated = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        imageUrl,
+        imagePublicId
+      }
+    });
+
+    console.log('END', { ...context, productId, imageUrl, updated: { id: updated.id, imageUrl: updated.imageUrl } });
+    return res.json(updated);
   } catch (error) {
     console.error('ERROR', { ...context, error: error.message });
     const payload = { message: 'Server error' };

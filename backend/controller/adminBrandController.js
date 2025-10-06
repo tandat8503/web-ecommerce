@@ -48,13 +48,12 @@ export const createBrand = async (req, res) => {
   const context = { path: 'admin.brands.create', body: req.body };
   try {
     console.log('START', context);
-    const { name, country, logoUrl, isActive } = req.body;
+    const { name, country, isActive } = req.body;
 
     const created = await prisma.brand.create({
       data: { 
         name, 
         country: country || null, 
-        logoUrl: logoUrl || null, 
         isActive: isActive ?? true 
       }
     });
@@ -77,14 +76,13 @@ export const updateBrand = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
 
-    const { name, country, logoUrl, isActive } = req.body;
+    const { name, country, isActive } = req.body;
 
     const updated = await prisma.brand.update({
       where: { id },
       data: {
         name: name ?? found.name,
         country: country === undefined ? found.country : country,
-        logoUrl: logoUrl === undefined ? found.logoUrl : logoUrl,
         isActive: isActive ?? found.isActive
       }
     });

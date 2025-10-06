@@ -67,6 +67,7 @@ export const createCategory = async (req, res) => {
     if (req.file) {
       imageUrl = req.file.path;
       imagePublicId = req.file.filename;
+      console.log('Image uploaded to Cloudinary:', { imageUrl, imagePublicId });
     }
 
     const created = await prisma.category.create({
@@ -127,9 +128,11 @@ export const updateCategory = async (req, res) => {
     if (req.file) {
       if (found.imagePublicId) {
         await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+        console.log('Old image deleted from Cloudinary:', found.imagePublicId);
       }
       updateData.imageUrl = req.file.path;
       updateData.imagePublicId = req.file.filename;
+      console.log('New image uploaded to Cloudinary:', { imageUrl: updateData.imageUrl, imagePublicId: updateData.imagePublicId });
     }
 
     const updated = await prisma.category.update({
@@ -164,6 +167,7 @@ export const deleteCategory = async (req, res) => {
     // Xoá ảnh Cloudinary nếu có
     if (found.imagePublicId) {
       await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+      console.log('Image deleted from Cloudinary:', found.imagePublicId);
     }
 
     await prisma.category.delete({ where: { id } });

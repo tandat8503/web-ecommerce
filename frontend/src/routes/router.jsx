@@ -7,6 +7,7 @@ import AdminBanner from "@/pages/admin/AdminBanner";
 import AdminCategories from "@/pages/admin/AdminCategories";
 import AdminBrands from "@/pages/admin/AdminBrands";
 import AdminProducts from "@/pages/admin/AdminProducts";
+import AdminProductImages from "@/pages/admin/AdminProductImages";
 
 //User
 import UserLayout from "@/layout/user/UserLayout";
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
       { path: "categories", element: <AdminCategories /> },
       { path: "brands", element: <AdminBrands /> },
       { path: "products", element: <AdminProducts /> },
+      { path: "product-images", element: <AdminProductImages /> },
     ],
   },
 

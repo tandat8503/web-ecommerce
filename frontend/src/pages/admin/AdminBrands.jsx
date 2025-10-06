@@ -25,6 +25,7 @@ import {
   deleteBrand,
   getBrandById,
 } from "@/api/adminBrands";
+import { debugAuth, isTokenValid, isAdmin } from "@/utils/authUtils";
 
 const { Search } = Input;
 
@@ -56,6 +57,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   // Load danh sách brands
   const fetchBrands = async () => {
     setShowSkeleton(true);
+    
+    // Debug authentication trước khi gọi API
+    const authStatus = debugAuth();
+    console.log('🔍 Auth status before API call:', authStatus);
+    
     try {
       const response = await getBrands({
         page: pagination.page,
@@ -70,8 +76,19 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       // ép skeleton hiển thị ít nhất 500ms (hoặc 800ms )
     await sleep(800);
     } catch (error) {
-      toast.error("Lỗi khi tải danh sách thương hiệu");
       console.error("Error fetching brands:", error);
+      
+      // Xử lý lỗi cụ thể
+      if (error.response?.status === 401) {
+        toast.error("❌ Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        // Token sẽ được xử lý bởi axios interceptor
+      } else if (error.response?.status === 403) {
+        toast.error("❌ Bạn không có quyền truy cập trang này.");
+      } else if (error.response?.status >= 500) {
+        toast.error("❌ Lỗi server. Vui lòng thử lại sau.");
+      } else {
+        toast.error("❌ Lỗi khi tải danh sách thương hiệu");
+      }
     } finally {
       setShowSkeleton(false);
     }
@@ -135,36 +152,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const columns = [
     { title: "ID", dataIndex: "id", key: "id", width: 80 },
-    {
-      title: "Logo",
-      dataIndex: "logoUrl",
-      key: "logoUrl",
-      width: 100,
-      render: (logoUrl) =>
-        logoUrl ? (
-          <Image
-            width={60}
-            height={60}
-            src={logoUrl}
-            style={{ objectFit: "cover", borderRadius: 8 }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 60,
-              height: 60,
-              background: "#f0f0f0",
-              borderRadius: 8,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#999",
-            }}
-          >
-            No Logo
-          </div>
-        ),
-    },
     {
       title: "Tên thương hiệu",
       dataIndex: "name",
@@ -248,11 +235,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
       component: <Input placeholder="Nhập quốc gia" />,
     },
     {
-      name: "logoUrl",
-      label: "URL logo",
-      component: <Input placeholder="Nhập URL logo" />,
-    },
-    {
       name: "isActive",
       label: "Trạng thái",
       component: <input type="checkbox" />,
@@ -265,12 +247,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     { name: "id", label: "ID" },
     { name: "name", label: "Tên thương hiệu" },
     { name: "country", label: "Quốc gia" },
-    {
-      name: "logoUrl",
-      label: "Logo",
-      render: (v) =>
-        v ? <Image width={100} src={v} /> : <Tag color="default">Không có</Tag>,
-    },
     {
       name: "isActive",
       label: "Trạng thái",
