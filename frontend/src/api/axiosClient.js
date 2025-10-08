@@ -2,7 +2,10 @@
 import axios from "axios";
 
 // Hardcode API URL - không sử dụng environment variables
-const API_URL = "http://localhost:5000/api";
+// ✅ Lấy API URL từ biến môi trường Vite (hoặc fallback về localhost nếu chạy dev)
+const API_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}api`
+  : "http://localhost:5000/api";
 
 const axiosClient = axios.create({
   baseURL: API_URL,
