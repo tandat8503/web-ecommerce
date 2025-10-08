@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container { position: relative; height: 400px; }
+        .print-hidden { display: none; }
+        @media print {
+            .print-hidden { display: none !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">{{ title }}</h1>
+                        <p class="mt-2 text-gray-600">{{ subtitle }}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Ngày tạo: {{ created_at }}</p>
+                        <p class="text-sm text-gray-500">Nguồn: AI System</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex space-x-8 py-4">
+                    {% for section in sections %}
+                    <a href="#{{ section.id }}" class="text-gray-600 hover:text-gray-900 font-medium">
+                        {{ section.title }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {% for section in sections %}
+            <section id="{{ section.id }}" class="mb-12">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">{{ section.title }}</h2>
+                <div class="bg-white rounded-lg shadow p-6">
+                    {{ section.content | safe }}
+                </div>
+            </section>
+            {% endfor %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <p class="text-sm">Báo cáo được tạo tự động bởi AI System</p>
+                    <p class="text-xs text-gray-400 mt-2">
+                        Dữ liệu cập nhật lần cuối: {{ updated_at }}
+                    </p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Chart initialization
+        {% if charts %}
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for chart in charts %}
+            const ctx{{ loop.index }} = document.getElementById('chart{{ loop.index }}');
+            if (ctx{{ loop.index }}) {
+                new Chart(ctx{{ loop.index }}, {{ chart.config | tojson }});
+            }
+            {% endfor %}
+        });
+        {% endif %}
+
+        // Print function
+        function printReport() {
+            window.print();
+        }
+
+        // Export function
+        function exportReport() {
+            const element = document.documentElement;
+            const opt = {
+                margin: 1,
+                filename: '{{ title | replace(" ", "_") }}.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            // Note: This requires html2pdf library
+            // html2pdf().set(opt).from(element).save();
+            alert('Export PDF feature requires html2pdf library');
+        }
+    </script>
+</body>
+</html>

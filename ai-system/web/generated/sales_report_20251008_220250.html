@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo cáo doanh số test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container { position: relative; height: 400px; }
+        .print-hidden { display: none; }
+        @media print {
+            .print-hidden { display: none !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Báo cáo doanh số test</h1>
+                        <p class="mt-2 text-gray-600">Phân tích doanh số và hiệu suất bán hàng</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">Ngày tạo: 08/10/2025 22:02</p>
+                        <p class="text-sm text-gray-500">Nguồn: AI System</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="bg-white shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex space-x-8 py-4">
+                    
+                    <a href="#overview" class="text-gray-600 hover:text-gray-900 font-medium">
+                        Tổng quan doanh số
+                    </a>
+                    
+                    <a href="#top_products" class="text-gray-600 hover:text-gray-900 font-medium">
+                        Sản phẩm bán chạy
+                    </a>
+                    
+                    <a href="#categories" class="text-gray-600 hover:text-gray-900 font-medium">
+                        Phân tích theo danh mục
+                    </a>
+                    
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            
+            <section id="overview" class="mb-12">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Tổng quan doanh số</h2>
+                <div class="bg-white rounded-lg shadow p-6">
+                    
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-blue-50 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold text-blue-900">Tổng đơn hàng</h3>
+                <p class="text-3xl font-bold text-blue-600">150</p>
+            </div>
+            <div class="bg-green-50 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold text-green-900">Tổng doanh thu</h3>
+                <p class="text-3xl font-bold text-green-600">25,000,000 VNĐ</p>
+            </div>
+            <div class="bg-purple-50 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold text-purple-900">Sản phẩm bán</h3>
+                <p class="text-3xl font-bold text-purple-600">300</p>
+            </div>
+            <div class="bg-orange-50 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold text-orange-900">Giá trị TB/đơn</h3>
+                <p class="text-3xl font-bold text-orange-600">166,667 VNĐ</p>
+            </div>
+        </div>
+        
+                </div>
+            </section>
+            
+            <section id="top_products" class="mb-12">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Sản phẩm bán chạy</h2>
+                <div class="bg-white rounded-lg shadow p-6">
+                    
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">STT</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tên sản phẩm</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng bán</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doanh thu</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số đơn</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">1</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">iPhone 15 Pro</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">IP15P-256</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">25</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">25,000,000 VNĐ</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">20</td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+                </div>
+            </section>
+            
+            <section id="categories" class="mb-12">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Phân tích theo danh mục</h2>
+                <div class="bg-white rounded-lg shadow p-6">
+                    
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Danh mục</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số sản phẩm</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số đơn hàng</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Số lượng bán</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doanh thu</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Điện thoại</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">50</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">100</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">200</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">20,000,000 VNĐ</td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+                </div>
+            </section>
+            
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <p class="text-sm">Báo cáo được tạo tự động bởi AI System</p>
+                    <p class="text-xs text-gray-400 mt-2">
+                        Dữ liệu cập nhật lần cuối: 08/10/2025 22:02
+                    </p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Chart initialization
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            const ctx1 = document.getElementById('chart1');
+            if (ctx1) {
+                new Chart(ctx1, {"data": {"datasets": [{"backgroundColor": ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"], "data": [20000000], "label": "Doanh thu (VN\u0110)"}], "labels": ["\u0110i\u1ec7n tho\u1ea1i"]}, "options": {"plugins": {"title": {"display": true, "text": "Doanh thu theo danh m\u1ee5c"}}, "responsive": true}, "type": "doughnut"});
+            }
+            
+        });
+        
+
+        // Print function
+        function printReport() {
+            window.print();
+        }
+
+        // Export function
+        function exportReport() {
+            const element = document.documentElement;
+            const opt = {
+                margin: 1,
+                filename: 'Báo_cáo_doanh_số_test.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            // Note: This requires html2pdf library
+            // html2pdf().set(opt).from(element).save();
+            alert('Export PDF feature requires html2pdf library');
+        }
+    </script>
+</body>
+</html>
