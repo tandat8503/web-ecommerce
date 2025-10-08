@@ -1,0 +1,78 @@
+# HƯỚNG DẪN CRAWL THỦ CÔNG DỮ LIỆU ĐA DẠNG
+# ================================================
+
+## 📋 FORMAT CHO SHOPEE REVIEWS:
+# Mỗi dòng một review theo format:
+# RATING|REVIEW_TEXT|CATEGORY|VERIFIED|HELPFUL_COUNT
+
+# Ví dụ:
+5|Sản phẩm rất tốt, chất lượng cao, đáng mua|electronics|true|25
+4|Khá hài lòng với sản phẩm, giao hàng nhanh|fashion|true|15
+3|Tạm được, không có gì đặc biệt|home|false|5
+2|Chất lượng không tốt, không hài lòng|beauty|false|2
+1|Sản phẩm rất tệ, không đáng tiền|electronics|false|0
+
+## 📋 FORMAT CHO LAZADA REVIEWS:
+# Tương tự Shopee:
+# RATING|REVIEW_TEXT|CATEGORY|VERIFIED|HELPFUL_COUNT
+
+# Ví dụ:
+5|Tuyệt vời, rất hài lòng với sản phẩm|fashion|true|30
+4|Tốt, đáng mua|home|true|12
+3|Bình thường thôi|beauty|false|3
+2|Không hài lòng lắm|electronics|false|1
+1|Tồi tệ, tránh xa|fashion|false|0
+
+## 🎯 MỤC TIÊU CRAWL:
+- Tổng cộng: 500-1000 reviews
+- Shopee: 300-500 reviews
+- Lazada: 200-500 reviews
+- Mỗi rating (1-5 sao): 100-200 reviews
+- Categories: electronics, fashion, home, beauty
+- Verified vs Unverified: 50/50
+
+## 📊 CÁCH CRAWL HIỆU QUẢ:
+
+### 1. CHỌN SẢN PHẨM ĐA DẠNG:
+- Điện tử: iPhone, Samsung, Laptop, TV
+- Thời trang: Quần áo, giày dép, túi xách
+- Gia dụng: Sofa, tủ lạnh, máy giặt
+- Làm đẹp: Mỹ phẩm, kem dưỡng da, son môi
+
+### 2. CRAWL THEO RATING:
+- 1 sao: Tìm reviews tiêu cực, phàn nàn
+- 2 sao: Tìm reviews không hài lòng
+- 3 sao: Tìm reviews trung bình, bình thường
+- 4 sao: Tìm reviews tích cực, hài lòng
+- 5 sao: Tìm reviews rất tích cực, xuất sắc
+
+### 3. CRAWL THEO THỜI GIAN:
+- Reviews mới nhất (1-3 tháng)
+- Reviews cũ hơn (6-12 tháng)
+- Reviews rất cũ (1-2 năm)
+
+### 4. CRAWL THEO VERIFICATION:
+- Reviews đã mua hàng (verified)
+- Reviews chưa mua hàng (unverified)
+
+## 💡 TIPS CRAWL HIỆU QUẢ:
+
+1. **Sử dụng filter rating** trên website để dễ crawl
+2. **Crawl từ nhiều sản phẩm** khác nhau
+3. **Crawl từ nhiều shop** khác nhau
+4. **Crawl cả positive và negative** reviews
+5. **Crawl cả verified và unverified** reviews
+6. **Crawl từ nhiều categories** khác nhau
+
+## 📁 FILES CẦN TẠO:
+
+1. `shopee_manual_reviews.txt` - Reviews từ Shopee
+2. `lazada_manual_reviews.txt` - Reviews từ Lazada
+3. `combined_manual_reviews.txt` - Gộp chung tất cả
+
+## 🚀 SAU KHI CRAWL XONG:
+
+1. Chạy script import dữ liệu thủ công
+2. Kiểm tra diversity score
+3. Train model với dữ liệu thực tế
+4. Đánh giá kết quả model
