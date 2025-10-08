@@ -1,5 +1,50 @@
 # ===========================
-# NODE.JS - BACKEND
+# AI SYSTEM - PYTHON
+# ===========================
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+ai-system/.venv/
+ai-system/venv/
+ai-system/env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+*.dll
+*.bin
+*.node
+
+# AI Models and data (large files)
+ai-system/models/
+ai-system/data/
+ai-system/logs/
+ai-system/training_logs/
+ai-system/.pytest_cache/
+ai-system/.coverage
+
+# Python packages
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# ===========================
+# NODE.JS - BACKEND & FRONTEND
 # ===========================
 # Dependencies
 node_modules/
@@ -62,6 +107,7 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+.env.test
 .env.local
 .env.development.local
 .env.test.local
@@ -73,6 +119,7 @@ jspm_packages/
 
 # Next.js build output
 .next
+out/
 
 # Nuxt.js build / generate output
 .nuxt
@@ -91,79 +138,35 @@ tmp/
 temp/
 
 # ===========================
-# PRISMA - DATABASE
+# DATABASE & CONFIG
 # ===========================
-# Prisma generated files
-prisma/migrations/
-prisma/dev.db
-prisma/dev.db-journal
-
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+
+# Configuration files with secrets
+config/database.js
+config/secrets.js
+.env.production
+.env.staging
 
 # ===========================
-# REACT.JS - FRONTEND
+# LOGS & TEMPORARY FILES
 # ===========================
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Testing
-coverage/
-
-# Production
-build/
-dist/
-
-# Misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Logs
+# Log files
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ===========================
-# IDE & EDITORS
-# ===========================
-# VSCode
-.vscode/
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-
-# IntelliJ IDEA
-.idea/
-*.iws
-*.iml
-*.ipr
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
-*.swp
-*.swo
-*~
-
-# Emacs
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-auto-save-list
-tramp
-.\#*
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
 # ===========================
 # OPERATING SYSTEM
@@ -192,8 +195,9 @@ Thumbs.db
 Thumbs.db:encryptable
 ehthumbs.db
 ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
+*.tmp
+*.temp
+Desktop.ini
 $RECYCLE.BIN/
 *.cab
 *.msi
@@ -210,83 +214,74 @@ $RECYCLE.BIN/
 .nfs*
 
 # ===========================
-# LOGS & DEBUGGING
-# ===========================
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# ===========================
-# TESTING
-# ===========================
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Jest
-coverage/
-.nyc_output/
-
-# ===========================
-# BUILD & DEPLOYMENT
-# ===========================
-# Build outputs
-build/
-dist/
-out/
-
-# Deployment
-.vercel
-.netlify
-
-# ===========================
-# SECURITY & SECRETS
-# ===========================
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# API keys and secrets
-*.key
-*.pem
-*.p12
-*.pfx
-*.crt
-*.cer
-*.der
-
-# ===========================
-# CLOUDINARY & UPLOADS
-# ===========================
-# Uploaded files (if stored locally)
-uploads/
-public/uploads/
-
-# ===========================
-# DOCKER
+# DOCKER & DEPLOYMENT
 # ===========================
 # Docker
 .dockerignore
-# Keep Dockerfile and docker-compose.yml for project setup
-# docker-compose.override.yml
+docker-compose.override.yml
+.docker/
+
+# Kubernetes
+*.kubeconfig
 
 # ===========================
-# MISC
+# TESTING & COVERAGE
 # ===========================
+# Coverage reports
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Test results
+test-results/
+junit.xml
+
+# ===========================
+# LARGE FILES & MEDIA
+# ===========================
+# Large files that shouldn't be in git
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+
+# Media files (uncomment if needed)
+# *.mp4
+# *.avi
+# *.mov
+# *.wmv
+# *.flv
+# *.webm
+# *.mp3
+# *.wav
+# *.flac
+# *.aac
+
+# Images (uncomment if needed)
+# *.jpg
+# *.jpeg
+# *.png
+# *.gif
+# *.bmp
+# *.tiff
+# *.svg
+
+# ===========================
+# BACKUP & TEMPORARY
+# ===========================
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*~
+
 # Temporary files
 *.tmp
 *.temp
@@ -294,51 +289,35 @@ public/uploads/
 *.swo
 *~
 
-# Backup files
-*.bak
-*.backup
-*.old
-
-# Archive files
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
 # ===========================
-# PROJECT SPECIFIC
+# SPECIFIC TO THIS PROJECT
 # ===========================
-# Your specific files
+# AI System specific
+ai-system/labeling-tool/node_modules/
+ai-system/labeling-tool/.next/
+ai-system/labeling-tool/out/
+ai-system/labeling-tool/build/
+
+# E-commerce specific
+uploads/
+public/uploads/
+storage/
+public/storage/
+
+# API keys and secrets
 apikey.txt
 apikey_env.txt
-*.txt
-!README.txt
-!CHANGELOG.txt
-!SIMPLIFIED_ADMIN_PLAN.txt
-!TASK_DIVISION_PLAN.txt
-!giaithich_db.txt
-
-# Database dumps
-*.sql
-*.dump
-
-# Configuration files with sensitive data
-config/local.js
-config/production.js
-config/development.js
+service_account.json
+*.pem
+*.key
+*.crt
 
 # ===========================
-# ADDITIONAL IGNORE PATTERNS
+# DEVELOPMENT TOOLS
 # ===========================
-# Backup files
-*.backup
-*.bak
-*.old
-*.orig
-
-# Temporary files
-*.tmp
-*.temp
+# Editor directories and files
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
@@ -351,82 +330,3 @@ config/development.js
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# IDE files
-.vscode/
-.idea/
-*.sublime-*
-
-# Log files
-*.log
-logs/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Build artifacts
-build/
-dist/
-out/
-.next/
-.nuxt/
-
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Coverage
-coverage/
-.nyc_output/
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache
-.cache
-.parcel-cache
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
