@@ -252,9 +252,29 @@ export default function AdminProductSpecification() {
 
   return (
     <>
+    <style>
+        {`
+          @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}
+      </style>
       <Row gutter={[16, 16]}>
         <Col span={24}>
-          <Badge.Ribbon text="Quản lý Thông số kỹ thuật" color="#764ba2">
+          <Badge.Ribbon text="Quản lý Thông số kỹ thuật" color="#764ba2"
+          style={{
+              background:
+                "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
+              backgroundSize: "300% 300%",
+              animation: "gradientShift 4s ease infinite",
+              fontWeight: "bold",
+              fontSize: "16px",
+              padding: "8px 20px",
+              height: "40px",
+              lineHeight: "24px",
+            }}>
             <Card className="shadow rounded-2xl">
               <div className="flex justify-between mb-4">
                 <div className="flex gap-4">

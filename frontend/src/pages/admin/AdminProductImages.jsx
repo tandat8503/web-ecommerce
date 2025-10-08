@@ -58,7 +58,8 @@ import {
   updateProductPrimaryImage
 } from "@/api/adminProductImages";
 import { getProducts } from "@/api/adminProducts";
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+
 
 const { Search } = Input;
 const { Option } = Select;
