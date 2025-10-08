@@ -1,5 +1,10 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+  "version": 2,
+  "builds": [
+    { "src": "vite.config.js", "use": "@vercel/static-build" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "https://web-ecommerce-1.onrender.com/api/$1" },
+    { "src": "/(.*)", "dest": "/" }
   ]
 }
