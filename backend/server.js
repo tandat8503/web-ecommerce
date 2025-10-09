@@ -10,55 +10,40 @@ import { PrismaClient } from '@prisma/client'
 //import authRoutes from './routes/authRoutes.js'
 import Routes from './routes/index.js'
 
-
-
 const app = express()
 const PORT = process.env.PORT || 5000
 const prisma = new PrismaClient()
 
-// Security middleware
+// --- Security middleware ---
 app.use(helmet())
-// app.use(cors({
-//   origin: [
-//     'https://web-ecommerce-three.vercel.app',
-//     'https://web-ecommerce-git-main-lylys-projects-19de6e97.vercel.app',
-//     'http://localhost:5173'
-//   ],
-//   credentials: true
-// }))
 
-
-//start
+// --- CORS CONFIGURATION ---
+// Chỗ mới: sửa lỗi crash preflight và cho phép FE kết nối
 const allowedOrigins = [
   'https://web-ecommerce-rosy.vercel.app', // FE đã deploy
-  'http://localhost:5173'                   // FE local
-];
+  'http://localhost:5173'                  // FE local
+]
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Cho phép request không có origin (Postman, curl)
-    if (!origin) return callback(null, true);
+    // Cho phép request không có origin (ví dụ Postman, curl)
+    if (!origin) return callback(null, true)
 
     if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+      return callback(null, true)
     } else {
-      return callback(new Error('CORS blocked by server'), false);
+      return callback(new Error('CORS blocked by server'), false)
     }
   },
-  credentials: true,              // nếu dùng cookie
+  credentials: true,             // nếu dùng cookie
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
-}));
+}))
 
-// Bật preflight cho tất cả route
-app.options('*', cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
-///////end/////////
+// --- Chỗ mới: Xoá app.options('*') gây crash
+// Express + cors middleware tự động xử lý OPTIONS preflight
 
-
-// Rate limiting
+// --- Rate limiting ---
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
   max: 100, // Giới hạn 100 requests
@@ -66,15 +51,14 @@ const limiter = rateLimit({
 })
 app.use(limiter)
 
-// Body parsing
+// --- Body parsing ---
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Routes
-//app.use('/api/auth', authRoutes)
+// --- Routes ---
 Routes(app)
 
-// Health check
+// --- Health check ---
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
@@ -83,7 +67,7 @@ app.get('/api/health', (req, res) => {
   })
 })
 
-// Test database connection
+// --- Test database connection ---
 app.get('/api/test-db', async (req, res) => {
   try {
     await prisma.$connect()
@@ -100,7 +84,7 @@ app.get('/api/test-db', async (req, res) => {
   }
 })
 
-// Error handling
+// --- Error handling ---
 app.use((err, req, res, next) => {
   console.error('Error:', err)
   res.status(500).json({
@@ -109,7 +93,7 @@ app.use((err, req, res, next) => {
   })
 })
 
-// 404 handler - SỬA LỖI Ở ĐÂY
+// --- 404 handler ---
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -117,16 +101,17 @@ app.use((req, res) => {
   })
 })
 
-// Graceful shutdown
+// --- Graceful shutdown ---
 process.on('SIGINT', async () => {
   console.log('Shutting down server...')
   await prisma.$disconnect()
   process.exit(0)
 })
 
+// --- Start server ---
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`)
   console.log(`🌐 Health check: http://localhost:${PORT}/api/health`)
   console.log(`🗄️  Database test: http://localhost:${PORT}/api/test-db`)
-  console.log(`�� Auth endpoints: http://localhost:${PORT}/api/auth`)
+  console.log(`🟢 Auth endpoints: http://localhost:${PORT}/api/auth`)
 })
