@@ -18,14 +18,45 @@ const prisma = new PrismaClient()
 
 // Security middleware
 app.use(helmet())
+// app.use(cors({
+//   origin: [
+//     'https://web-ecommerce-three.vercel.app',
+//     'https://web-ecommerce-git-main-lylys-projects-19de6e97.vercel.app',
+//     'http://localhost:5173'
+//   ],
+//   credentials: true
+// }))
+
+
+//start
+const allowedOrigins = [
+  'https://web-ecommerce-rosy.vercel.app', // FE đã deploy
+  'http://localhost:5173'                   // FE local
+];
+
 app.use(cors({
-  origin: [
-    'https://web-ecommerce-three.vercel.app',
-    'https://web-ecommerce-git-main-lylys-projects-19de6e97.vercel.app',
-    'http://localhost:5173'
-  ],
+  origin: function(origin, callback) {
+    // Cho phép request không có origin (Postman, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('CORS blocked by server'), false);
+    }
+  },
+  credentials: true,              // nếu dùng cookie
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+}));
+
+// Bật preflight cho tất cả route
+app.options('*', cors({
+  origin: allowedOrigins,
   credentials: true
-}))
+}));
+///////end/////////
+
 
 // Rate limiting
 const limiter = rateLimit({
