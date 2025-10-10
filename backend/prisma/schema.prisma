@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===========================
-// BẢNG ADMIN - QUẢN TRỊ VIÊN
-// ===========================
 model AdminUser {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -27,46 +21,38 @@ model AdminUser {
   @@map("admin_users")
 }
 
-// ===========================
-// BẢNG NGƯỜI DÙNG - KHÁCH HÀNG
-// ===========================
 model User {
-  id               Int       @id @default(autoincrement())
-  email            String    @unique
+  id               Int               @id @default(autoincrement())
+  email            String            @unique
   password         String?
-  firstName        String    @map("first_name")
-  lastName         String    @map("last_name")
-  phone            String?   @unique
+  firstName        String            @map("first_name")
+  lastName         String            @map("last_name")
+  phone            String?           @unique
   avatar           String?
-  avatarPublicId   String?   @map("avatar_public_id")
-  googleId         String?   @unique @map("google_id")
-  isActive         Boolean   @default(true) @map("is_active")
-  isVerified       Boolean   @default(false) @map("is_verified")
-  emailVerifiedAt  DateTime? @map("email_verified_at")
-  lastLoginAt      DateTime? @map("last_login_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  // Relations
+  avatarPublicId   String?           @map("avatar_public_id")
+  googleId         String?           @unique @map("google_id")
+  isActive         Boolean           @default(true) @map("is_active")
+  isVerified       Boolean           @default(false) @map("is_verified")
+  emailVerifiedAt  DateTime?         @map("email_verified_at")
+  lastLoginAt      DateTime?         @map("last_login_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
   addresses        Address[]
+  couponUsages     CouponUsage[]
+  loginHistory     LoginHistory[]
+  notifications    Notification[]
+  orders           Order[]
   otpVerifications OtpVerification[]
   passwordResets   PasswordReset[]
-  shoppingCart     ShoppingCart[]
-  wishlist         Wishlist[]
   comments         ProductComment[]
   reviews          ProductReview[]
-  orders           Order[]
-  notifications    Notification[]
-  loginHistory     LoginHistory[]
+  shoppingCart     ShoppingCart[]
   sessions         UserSession[]
-  couponUsages     CouponUsage[]
+  wishlist         Wishlist[]
 
   @@map("users")
 }
 
-// ===========================
-// BẢNG XÁC THỰC OTP EMAIL
-// ===========================
 model OtpVerification {
   id          Int      @id @default(autoincrement())
   userId      Int?     @map("user_id")
@@ -79,16 +65,12 @@ model OtpVerification {
   maxAttempts Int      @default(3) @map("max_attempts")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  user        User?    @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User? @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "otp_verifications_user_id_fkey")
   @@map("otp_verifications")
 }
 
-// ===========================
-// BẢNG RESET MẬT KHẨU
-// ===========================
 model PasswordReset {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
@@ -97,16 +79,12 @@ model PasswordReset {
   isUsed    Boolean  @default(false) @map("is_used")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "password_resets_user_id_fkey")
   @@map("password_resets")
 }
 
-// ===========================
-// BẢNG ĐỊA CHỈ
-// ===========================
 model Address {
   id            Int         @id @default(autoincrement())
   userId        Int         @map("user_id")
@@ -122,94 +100,77 @@ model Address {
   note          String?
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
+  user          User        @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "addresses_user_id_fkey")
   @@map("addresses")
 }
 
-// ===========================
-// DANH MỤC SẢN PHẨM
-// ===========================
 model Category {
-  id          Int      @id @default(autoincrement())
-  name        String
-  slug        String   @unique
-  description String?
-  imageUrl    String?  @map("image_url")
-  imagePublicId String? @map("image_public_id")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  products Product[]
+  id            Int       @id @default(autoincrement())
+  name          String
+  slug          String    @unique
+  description   String?
+  imageUrl      String?   @map("image_url")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  imagePublicId String?   @map("image_public_id")
+  products      Product[]
 
   @@map("categories")
 }
 
-// ===========================
-// HÃNG SẢN XUẤT
-// ===========================
 model Brand {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String
   country   String?
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  products Product[]
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  products  Product[]
 
   @@map("brands")
 }
 
-// ===========================
-// SẢN PHẨM
-// ===========================
 model Product {
-  id              Int           @id @default(autoincrement())
-  sku             String        @unique
+  id              Int                    @id @default(autoincrement())
+  sku             String                 @unique
   name            String
-  slug            String        @unique
+  slug            String                 @unique
   description     String?
-  categoryId      Int           @map("category_id")
-  brandId         Int           @map("brand_id")
-  status          ProductStatus @default(ACTIVE)
-  isFeatured      Boolean       @default(false) @map("is_featured")
-  price           Decimal       @db.Decimal(12, 2)
-  salePrice       Decimal?      @map("sale_price") @db.Decimal(12, 2)
-  costPrice       Decimal?      @map("cost_price") @db.Decimal(12, 2)
-  stockQuantity   Int           @default(0) @map("stock_quantity")
-  minStockLevel   Int           @default(5) @map("min_stock_level")
-  imageUrl        String?       @map("image_url")
-  imagePublicId   String?       @map("image_public_id")
-  metaTitle       String?       @map("meta_title")
-  metaDescription String?       @map("meta_description")
-  viewCount       Int           @default(0) @map("view_count")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  category        Category              @relation(fields: [categoryId], references: [id])
-  brand           Brand                 @relation(fields: [brandId], references: [id])
-  specifications  ProductSpecification[]
+  categoryId      Int                    @map("category_id")
+  brandId         Int                    @map("brand_id")
+  status          ProductStatus          @default(ACTIVE)
+  isFeatured      Boolean                @default(false) @map("is_featured")
+  price           Decimal                @db.Decimal(12, 2)
+  salePrice       Decimal?               @map("sale_price") @db.Decimal(12, 2)
+  costPrice       Decimal?               @map("cost_price") @db.Decimal(12, 2)
+  stockQuantity   Int                    @default(0) @map("stock_quantity")
+  minStockLevel   Int                    @default(5) @map("min_stock_level")
+  metaTitle       String?                @map("meta_title")
+  metaDescription String?                @map("meta_description")
+  viewCount       Int                    @default(0) @map("view_count")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  imagePublicId   String?                @map("image_public_id")
+  imageUrl        String?                @map("image_url")
+  orderItems      OrderItem[]
+  comments        ProductComment[]
   images          ProductImage[]
+  reviews         ProductReview[]
+  specifications  ProductSpecification[]
   variants        ProductVariant[]
+  brand           Brand                  @relation(fields: [brandId], references: [id])
+  category        Category               @relation(fields: [categoryId], references: [id])
   cartItems       ShoppingCart[]
   wishlistItems   Wishlist[]
-  comments        ProductComment[]
-  reviews         ProductReview[]
-  orderItems      OrderItem[]
 
+  @@index([brandId], map: "products_brand_id_fkey")
+  @@index([categoryId], map: "products_category_id_fkey")
   @@map("products")
 }
 
-// ===========================
-// THÔNG SỐ KỸ THUẬT SẢN PHẨM
-// ===========================
 model ProductSpecification {
   id          Int      @id @default(autoincrement())
   productId   Int      @map("product_id")
@@ -220,17 +181,12 @@ model ProductSpecification {
   sortOrder   Int      @default(0) @map("sort_order")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  product Product @relation(fields: [productId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
 
   @@unique([productId, specName])
   @@map("product_specifications")
 }
 
-// ===========================
-// ẢNH SẢN PHẨM
-// ===========================
 model ProductImage {
   id            Int      @id @default(autoincrement())
   productId     Int      @map("product_id")
@@ -239,223 +195,190 @@ model ProductImage {
   isPrimary     Boolean  @default(false) @map("is_primary")
   sortOrder     Int      @default(0) @map("sort_order")
   createdAt     DateTime @default(now()) @map("created_at")
+  product       Product  @relation(fields: [productId], references: [id])
 
-  // Relations
-  product Product @relation(fields: [productId], references: [id])
-
+  @@index([productId], map: "product_images_product_id_fkey")
   @@map("product_images")
 }
 
-// ===========================
-// BIẾN THỂ SẢN PHẨM
-// ===========================
 model ProductVariant {
-  id            Int     @id @default(autoincrement())
-  productId     Int     @map("product_id")
-  sku           String  @unique
+  id            Int            @id @default(autoincrement())
+  productId     Int            @map("product_id")
+  sku           String         @unique
   name          String
-  price         Decimal? @db.Decimal(12, 2)
-  stockQuantity Int     @default(0) @map("stock_quantity")
-  isActive      Boolean @default(true) @map("is_active")
+  price         Decimal?       @db.Decimal(12, 2)
+  stockQuantity Int            @default(0) @map("stock_quantity")
+  isActive      Boolean        @default(true) @map("is_active")
   size          String?
   color         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  orderItems    OrderItem[]
+  product       Product        @relation(fields: [productId], references: [id])
+  cartItems     ShoppingCart[]
 
-  // Relations
-  product   Product       @relation(fields: [productId], references: [id])
-  cartItems ShoppingCart[]
-  orderItems OrderItem[]
-
+  @@index([productId], map: "product_variants_product_id_fkey")
   @@map("product_variants")
 }
 
-// ===========================
-// GIỎ HÀNG
-// ===========================
 model ShoppingCart {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  productId Int      @map("product_id")
-  variantId Int?     @map("variant_id")
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  user    User           @relation(fields: [userId], references: [id])
-  product Product        @relation(fields: [productId], references: [id])
-  variant ProductVariant? @relation(fields: [variantId], references: [id])
+  id        Int             @id @default(autoincrement())
+  userId    Int             @map("user_id")
+  productId Int             @map("product_id")
+  variantId Int?            @map("variant_id")
+  quantity  Int             @default(1)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  product   Product         @relation(fields: [productId], references: [id])
+  user      User            @relation(fields: [userId], references: [id])
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@unique([userId, productId, variantId])
+  @@index([productId], map: "shopping_cart_product_id_fkey")
+  @@index([variantId], map: "shopping_cart_variant_id_fkey")
   @@map("shopping_cart")
 }
 
-// ===========================
-// DANH SÁCH YÊU THÍCH
-// ===========================
 model Wishlist {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
   productId Int      @map("product_id")
   createdAt DateTime @default(now()) @map("created_at")
-
-  // Relations
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, productId])
+  @@index([productId], map: "wishlist_product_id_fkey")
   @@map("wishlist")
 }
 
-// ===========================
-// BÌNH LUẬN SẢN PHẨM
-// ===========================
 model ProductComment {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @map("user_id")
-  productId   Int      @map("product_id")
-  parentId    Int?     @map("parent_id")
-  content     String
-  isApproved  Boolean  @default(false) @map("is_approved")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id         Int              @id @default(autoincrement())
+  userId     Int              @map("user_id")
+  productId  Int              @map("product_id")
+  parentId   Int?             @map("parent_id")
+  content    String
+  isApproved Boolean          @default(false) @map("is_approved")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+  parent     ProductComment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    ProductComment[] @relation("CommentReplies")
+  product    Product          @relation(fields: [productId], references: [id])
+  user       User             @relation(fields: [userId], references: [id])
 
-  // Relations
-  user    User    @relation(fields: [userId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-  parent  ProductComment? @relation("CommentReplies", fields: [parentId], references: [id])
-  replies ProductComment[] @relation("CommentReplies")
-
+  @@index([parentId], map: "product_comments_parent_id_fkey")
+  @@index([productId], map: "product_comments_product_id_fkey")
+  @@index([userId], map: "product_comments_user_id_fkey")
   @@map("product_comments")
 }
 
-// ===========================
-// ĐÁNH GIÁ SẢN PHẨM
-// ===========================
 model ProductReview {
-  id          Int      @id @default(autoincrement())
-  productId   Int      @map("product_id")
-  userId      Int      @map("user_id")
-  orderId     Int?     @map("order_id")
-  rating      Int
-  title       String?
-  comment     String?
-  isApproved  Boolean  @default(true) @map("is_approved")
-  isVerified  Boolean  @default(false) @map("is_verified")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  product Product @relation(fields: [productId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
-  order   Order?  @relation(fields: [orderId], references: [id])
+  id         Int      @id @default(autoincrement())
+  productId  Int      @map("product_id")
+  userId     Int      @map("user_id")
+  orderId    Int?     @map("order_id")
+  rating     Int
+  title      String?
+  comment    String?
+  isApproved Boolean  @default(true) @map("is_approved")
+  isVerified Boolean  @default(false) @map("is_verified")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  order      Order?   @relation(fields: [orderId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 
   @@unique([productId, userId])
+  @@index([orderId], map: "product_reviews_order_id_fkey")
+  @@index([userId], map: "product_reviews_user_id_fkey")
   @@map("product_reviews")
 }
 
-// ===========================
-// ĐƠN HÀNG
-// ===========================
 model Order {
-  id               Int           @id @default(autoincrement())
-  orderNumber      String        @unique @map("order_number")
-  userId           Int           @map("user_id")
-  status           OrderStatus   @default(PENDING)
-  paymentStatus    PaymentStatus @default(PENDING) @map("payment_status")
-  subtotal         Decimal       @db.Decimal(12, 2)
-  shippingFee      Decimal       @default(0) @map("shipping_fee") @db.Decimal(12, 2)
-  discountAmount    Decimal       @default(0) @map("discount_amount") @db.Decimal(12, 2)
-  totalAmount      Decimal       @map("total_amount") @db.Decimal(12, 2)
-  shippingAddress  Json          @map("shipping_address")
-  paymentMethod    PaymentMethod @map("payment_method")
-  paymentReference String?       @map("payment_reference")
-  trackingCode     String?       @map("tracking_code")
-  customerNote     String?       @map("customer_note")
-  adminNote        String?       @map("admin_note")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  id               Int             @id @default(autoincrement())
+  orderNumber      String          @unique @map("order_number")
+  userId           Int             @map("user_id")
+  status           OrderStatus     @default(PENDING)
+  paymentStatus    PaymentStatus   @default(PENDING) @map("payment_status")
+  subtotal         Decimal         @db.Decimal(12, 2)
+  shippingFee      Decimal         @default(0.00) @map("shipping_fee") @db.Decimal(12, 2)
+  discountAmount   Decimal         @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount      Decimal         @map("total_amount") @db.Decimal(12, 2)
+  shippingAddress  String          @map("shipping_address") @db.LongText
+  paymentMethod    PaymentMethod   @map("payment_method")
+  paymentReference String?         @map("payment_reference")
+  trackingCode     String?         @map("tracking_code")
+  customerNote     String?         @map("customer_note")
+  adminNote        String?         @map("admin_note")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  couponUsages     CouponUsage[]
+  orderItems       OrderItem[]
+  user             User            @relation(fields: [userId], references: [id])
+  payments         Payment[]
+  reviews          ProductReview[]
 
-  // Relations
-  user       User        @relation(fields: [userId], references: [id])
-  orderItems OrderItem[]
-  payments   Payment[]
-  reviews    ProductReview[]
-  couponUsages CouponUsage[]
-
+  @@index([userId], map: "orders_user_id_fkey")
   @@map("orders")
 }
 
-// ===========================
-// CHI TIẾT ĐƠN HÀNG
-// ===========================
 model OrderItem {
-  id           Int     @id @default(autoincrement())
-  orderId      Int     @map("order_id")
-  productId    Int     @map("product_id")
-  variantId    Int?    @map("variant_id")
-  productName  String  @map("product_name")
-  productSku   String  @map("product_sku")
-  variantName  String? @map("variant_name")
-  quantity     Int
-  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2)
-  totalPrice   Decimal @map("total_price") @db.Decimal(12, 2)
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          Int             @id @default(autoincrement())
+  orderId     Int             @map("order_id")
+  productId   Int             @map("product_id")
+  variantId   Int?            @map("variant_id")
+  productName String          @map("product_name")
+  productSku  String          @map("product_sku")
+  variantName String?         @map("variant_name")
+  quantity    Int
+  unitPrice   Decimal         @map("unit_price") @db.Decimal(12, 2)
+  totalPrice  Decimal         @map("total_price") @db.Decimal(12, 2)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  order       Order           @relation(fields: [orderId], references: [id])
+  product     Product         @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
 
-  // Relations
-  order   Order           @relation(fields: [orderId], references: [id])
-  product Product         @relation(fields: [productId], references: [id])
-  variant ProductVariant? @relation(fields: [variantId], references: [id])
-
+  @@index([orderId], map: "order_items_order_id_fkey")
+  @@index([productId], map: "order_items_product_id_fkey")
+  @@index([variantId], map: "order_items_variant_id_fkey")
   @@map("order_items")
 }
 
-// ===========================
-// MÃ GIẢM GIÁ
-// ===========================
 model Coupon {
-  id             Int      @id @default(autoincrement())
-  code           String   @unique
-  name           String
-  discountType   DiscountType @map("discount_type")
-  discountValue  Decimal  @map("discount_value") @db.Decimal(10, 2)
-  minimumAmount  Decimal  @default(0) @map("minimum_amount") @db.Decimal(12, 2)
-  usageLimit     Int      @default(100) @map("usage_limit")
-  usedCount      Int      @default(0) @map("used_count")
-  startDate      DateTime @map("start_date")
-  endDate        DateTime @map("end_date")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  usages CouponUsage[]
+  id            Int           @id @default(autoincrement())
+  code          String        @unique
+  name          String
+  discountType  DiscountType  @map("discount_type")
+  discountValue Decimal       @map("discount_value") @db.Decimal(10, 2)
+  minimumAmount Decimal       @default(0.00) @map("minimum_amount") @db.Decimal(12, 2)
+  usageLimit    Int           @default(100) @map("usage_limit")
+  usedCount     Int           @default(0) @map("used_count")
+  startDate     DateTime      @map("start_date")
+  endDate       DateTime      @map("end_date")
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  usages        CouponUsage[]
 
   @@map("coupons")
 }
 
-// ===========================
-// LỊCH SỬ DÙNG MÃ GIẢM GIÁ
-// ===========================
 model CouponUsage {
-  id        Int      @id @default(autoincrement())
-  couponId  Int      @map("coupon_id")
-  userId    Int      @map("user_id")
-  orderId   Int      @map("order_id")
-  usedAt    DateTime @default(now()) @map("used_at")
+  id       Int      @id @default(autoincrement())
+  couponId Int      @map("coupon_id")
+  userId   Int      @map("user_id")
+  orderId  Int      @map("order_id")
+  usedAt   DateTime @default(now()) @map("used_at")
+  coupon   Coupon   @relation(fields: [couponId], references: [id])
+  order    Order    @relation(fields: [orderId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  coupon Coupon @relation(fields: [couponId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
-  order  Order  @relation(fields: [orderId], references: [id])
-
+  @@index([couponId], map: "coupon_usage_coupon_id_fkey")
+  @@index([orderId], map: "coupon_usage_order_id_fkey")
+  @@index([userId], map: "coupon_usage_user_id_fkey")
   @@map("coupon_usage")
 }
 
-// ===========================
-// THANH TOÁN
-// ===========================
 model Payment {
   id            Int           @id @default(autoincrement())
   orderId       Int           @map("order_id")
@@ -465,33 +388,26 @@ model Payment {
   transactionId String        @unique @map("transaction_id")
   paidAt        DateTime?     @map("paid_at")
   createdAt     DateTime      @default(now()) @map("created_at")
+  order         Order         @relation(fields: [orderId], references: [id])
 
-  // Relations
-  order Order @relation(fields: [orderId], references: [id])
-
+  @@index([orderId], map: "payments_order_id_fkey")
   @@map("payments")
 }
 
-// ===========================
-// BANNER
-// ===========================
 model Banner {
-  id              Int      @id @default(autoincrement())
-  title           String
-  imageUrl        String   @map("image_url")
-  bannerPublicId  String?  @map("banner_public_id")
-  linkUrl         String?  @map("link_url")
-  isActive        Boolean  @default(true) @map("is_active")
-  sortOrder       Int      @default(0) @map("sort_order")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id             Int      @id @default(autoincrement())
+  title          String
+  imageUrl       String   @map("image_url")
+  bannerPublicId String?  @map("banner_public_id")
+  linkUrl        String?  @map("link_url")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("banners")
 }
 
-// ===========================
-// THÔNG BÁO
-// ===========================
 model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
@@ -500,16 +416,12 @@ model Notification {
   type      String
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "notifications_user_id_fkey")
   @@map("notifications")
 }
 
-// ===========================
-// CÀI ĐẶT HỆ THỐNG
-// ===========================
 model Setting {
   id          Int      @id @default(autoincrement())
   keyName     String   @unique @map("key_name")
@@ -521,28 +433,21 @@ model Setting {
   @@map("settings")
 }
 
-// ===========================
-// LỊCH SỬ ĐĂNG NHẬP
-// ===========================
 model LoginHistory {
-  id            Int      @id @default(autoincrement())
-  userId        Int      @map("user_id")
+  id            Int         @id @default(autoincrement())
+  userId        Int         @map("user_id")
   loginMethod   LoginMethod @map("login_method")
-  ipAddress     String?  @map("ip_address")
-  userAgent     String?  @map("user_agent")
-  isSuccessful  Boolean  @default(true) @map("is_successful")
-  failureReason String?  @map("failure_reason")
-  createdAt     DateTime @default(now()) @map("created_at")
+  ipAddress     String?     @map("ip_address")
+  userAgent     String?     @map("user_agent")
+  isSuccessful  Boolean     @default(true) @map("is_successful")
+  failureReason String?     @map("failure_reason")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  user          User        @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "login_history_user_id_fkey")
   @@map("login_history")
 }
 
-// ===========================
-// SESSION QUẢN LÝ
-// ===========================
 model UserSession {
   id           Int      @id @default(autoincrement())
   userId       Int      @map("user_id")
@@ -554,16 +459,28 @@ model UserSession {
   expiresAt    DateTime @map("expires_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id])
 
-  // Relations
-  user User @relation(fields: [userId], references: [id])
-
+  @@index([userId], map: "user_sessions_user_id_fkey")
   @@map("user_sessions")
 }
 
-// ===========================
-// ENUMS
-// ===========================
+model ai_market_analysis_data {
+  id              Int       @id @default(autoincrement())
+  title           String
+  content         String    @db.Text
+  source          String
+  category        String
+  sentiment_score Float?
+  keywords        String?   @db.LongText
+  market_trends   String?   @db.LongText
+  industry        String?
+  region          String?
+  published_at    DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime
+}
+
 enum Role {
   ADMIN
   STAFF

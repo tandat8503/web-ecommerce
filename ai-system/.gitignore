@@ -22,6 +22,9 @@ training_logs/
 *.pb
 *.onnx
 
+# Generated reports
+web/generated/
+
 # Python cache and compiled files
 __pycache__/
 *.py[cod]

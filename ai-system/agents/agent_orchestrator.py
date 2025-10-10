@@ -13,6 +13,10 @@ import asyncio
 from datetime import datetime
 
 from ecommerce_agents import EcommerceAgentSystem, AgentType
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.product_validator import ProductValidator
 from prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,7 @@ class AgentOrchestrator:
     def __init__(self):
         self.agent_system = EcommerceAgentSystem()
         self.prompt_manager = PromptManager()
+        self.product_validator = ProductValidator()
         self.request_history = []
         self.agent_performance = {}
         
@@ -233,6 +238,9 @@ class AgentOrchestrator:
     async def process_request(self, request: AgentRequest) -> AgentResponse:
         """Xử lý request thông qua agent"""
         try:
+            # Validate sản phẩm trước khi phân loại
+            product_validation = self.product_validator.validate_product(request.user_message)
+            
             # Classify request
             request_type, confidence = self.classify_request(request.user_message, request.context)
             request.request_type = request_type
@@ -240,11 +248,23 @@ class AgentOrchestrator:
             # Select agent
             agent_name, agent_confidence = self.select_agent(request_type, request.context)
             
-            # Generate prompt
+            # Generate prompt với thông tin validation
             system_prompt = self.generate_agent_prompt(agent_name, request)
             
+            # Thêm thông tin validation vào context
+            enhanced_context = {
+                **request.context,
+                "product_validation": {
+                    "is_office_furniture": product_validation.is_office_furniture,
+                    "confidence": product_validation.confidence,
+                    "suggested_category": product_validation.suggested_category,
+                    "suggested_alternatives": product_validation.suggested_alternatives,
+                    "reason": product_validation.reason
+                }
+            }
+            
             # Simulate agent processing (in real implementation, this would call LLM)
-            response_text = await self._simulate_agent_response(agent_name, request, system_prompt)
+            response_text = await self._simulate_agent_response(agent_name, request, system_prompt, enhanced_context)
             
             # Create response
             response = AgentResponse(
@@ -257,7 +277,9 @@ class AgentOrchestrator:
                 metadata={
                     "request_type": request_type.value,
                     "processing_time": 0.5,
-                    "prompt_length": len(system_prompt)
+                    "prompt_length": len(system_prompt),
+                    "product_validation": product_validation.__dict__,
+                    "is_office_furniture": product_validation.is_office_furniture
                 }
             )
             
@@ -287,7 +309,7 @@ class AgentOrchestrator:
                 metadata={"error": str(e)}
             )
     
-    async def _simulate_agent_response(self, agent_name: str, request: AgentRequest, system_prompt: str) -> str:
+    async def _simulate_agent_response(self, agent_name: str, request: AgentRequest, system_prompt: str, enhanced_context: dict = None) -> str:
         """Mô phỏng response từ agent (thay thế bằng LLM call thực tế)"""
         # This is a simulation - in real implementation, you would call LLM here
         
@@ -300,14 +322,32 @@ class AgentOrchestrator:
                 f"Highlights: {', '.join(highlights) if highlights else 'N/A'}."
             )
         
-        responses = {
-            "customer_service": f"Xin chào {request.context.get('customer_name', 'bạn')}! Tôi là chuyên gia hỗ trợ khách hàng. Tôi hiểu bạn đang quan tâm về: '{request.user_message}'. Tôi sẽ giúp bạn giải quyết vấn đề này.",
-            "product_expert": f"Tôi là chuyên gia sản phẩm. Dựa trên yêu cầu '{request.user_message}', tôi sẽ tư vấn sản phẩm phù hợp nhất cho bạn.",
-            "sales_assistant": f"Chào bạn! Tôi là trợ lý bán hàng. Tôi sẽ giúp bạn tìm sản phẩm phù hợp với nhu cầu: '{request.user_message}'.",
-            "technical_support": f"Tôi là chuyên gia hỗ trợ kỹ thuật. Tôi sẽ giúp bạn giải quyết vấn đề: '{request.user_message}'.",
-            "order_manager": f"Tôi là chuyên gia quản lý đơn hàng. Tôi sẽ hỗ trợ bạn với yêu cầu: '{request.user_message}'.",
-            "recommendation_engine": f"Tôi là hệ thống đề xuất sản phẩm. Dựa trên sở thích của bạn, tôi sẽ đề xuất: '{request.user_message}'."
-        }
+        # Kiểm tra validation sản phẩm
+        product_validation = enhanced_context.get("product_validation", {}) if enhanced_context else {}
+        is_office_furniture = product_validation.get("is_office_furniture", True)
+        suggested_alternatives = product_validation.get("suggested_alternatives", [])
+        
+        if not is_office_furniture and suggested_alternatives:
+            # Sản phẩm không thuộc nội thất văn phòng
+            alternatives_text = ", ".join(suggested_alternatives[:2])
+            responses = {
+                "customer_service": f"Xin lỗi, cửa hàng chúng tôi chuyên về nội thất văn phòng. Chúng tôi có thể tư vấn cho bạn về: {alternatives_text}.",
+                "product_expert": f"Xin lỗi, chúng tôi chuyên về nội thất văn phòng. Bạn có thể quan tâm đến: {alternatives_text}.",
+                "sales_assistant": f"Xin lỗi, chúng tôi chuyên về nội thất văn phòng. Bạn có thể quan tâm đến: {alternatives_text}.",
+                "technical_support": f"Xin lỗi, chúng tôi chuyên về nội thất văn phòng. Bạn có thể quan tâm đến: {alternatives_text}.",
+                "order_manager": f"Xin lỗi, chúng tôi chuyên về nội thất văn phòng. Bạn có thể quan tâm đến: {alternatives_text}.",
+                "recommendation_engine": f"Xin lỗi, chúng tôi chuyên về nội thất văn phòng. Bạn có thể quan tâm đến: {alternatives_text}."
+            }
+        else:
+            # Sản phẩm thuộc nội thất văn phòng
+            responses = {
+                "customer_service": f"Xin chào {request.context.get('customer_name', 'bạn')}! Tôi là chuyên gia hỗ trợ khách hàng. Tôi hiểu bạn đang quan tâm về: '{request.user_message}'. Tôi sẽ giúp bạn giải quyết vấn đề này.",
+                "product_expert": f"Tôi là chuyên gia sản phẩm nội thất văn phòng. Dựa trên yêu cầu '{request.user_message}', tôi sẽ tư vấn sản phẩm phù hợp nhất cho bạn.",
+                "sales_assistant": f"Chào bạn! Tôi là trợ lý bán hàng nội thất văn phòng. Tôi sẽ giúp bạn tìm sản phẩm phù hợp với nhu cầu: '{request.user_message}'.",
+                "technical_support": f"Tôi là chuyên gia hỗ trợ kỹ thuật nội thất văn phòng. Tôi sẽ giúp bạn giải quyết vấn đề: '{request.user_message}'.",
+                "order_manager": f"Tôi là chuyên gia quản lý đơn hàng. Tôi sẽ hỗ trợ bạn với yêu cầu: '{request.user_message}'.",
+                "recommendation_engine": f"Tôi là hệ thống đề xuất sản phẩm nội thất văn phòng. Dựa trên sở thích của bạn, tôi sẽ đề xuất: '{request.user_message}'."
+            }
         
         return responses.get(agent_name, "Tôi sẽ giúp bạn với yêu cầu này.")
     
@@ -387,3 +427,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

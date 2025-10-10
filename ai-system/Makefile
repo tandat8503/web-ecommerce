@@ -142,3 +142,4 @@ prod-setup: install
 	@echo "🏭 Setting up production environment..."
 	mkdir -p logs
 	@echo "✅ Production setup completed"
+

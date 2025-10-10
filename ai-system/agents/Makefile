@@ -52,3 +52,4 @@ stop:
 	@echo "🛑 Stopping background processes..."
 	pkill -f "agent_api.py" || true
 	@echo "✅ Stopped background processes"
+

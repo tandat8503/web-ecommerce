@@ -13,10 +13,13 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
-# Add current directory to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add current directory and agents directory to path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(BASE_DIR)
+sys.path.append(os.path.join(BASE_DIR, "agents"))
 
 from core.database_connector import DatabaseConnector
+from core.ai_database import AIDatabase
 from report_generator import ReportGenerator
 from agents.agent_orchestrator import AgentOrchestrator, AgentRequest, RequestType, Priority
 
@@ -29,7 +32,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Initialize components
-db = DatabaseConnector()
+db = DatabaseConnector()  # E-commerce database (read-only)
+ai_db = AIDatabase()      # AI system database (read-write)
 report_generator = ReportGenerator()
 agent_orchestrator = AgentOrchestrator()
 
@@ -347,6 +351,17 @@ def chat_with_ai():
         response = loop.run_until_complete(agent_orchestrator.process_request(agent_request))
         loop.close()
         
+        # Log conversation to AI database
+        ai_db.log_conversation(
+            session_id=session_id,
+            user_id=user_id,
+            user_message=user_message,
+            agent_name=response.agent_name,
+            response_text=response.response_text,
+            confidence=response.confidence,
+            product_validation=response.metadata.get("product_validation")
+        )
+        
         return jsonify({
             "request_id": response.request_id,
             "agent_name": response.agent_name,
@@ -522,6 +537,77 @@ def get_product_recommendations(product_id):
         logger.error(f"Error getting product recommendations: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ===========================
+# AI SYSTEM ENDPOINTS
+# ===========================
+
+@app.route('/api/ai/stats', methods=['GET'])
+def get_ai_stats():
+    """Lấy thống kê AI system"""
+    try:
+        stats = ai_db.get_database_stats()
+        return jsonify({
+            "ai_database_stats": stats,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting AI stats: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ai/conversations/<session_id>', methods=['GET'])
+def get_conversation_history(session_id):
+    """Lấy lịch sử cuộc trò chuyện"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        conversations = ai_db.get_conversation_history(session_id, limit)
+        
+        return jsonify({
+            "session_id": session_id,
+            "conversations": conversations,
+            "total": len(conversations)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting conversation history: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ai/training-data', methods=['GET'])
+def get_training_data():
+    """Lấy training data"""
+    try:
+        data_type = request.args.get('type')
+        limit = request.args.get('limit', 1000, type=int)
+        
+        training_data = ai_db.get_training_data(data_type, limit)
+        
+        return jsonify({
+            "training_data": training_data,
+            "data_type": data_type,
+            "total": len(training_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting training data: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ai/cleanup', methods=['POST'])
+def cleanup_ai_data():
+    """Dọn dẹp dữ liệu AI cũ"""
+    try:
+        days = request.json.get('days', 30) if request.json else 30
+        ai_db.cleanup_old_data(days)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Cleaned up data older than {days} days",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error cleaning up AI data: {e}")
+        return jsonify({"error": str(e)}), 500
+
 def main():
     """Main function"""
     import argparse
@@ -565,3 +651,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
