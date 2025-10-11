@@ -138,7 +138,16 @@ export default function AdminBanner() {
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "title", label: "Tiêu đề" },
-    { name: "isActive", label: "Trạng thái", render: (v) => (v ? "Hiển thị" : "Ẩn") },
+    { name: "isActive", label: "Trạng thái", render: (v) =>
+    v ? (
+      <Tag color="green" style={{ fontWeight: 600 }}>
+        Hoạt động
+      </Tag>
+    ) : (
+      <Tag color="red" style={{ fontWeight: 600 }}>
+        Tạm dừng
+      </Tag>
+    ), },
     { name: "imageUrl", label: "Ảnh", render: (v) => <Image width={200} src={v} /> },
     {
       name: "createdAt",
