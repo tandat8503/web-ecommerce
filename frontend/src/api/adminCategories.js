@@ -39,13 +39,25 @@ export async function deleteCategory(id) {
   return await axiosClient.delete(`admin/categories/${id}`);
 }
 
+
+/**
+ * ✅ Lấy danh sách categories cho user (public)
+ *    Không cần token
+ */
+export async function getPublicCategories() {
+  const res = await axiosClient.get("admin/categories/public");
+  return { data: res.data }; // bọc lại cho tương thích với các chỗ khác
+}
+
+
+
 // Default export object chứa tất cả functions (để tương thích với AdminProducts, AdminBrands)
 const adminCategoriesAPI = {
   getCategories,
   getCategoryById,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
 };
 
 export default adminCategoriesAPI;
