@@ -23,3 +23,11 @@ export async function updateBanner(id, data) {
 export async function deleteBanner(id) {
   return await axiosClient.delete(`admin/banners/${id}`);
 }
+
+
+
+
+// Lấy banner hiển thị public (user) trạng thái active
+export async function getActiveBanners() {
+  return await axiosClient.get("admin/banners/active");
+}

@@ -9,6 +9,14 @@ import { uploadCategory} from "../middleware/uploadcloud.js";
 
 
 const router = Router();
+/**
+ * ✅ Cho phép user frontend lấy danh mục (public)
+ *    Không cần token, không cần admin
+ */
+router.get("/public", listCategories);
+
+
+// Tất cả route trong này đều cần auth và admin
 router.use(authenticateToken, requireAdmin);
 
 router.get('/', listCategories);

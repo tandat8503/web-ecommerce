@@ -28,7 +28,7 @@ export const createBanner = async (req, res) => {
 };
 
 // ============================
-// LẤY DANH SÁCH BANNER
+// LẤY DANH SÁCH BANNER CHO ADMIN
 // ============================
 export const getBanners = async (req, res) => {
   try {
@@ -40,6 +40,24 @@ export const getBanners = async (req, res) => {
     res.status(500).json({ message: "Lỗi server", error });
   }
 };
+
+
+// ============================
+// LẤY DANH SÁCH BANNER HOẠT ĐỘNG (CHO USER)
+// ============================
+export const getActiveBanners = async (req, res) => {
+  try {
+    const banners = await prisma.banner.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ code: 200, data: banners });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server", error });
+  }
+};
+
 
 // ============================
 // LẤY 1 BANNER

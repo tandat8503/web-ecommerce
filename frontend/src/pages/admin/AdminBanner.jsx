@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Select, Upload, Button as AntButton } from "antd";
+import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Switch, Upload, Button as AntButton } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye, FaUpload } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
@@ -106,16 +106,14 @@ export default function AdminBanner() {
       component: <Input placeholder="Nhập tiêu đề banner" />,
       rules: [{ required: true, message: "Vui lòng nhập tiêu đề" }],
     },
-    {
-      name: "isActive",
-      label: "Trạng thái",
-      component: (
-        <Select placeholder="Chọn trạng thái">
-          <Select.Option value={true}>Hiển thị</Select.Option>
-          <Select.Option value={false}>Ẩn</Select.Option>
-        </Select>
-      ),
-    },
+     {
+    name: "isActive",
+    label: "Trạng thái",
+    component: (
+      <Switch checkedChildren="Hoạt động" unCheckedChildren="Tạm dừng" />
+    ),
+    valuePropName: "checked", 
+  },
     {
       name: "image",
       label: "Ảnh banner",
@@ -132,7 +130,7 @@ export default function AdminBanner() {
           <AntButton icon={<UploadOutlined />}>Chọn ảnh banner</AntButton>
         </Upload>
       ),
-      rules: [{ required: true, message: "Vui lòng chọn ảnh banner" }],
+      //rules: [{ required: true, message: "Vui lòng chọn ảnh banner" }],
     },
   ];
 
@@ -140,7 +138,16 @@ export default function AdminBanner() {
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "title", label: "Tiêu đề" },
-    { name: "isActive", label: "Trạng thái", render: (v) => (v ? "Hiển thị" : "Ẩn") },
+    { name: "isActive", label: "Trạng thái", render: (v) =>
+    v ? (
+      <Tag color="green" style={{ fontWeight: 600 }}>
+        Hoạt động
+      </Tag>
+    ) : (
+      <Tag color="red" style={{ fontWeight: 600 }}>
+        Tạm dừng
+      </Tag>
+    ), },
     { name: "imageUrl", label: "Ảnh", render: (v) => <Image width={200} src={v} /> },
     {
       name: "createdAt",

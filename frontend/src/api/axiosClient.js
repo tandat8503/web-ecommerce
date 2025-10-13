@@ -2,13 +2,16 @@
 import axios from "axios";
 
 // Hardcode API URL - không sử dụng environment variables
-const API_URL = "http://localhost:5000/api";
+// ✅ Lấy API URL từ biến môi trường Vite (hoặc fallback về localhost nếu chạy dev)
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api/";
 
 const axiosClient = axios.create({
   baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
+    withCredentials: true, // 🔹 quan trọng: cho phép gửi cookie / credential
+
 });
 
 //Thêm token tự động nếu có,là cơ chế tự động gắn token vào tất cả request gửi đến API.
@@ -49,6 +52,8 @@ export const publicAxiosClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+    withCredentials: true, // 🔹 quan trọng: cho phép gửi cookie / credential
+
 });
 
 export default axiosClient;
