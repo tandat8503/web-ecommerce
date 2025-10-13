@@ -1,275 +1,44 @@
-# ===========================
-# AI SYSTEM - PYTHON PROJECT
-# ===========================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
-__pycache__/
-*.py[cod]
-*$py.class
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# AI Models and trained data (large files)
-models/
-data/
-logs/
-training_logs/
-*.pkl
-*.joblib
-*.h5
-*.pb
-*.onnx
+# testing
+/coverage
 
-# Python cache and compiled files
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.dylib
-*.dll
-*.bin
-*.node
+# next.js
+/.next/
+/out/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
+# production
+/build
 
-# PyCharm
-.idea/
-
-# VS Code
-.vscode/
-
-# Python packages
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-
-# ===========================
-# LABELING TOOL - NODE.JS
-# ===========================
-
-# Dependencies
-labeling-tool/node_modules/
-labeling-tool/.next/
-labeling-tool/out/
-labeling-tool/build/
-labeling-tool/.env
-labeling-tool/.env.local
-labeling-tool/.env.development.local
-labeling-tool/.env.test.local
-labeling-tool/.env.production.local
-
-# Next.js
-labeling-tool/.next/
-labeling-tool/out/
-
-# npm/yarn
-labeling-tool/npm-debug.log*
-labeling-tool/yarn-debug.log*
-labeling-tool/yarn-error.log*
-
-# ===========================
-# LARGE FILES & BINARIES
-# ===========================
-
-# Large binary files
-*.dylib
-*.so
-*.dll
-*.bin
-*.node
-*.exe
-
-# Data files
-*.csv
-*.json
-*.xml
-*.sql
-*.db
-*.sqlite
-*.sqlite3
-
-# Archives
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
-# ===========================
-# CONFIGURATION & SECRETS
-# ===========================
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# API keys and secrets
-apikey.txt
-apikey_env.txt
-service_account.json
-*.pem
-*.key
-*.crt
-config/secrets.py
-config/database.py
-
-# ===========================
-# LOGS & TEMPORARY FILES
-# ===========================
-
-# Log files
-logs/
-*.log
-*.out
-*.err
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-
-# Backup files
-*.bak
-*.backup
-*.old
-*.orig
-*.rej
-
-# ===========================
-# OPERATING SYSTEM
-# ===========================
-
-# macOS
+# misc
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
+*.pem
 
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-Desktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
+# env files (can opt-in for committing if needed)
+.env*
 
-# ===========================
-# DEVELOPMENT TOOLS
-# ===========================
+# vercel
+.vercel
 
-# Editor directories and files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# Profiling
-*.prof
-*.lprof
-
-# Coverage reports
-coverage/
-.nyc_output/
-.coverage
-htmlcov/
-
-# ===========================
-# SPECIFIC TO AI PROJECT
-# ===========================
-
-# Model checkpoints
-checkpoints/
-saved_models/
-trained_models/
-
-# Dataset files
-datasets/
-raw_data/
-processed_data/
-*.csv
-*.tsv
-*.json
-*.jsonl
-
-# Experiment results
-experiments/
-results/
-outputs/
-runs/
-
-# TensorBoard logs
-tensorboard_logs/
-tb_logs/
-
-# MLflow
-mlruns/
-
-# Weights & Biases
-wandb/
-
-# ===========================
-# DOCKER & DEPLOYMENT
-# ===========================
-
-# Docker
-.dockerignore
-docker-compose.override.yml
-.docker/
-
-# ===========================
-# DOCUMENTATION GENERATED
-# ===========================
-
-# Sphinx documentation
-docs/_build/
-docs/build/
-
-# ===========================
-# CUSTOM EXCLUSIONS
-# ===========================
-
-# Add any project-specific files/folders here
-# Example:
-# custom_data/
-# experimental_code/
-# deprecated/
+#virtual environment
+.venv
