@@ -1,171 +1,361 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Input, Avatar, Tooltip } from "antd";
+import { Button, Input, Avatar, Tooltip, message, Spin, Typography } from "antd";
 import {
   MessageOutlined,
   SendOutlined,
   CloseOutlined,
+  RobotOutlined,
+  WifiOutlined,
+  DisconnectOutlined,
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
+import { aiChatbotAPI, aiUtils, AIWebSocketClient } from "../../../api/aiChatbotAPI";
+
+const { Text } = Typography;
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "✨ Xin chào! Mình là Magic Assistant — có thể giúp gì cho bạn?" },
+    { 
+      from: "bot", 
+      text: "Xin chào! Tôi là AI tư vấn chuyên nghiệp của cửa hàng nội thất văn phòng. Bạn cần tư vấn gì ạ?",
+      timestamp: new Date().toISOString(),
+      metadata: {
+        response_time: 0,
+        model: "professional_ai_chatbot"
+      }
+    },
   ]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("checking");
+  const [wsClient, setWsClient] = useState(null);
+  const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef(null);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    const userMsg = { from: "user", text: input };
-    setMessages((prev) => [...prev, userMsg]);
+  // Initialize session and check connection
+  useEffect(() => {
+    initializeChat();
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const initializeChat = async () => {
+    try {
+      // Generate session ID
+      const newSessionId = aiUtils.generateSessionId();
+      setSessionId(newSessionId);
+
+      // Check AI service availability
+      const isAvailable = await aiUtils.isServiceAvailable();
+      setIsConnected(isAvailable);
+      setConnectionStatus(isAvailable ? "connected" : "disconnected");
+
+      if (isAvailable) {
+        console.log("✅ Professional AI Chatbot connected");
+        
+        // Initialize WebSocket for real-time features
+        const ws = new AIWebSocketClient();
+        await ws.connect(newSessionId);
+        
+        // Set up WebSocket event listeners
+        ws.addEventListener("message", handleWebSocketMessage);
+        ws.addEventListener("typing", handleTypingIndicator);
+        ws.addEventListener("error", handleWebSocketError);
+        
+        setWsClient(ws);
+      } else {
+        console.warn("⚠️ Professional AI Chatbot not available");
+      }
+    } catch (error) {
+      console.error("❌ Failed to initialize chat:", error);
+      setIsConnected(false);
+      setConnectionStatus("error");
+    }
+  };
+
+  const handleWebSocketMessage = (data) => {
+    if (data.type === "message") {
+      const botMsg = {
+        from: "bot",
+        text: data.content,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          response_time: data.response_time,
+          model: data.model || "professional_ai_chatbot",
+          streaming: data.streaming || false
+        }
+      };
+      setMessages(prev => [...prev, botMsg]);
+      setTyping(false);
+      setStreaming(false);
+    }
+  };
+
+  const handleTypingIndicator = (data) => {
+    if (data.type === "typing") {
+      setTyping(data.typing);
+    }
+  };
+
+  const handleWebSocketError = (data) => {
+    console.error("WebSocket error:", data);
+    setTyping(false);
+    setStreaming(false);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || typing) return;
+
+    const userMsg = { 
+      from: "user", 
+      text: input,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, userMsg]);
     setInput("");
     setTyping(true);
 
-    // Giả lập bot trả lời
-    setTimeout(() => {
+    try {
+      if (isConnected && wsClient) {
+        // Use WebSocket for real-time communication
+        wsClient.sendMessage(input);
+        setStreaming(true);
+      } else {
+        // Fallback to HTTP API
+        const response = await aiChatbotAPI.sendMessage(input, sessionId);
+        
       const botMsg = {
+          from: "bot",
+          text: response.response,
+          timestamp: response.timestamp,
+          metadata: {
+            response_time: response.response_time,
+            model: response.metadata?.model || "professional_ai_chatbot"
+          }
+        };
+        setMessages(prev => [...prev, botMsg]);
+        setTyping(false);
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      const errorMsg = {
         from: "bot",
-        text: "🌸 Cảm ơn bạn! Tính năng AI sắp ra mắt, vui lòng đợi nhé!",
+        text: isConnected 
+          ? "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn. Vui lòng thử lại sau."
+          : "AI Chatbot hiện không khả dụng. Vui lòng liên hệ trực tiếp với chúng tôi qua hotline: 0123-456-789",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          error: true,
+          error_message: aiUtils.getErrorMessage(error)
+        }
       };
-      setMessages((prev) => [...prev, botMsg]);
+      setMessages(prev => [...prev, errorMsg]);
       setTyping(false);
-    }, 1500);
+      setStreaming(false);
+
+      // Show error notification
+      message.error(aiUtils.getErrorMessage(error));
+    }
   };
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    return new Date(timestamp).toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit"
     });
-  }, [messages, typing]);
+  };
+
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return <WifiOutlined style={{ color: "#52c41a" }} />;
+      case "disconnected":
+        return <DisconnectOutlined style={{ color: "#ff4d4f" }} />;
+      case "checking":
+        return <Spin size="small" />;
+      default:
+        return <DisconnectOutlined style={{ color: "#ff4d4f" }} />;
+    }
+  };
+
+  const getConnectionText = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return "AI Connected";
+      case "disconnected":
+        return "AI Disconnected";
+      case "checking":
+        return "Checking...";
+      default:
+        return "AI Error";
+    }
+  };
 
   return (
-    <>
-      {/* Floating button */}
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        className="fixed bottom-6 right-6 z-50"
-      >
-        <Tooltip title="Chatbox">
-          <Button
-            type="primary"
-            shape="circle"
-            size="large"
-            icon={<MessageOutlined />}
-            onClick={() => setOpen(!open)}
-            className="shadow-xl border-none bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white hover:shadow-fuchsia-300/40 transition-all duration-300"
-          />
-        </Tooltip>
-      </motion.div>
-
-      {/* Chat box */}
+    <div className="fixed bottom-4 right-4 z-50">
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.9 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="fixed bottom-24 right-6 w-80 z-50"
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            className="bg-white rounded-lg shadow-2xl w-96 h-[500px] flex flex-col border border-gray-200"
           >
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-fuchsia-400/20 dark:border-fuchsia-600/20 bg-white/90 dark:bg-neutral-900/95 backdrop-blur-lg">
               {/* Header */}
-              <div className="flex items-center justify-between p-3 bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500 text-white">
-                <div className="flex items-center gap-2">
-                  <Avatar className="bg-white text-lg">🤖</Avatar>
-                  <div className="font-semibold">Magic Assistant</div>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-lg">
+              <div className="flex items-center space-x-2">
+                <Avatar 
+                  icon={<RobotOutlined />} 
+                  style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+                />
+                <div>
+                  <div className="font-semibold">AI Tư Vấn</div>
+                  <div className="flex items-center space-x-1 text-xs">
+                    {getConnectionIcon()}
+                    <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: "11px" }}>
+                      {getConnectionText()}
+                    </Text>
+                  </div>
+                </div>
                 </div>
                 <Button
                   type="text"
                   icon={<CloseOutlined />}
                   onClick={() => setOpen(false)}
-                  className="text-white hover:text-gray-200"
+                style={{ color: "white" }}
                 />
               </div>
 
-              {/* Content */}
+            {/* Messages */}
               <div
                 ref={scrollRef}
-                className="h-80 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-fuchsia-400/40"
+              className="flex-1 overflow-y-auto p-4 space-y-3"
               >
-                {messages.map((msg, i) => (
+              {messages.map((msg, index) => (
                   <motion.div
-                    key={i}
+                  key={index}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25 }}
                     className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    {msg.from === "bot" && (
-                      <Avatar
-                        size={27}
-                        className="mr-2 bg-gradient-to-r from-indigo-400 to-fuchsia-400"
-                      >
-                        🤖
-                      </Avatar>
-                    )}
-                    <div
-                      className={`px-3 py-2 rounded-2xl max-w-[75%] text-sm ${
+                  <div
+                    className={`max-w-[80%] p-3 rounded-lg ${
                         msg.from === "user"
-                          ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-md"
-                          : "bg-gray-100 dark:bg-neutral-800 dark:text-gray-100 border border-white/10"
-                      }`}
-                      style={{
-                        borderTopLeftRadius: msg.from === "bot" ? "0.25rem" : "1rem",
-                        borderTopRightRadius: msg.from === "user" ? "0.25rem" : "1rem",
-                      }}
-                    >
-                      {msg.text}
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    <div className="text-sm">{msg.text}</div>
+                    <div className={`text-xs mt-1 ${
+                      msg.from === "user" ? "text-blue-100" : "text-gray-500"
+                    }`}>
+                      {formatTime(msg.timestamp)}
+                      {msg.metadata?.response_time && (
+                        <span className="ml-2">
+                          ({aiUtils.formatResponseTime(msg.metadata.response_time)})
+                        </span>
+                      )}
+                    </div>
+                    {msg.metadata?.error && (
+                      <div className="text-xs text-red-500 mt-1">
+                        ⚠️ {msg.metadata.error_message}
+                      </div>
+                    )}
                     </div>
                   </motion.div>
                 ))}
 
-                {/* Typing animation */}
-                <AnimatePresence>
                   {typing && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300"
-                    >
-                      <Avatar size={24} className="bg-gradient-to-r from-purple-400 to-pink-400">
-                        🤖
-                      </Avatar>
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span>
-                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></span>
-                        <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-300"></span>
+                  className="flex justify-start"
+                >
+                  <div className="bg-gray-100 p-3 rounded-lg">
+                    <div className="flex items-center space-x-1">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                      </div>
+                      <span className="text-xs text-gray-500 ml-2">
+                        AI đang suy nghĩ...
+                      </span>
+                    </div>
                       </div>
                     </motion.div>
                   )}
-                </AnimatePresence>
               </div>
 
               {/* Input */}
-              <div className="flex items-center gap-2 p-3 bg-white/70 dark:bg-neutral-900/80 border-t border-fuchsia-400/20">
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex space-x-2">
                 <Input
-                  placeholder="Nhập tin nhắn..."
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onPressEnter={handleSend}
-                  className="rounded-full px-4"
+                  onKeyPress={handleKeyPress}
+                  placeholder={
+                    isConnected 
+                      ? "Nhập tin nhắn của bạn..." 
+                      : "AI không khả dụng..."
+                  }
+                  disabled={!isConnected || typing}
+                  className="flex-1"
                 />
                 <Button
                   type="primary"
-                  shape="circle"
                   icon={<SendOutlined />}
                   onClick={handleSend}
-                  className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 border-none hover:opacity-90"
+                  disabled={!input.trim() || typing || !isConnected}
+                  loading={typing}
                 />
               </div>
+              {!isConnected && (
+                <div className="mt-2 text-xs text-gray-500 text-center">
+                  <Text type="secondary">
+                    AI service không khả dụng. Vui lòng thử lại sau.
+                  </Text>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+
+      {/* Toggle Button */}
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <Button
+          type="primary"
+          shape="circle"
+          size="large"
+          icon={<MessageOutlined />}
+          onClick={() => setOpen(!open)}
+          className="shadow-lg"
+          style={{
+            backgroundColor: "#1890ff",
+            borderColor: "#1890ff",
+          }}
+        />
+      </motion.div>
+    </div>
   );
 }
