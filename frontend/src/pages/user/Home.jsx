@@ -3,6 +3,7 @@ import BannerSlider from "../../components/user/BannerSlider";
 import Navbar from "../../components/user/Navbar";
 import Categories from "../../components/user/Categories";
 import About from "../../components/user/About";
+import Collection from "../../components/user/Collection";
 
 const { Title, Paragraph } = Typography;
 
@@ -25,7 +26,10 @@ export default function Home() {
           <Categories />
         </div>
 
-       
+        {/* Bộ sưu tập */}
+        <div className="my-16">
+          <Collection />
+        </div>
       </div>
     </div>
   );
