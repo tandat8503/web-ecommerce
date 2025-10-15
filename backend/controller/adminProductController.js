@@ -1,60 +1,89 @@
-import prisma from '../config/prisma.js';
-import { slugify } from '../utils/slugify.js';
-import cloudinary from '../config/cloudinary.js';
+// Import các thư viện cần thiết
+import prisma from '../config/prisma.js'; // Prisma client để kết nối database
+import { slugify } from '../utils/slugify.js'; // Utility function để tạo slug từ tên sản phẩm
+import cloudinary from '../config/cloudinary.js'; // Cloudinary client để upload ảnh
 
+// Cấu hình include cơ bản cho các query sản phẩm
+// Chỉ lấy thông tin cần thiết của category và brand để tối ưu performance
 const includeBasic = {
-  category: { select: { id: true, name: true, slug: true } },
-  brand: { select: { id: true, name: true } }
+  category: { select: { id: true, name: true, slug: true } }, // Chỉ lấy id, name, slug của category
+  brand: { select: { id: true, name: true } } // Chỉ lấy id, name của brand
 };
 
+// Function lấy danh sách sản phẩm với phân trang và tìm kiếm
 export const listProducts = async (req, res) => {
+  // Tạo context object để log và debug
   const context = { path: 'admin.products.list', query: req.query };
   try {
     console.log('START', context);
+    
+    // Lấy các tham số từ query string với giá trị mặc định
     const { page = 1, limit = 10, q, categoryId, brandId } = req.query;
-    const and = [];
-    if (q) and.push({ name: { contains: q, mode: 'insensitive' } });
-    if (categoryId) and.push({ categoryId: Number(categoryId) });
-    if (brandId) and.push({ brandId: Number(brandId) });
-    const where = and.length ? { AND: and } : undefined;
+    
+    // Xây dựng điều kiện WHERE động dựa trên các filter
+    const and = []; // Mảng chứa các điều kiện AND
+    if (q) and.push({ name: { contains: q, mode: 'insensitive' } }); // Tìm kiếm theo tên (không phân biệt hoa thường)
+    if (categoryId) and.push({ categoryId: Number(categoryId) }); // Lọc theo category ID
+    if (brandId) and.push({ brandId: Number(brandId) }); // Lọc theo brand ID
+    const where = and.length ? { AND: and } : undefined; // Nếu có điều kiện thì tạo WHERE clause
 
+    // Thực hiện 2 query song song để tối ưu performance
     const [items, total] = await Promise.all([
+      // Query 1: Lấy danh sách sản phẩm với phân trang
       prisma.product.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (Number(page) - 1) * Number(limit),
-        take: Number(limit),
-        include: includeBasic
+        where, // Điều kiện lọc
+        orderBy: { createdAt: 'desc' }, // Sắp xếp theo thời gian tạo (mới nhất trước)
+        skip: (Number(page) - 1) * Number(limit), // Bỏ qua các bản ghi của trang trước
+        take: Number(limit), // Lấy đúng số lượng bản ghi của trang hiện tại
+        include: includeBasic // Include thông tin category và brand
       }),
+      // Query 2: Đếm tổng số sản phẩm thỏa mãn điều kiện
       prisma.product.count({ where })
     ]);
 
+    // Tạo response payload với thông tin phân trang
     const payload = { items, total, page: Number(page), limit: Number(limit) };
     console.log('END', { ...context, total: payload.total });
     return res.json(payload);
   } catch (error) {
+    // Xử lý lỗi và log
     console.error('ERROR', { ...context, error: error.message });
     const payload = { message: 'Server error' };
+    // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
   }
 };
 
+// Function lấy chi tiết một sản phẩm theo ID
 export const getProduct = async (req, res) => {
+  // Tạo context object để log và debug
   const context = { path: 'admin.products.get', params: req.params };
   try {
     console.log('START', context);
+    
+    // Lấy ID từ URL params và chuyển đổi sang number
     const id = Number(req.params.id);
-    const product = await prisma.product.findUnique({ where: { id }, include: includeBasic });
+    
+    // Tìm sản phẩm theo ID với thông tin category và brand
+    const product = await prisma.product.findUnique({ 
+      where: { id }, 
+      include: includeBasic 
+    });
+    
+    // Kiểm tra sản phẩm có tồn tại không
     if (!product) {
       console.warn('NOT_FOUND', context);
       return res.status(404).json({ message: 'Not found' });
     }
+    
     console.log('END', { ...context, id });
     return res.json(product);
   } catch (error) {
+    // Xử lý lỗi và log
     console.error('ERROR', { ...context, error: error.message });
     const payload = { message: 'Server error' };
+    // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
   }
@@ -276,6 +305,92 @@ export const updateProductPrimaryImage = async (req, res) => {
   } catch (error) {
     console.error('ERROR', { ...context, error: error.message });
     const payload = { message: 'Server error' };
+    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
+    return res.status(500).json(payload);
+  }
+};
+
+// Function lấy sản phẩm theo category với phân trang và sắp xếp (API mới được thêm)
+export const getProductsByCategory = async (req, res) => {
+  // Tạo context object để log và debug
+  const context = { path: 'admin.products.getByCategory', query: req.query };
+  try {
+    console.log('START', context);
+    
+    // Lấy categoryId từ URL params (ví dụ: /api/admin/products/category/1)
+    const { categoryId } = req.params;
+    // Lấy các tham số phân trang và sắp xếp từ query string với giá trị mặc định
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+
+    // Validation: Kiểm tra categoryId có được cung cấp không
+    if (!categoryId) {
+      console.warn('MISSING_CATEGORY_ID', { ...context });
+      return res.status(400).json({ message: 'categoryId is required' });
+    }
+
+    // Kiểm tra category có tồn tại trong database không
+    const category = await prisma.category.findUnique({ 
+      where: { id: Number(categoryId) },
+      select: { id: true, name: true, slug: true } // Chỉ lấy các field cần thiết để tối ưu performance
+    });
+    if (!category) {
+      console.warn('CATEGORY_NOT_FOUND', { ...context, categoryId });
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    // Tính toán offset và limit cho phân trang
+    const skip = (Number(page) - 1) * Number(limit); // Bỏ qua bao nhiêu bản ghi
+    const take = Number(limit); // Lấy bao nhiêu bản ghi
+
+    // Thực hiện 2 query song song để tối ưu performance
+    const [products, total] = await Promise.all([
+      // Query 1: Lấy danh sách sản phẩm trong category với phân trang
+      prisma.product.findMany({
+        where: { 
+          categoryId: Number(categoryId), // Lọc theo category ID
+          status: 'ACTIVE' // Chỉ lấy sản phẩm đang hoạt động, bỏ qua sản phẩm đã xóa/tạm dừng
+        },
+        orderBy: { [sortBy]: sortOrder }, // Sắp xếp theo field và thứ tự được chỉ định
+        skip, // Bỏ qua các bản ghi của trang trước
+        take, // Lấy đúng số lượng bản ghi của trang hiện tại
+        include: {
+          category: { select: { id: true, name: true, slug: true } },
+          brand: { select: { id: true, name: true } }
+        }
+      }),
+      // Query 2: Đếm tổng số sản phẩm trong category (chỉ sản phẩm ACTIVE)
+      prisma.product.count({
+        where: { 
+          categoryId: Number(categoryId),
+          status: 'ACTIVE'
+        }
+      })
+    ]);
+
+    console.log('FOUND_PRODUCTS', { ...context, categoryId, count: products.length, total });
+
+    // Trả về dữ liệu theo format chuẩn cho UI
+    const payload = {
+      success: true, // Flag thành công
+      data: {
+        category, // Thông tin category
+        products, // Danh sách sản phẩm
+        pagination: {
+          page: Number(page), // Trang hiện tại
+          limit: Number(limit), // Số sản phẩm mỗi trang
+          total, // Tổng số sản phẩm
+          totalPages: Math.ceil(total / Number(limit)) // Tổng số trang (làm tròn lên)
+        }
+      }
+    };
+    
+    console.log('END', { ...context, categoryId, total: products.length });
+    return res.json(payload);
+  } catch (error) {
+    // Xử lý lỗi và log
+    console.error('ERROR', { ...context, error: error.message });
+    const payload = { success: false, message: 'Server error' };
+    // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
   }
