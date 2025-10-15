@@ -39,6 +39,9 @@ export async function deleteProduct(id) {
   return await axiosClient.delete(`admin/products/${id}`);
 }
 
+
+
+
 // Default export object chứa tất cả functions (để tương thích với Dashboard)
 const adminProductsAPI = {
   getProducts,

@@ -169,7 +169,7 @@ export default function UserHeader() {
   ];
 
   return (
-    <header className="w-full bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 text-white shadow-xl">
+    <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 text-white shadow-xl">
       {/* Thanh chạy quảng cáo */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-2 text-sm overflow-hidden whitespace-nowrap">
         <marquee
