@@ -6,8 +6,8 @@
 import axios from "axios";
 
 // API Configuration
-const AI_API_URL = "http://localhost:8000/api";
-const AI_WS_URL = "ws://localhost:8000/ws";
+const AI_API_URL = "http://localhost:8000";
+const AI_WS_URL = "ws://localhost:8000/ws"; // (chưa dùng, backend hiện không có ws)
 
 // Create axios instance with default config
 const aiAxiosClient = axios.create({
@@ -76,21 +76,26 @@ export const aiChatbotAPI = {
    * @param {boolean} stream - Whether to stream response
    * @returns {Promise<Object>} Bot response
    */
-  sendMessage: async (message, sessionId = null, stream = false) => {
+  // User chatbot: tư vấn sản phẩm
+  sendUserMessage: async (message, sessionId = null) => {
     try {
-      const payload = {
-        message: message.trim(),
-        stream: stream
-      };
-      
-      if (sessionId) {
-        payload.session_id = sessionId;
-      }
-
-      const response = await aiAxiosClient.post("/chat", payload);
+      const payload = { role: "user", message: message.trim() };
+      const response = await aiAxiosClient.post("/chat/user", payload);
       return response.data;
     } catch (error) {
-      console.error("Send message failed:", error);
+      console.error("Send user message failed:", error);
+      throw error;
+    }
+  },
+
+  // Admin chatbot: intent nghiệp vụ (doanh thu/sentiment/report)
+  sendAdminMessage: async (message) => {
+    try {
+      const payload = { role: "admin", message: message.trim() };
+      const response = await aiAxiosClient.post("/chat/admin", payload);
+      return response.data;
+    } catch (error) {
+      console.error("Send admin message failed:", error);
       throw error;
     }
   },
@@ -108,6 +113,7 @@ export const aiChatbotAPI = {
         stream: stream
       };
 
+      // Backend hiện không có endpoint này; để tương thích tương lai, tạm trả lỗi if gọi nhầm
       const response = await aiAxiosClient.post("/conversation", payload);
       return response.data;
     } catch (error) {
@@ -162,6 +168,7 @@ export const aiChatbotAPI = {
         ...filters
       };
 
+      // Gợi ý: có thể map sang /chat/user với query nếu chưa có search API riêng
       const response = await aiAxiosClient.get("/products/search", { params });
       return response.data;
     } catch (error) {
@@ -176,7 +183,7 @@ export const aiChatbotAPI = {
    */
   getSystemStats: async () => {
     try {
-      const response = await aiAxiosClient.get("/stats");
+      const response = await aiAxiosClient.get("/health");
       return response.data;
     } catch (error) {
       console.error("Get system stats failed:", error);
