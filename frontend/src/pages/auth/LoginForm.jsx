@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { login } from "@/api/auth";
 import { getUserProfile } from "@/api/userProfile";
 import { toast } from "react-toastify";
-import LoginGoogle from "./LoginGoogle";
+
 const { Title, Text } = Typography;
 
 export default function LoginForm({ onSwitchToRegister }) {
@@ -27,36 +27,42 @@ export default function LoginForm({ onSwitchToRegister }) {
   const onFinish = async (values) => {
     try {
       setLoading(true);
+      console.log("Login data being sent:", values);
+      
       const response = await login(values);
+      console.log("Login response:", response);
       
       if (response.data.success) {
         const userData = response.data.data.user;
+        console.log("Login response user data:", userData);
+        console.log("Login response avatar:", userData.avatar);
+        console.log("Login response avatar type:", typeof userData.avatar);
         
         localStorage.setItem("token", response.data.data.accessToken);
         localStorage.setItem("user", JSON.stringify(userData));
         
-        // Chỉ gọi getUserProfile cho user thường, không phải admin
-        if (userData.userType !== 'admin') {
-          try {
-            const profileResponse = await getUserProfile();
-            if (profileResponse.data.code === 200) {
-              const fullUserData = profileResponse.data.data.user;
-              
-              // Cập nhật localStorage với thông tin đầy đủ
-              localStorage.setItem("user", JSON.stringify(fullUserData));
-              
-              // Dispatch event để UserHeader cập nhật
-              window.dispatchEvent(new CustomEvent('userUpdated'));
-            }
-          } catch (profileError) {
-            console.error("Error fetching full user profile:", profileError);
-            // Vẫn tiếp tục với user data từ login nếu có lỗi
+        // Gọi API getUserProfile để lấy đầy đủ thông tin user (bao gồm avatar)
+        try {
+          console.log("Fetching full user profile after login...");
+          const profileResponse = await getUserProfile();
+          if (profileResponse.data.code === 200) {
+            const fullUserData = profileResponse.data.data.user;
+            console.log("Full user profile from API:", fullUserData);
+            console.log("Full user profile avatar:", fullUserData.avatar);
+            
+            // Cập nhật localStorage với thông tin đầy đủ
+            localStorage.setItem("user", JSON.stringify(fullUserData));
+            console.log("Updated localStorage with full user profile");
+            
+            // Dispatch event để UserHeader cập nhật
+            window.dispatchEvent(new CustomEvent('userUpdated'));
           }
-        } else {
-          // Dispatch event để UserHeader cập nhật
-          window.dispatchEvent(new CustomEvent('userUpdated'));
+        } catch (profileError) {
+          console.error("Error fetching full user profile:", profileError);
+          // Vẫn tiếp tục với user data từ login nếu có lỗi
         }
         
+        console.log("Login successful, showing toast...");
         toast.success("🎉 Đăng nhập thành công!", {
           position: "top-right",
           autoClose: 2000,
@@ -100,7 +106,10 @@ export default function LoginForm({ onSwitchToRegister }) {
     }
   };
 
- 
+  const handleGoogleLogin = () => {
+    toast.info("Tính năng đăng nhập Google đang được phát triển!");
+  };
+
   return (
     <div className="w-full">
       {/* Header with Decoration */}
@@ -225,8 +234,13 @@ export default function LoginForm({ onSwitchToRegister }) {
             <Text className="text-gray-400 text-xs font-medium px-4 bg-white">Hoặc đăng nhập với</Text>
           </Divider>
 
-                <LoginGoogle />
-
+          <Button
+            onClick={handleGoogleLogin}
+            className="w-full h-12 border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
+          >
+            <FaGoogle className="text-xl text-red-500" />
+            <span>Google</span>
+          </Button>
 
           <div className="text-center mt-6">
             <Text className="text-gray-600 text-base">

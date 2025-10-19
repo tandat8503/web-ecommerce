@@ -14,6 +14,8 @@ import AdminProductSpecification from "@/pages/admin/AdminProductSpecification";
 //User
 import UserLayout from "@/layout/user/UserLayout";
 import Home from "@/pages/user/Home";
+import Products from "@/pages/user/Products";
+import ProductDetail from "@/pages/user/ProductDetail";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
@@ -29,6 +31,8 @@ const router = createBrowserRouter([
     element: <UserLayout />,
     children: [
       { index: true, element: <Home /> },
+      { path: "san-pham", element: <Products /> },
+      { path: "san-pham/:id", element: <ProductDetail /> },
       { path: "profile-manager", element: <ProfileManager /> },
     ],
   },

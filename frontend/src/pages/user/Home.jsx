@@ -4,7 +4,8 @@ import Navbar from "../../components/user/Navbar";
 import Categories from "../../components/user/Categories";
 import About from "../../components/user/About";
 import Collection from "../../components/user/Collection";
-
+import CategoryProducts from "../../components/user/CategoryProducts";
+import FeaturedProductsSection from "../../components/user/FeaturedProductsSection";
 const { Title, Paragraph } = Typography;
 
 export default function Home() {
@@ -16,20 +17,37 @@ export default function Home() {
         <div className="mb-8">
           <BannerSlider />
         </div>
-         {/* Trang giới thiệu */}
-         <div className="mb-8">
-           <About />
-         </div>
+
+       
+        {/* Trang giới thiệu */}
+        <div className="mb-8">
+          <About />
+        </div>
+
+          {/* Sản phẩm nổi bật */}
+          <div className="my-16">
+          <FeaturedProductsSection />
+        </div>
 
         {/* Danh mục sản phẩm */}
-        <div className=" mt-5">
+        <div className="mt-5">
           <Categories />
         </div>
 
+      
+
+        {/* Sản phẩm theo danh mục */}
+        <div className="my-16">
+          <CategoryProducts />
+        </div>
+      
         {/* Bộ sưu tập */}
         <div className="my-16">
           <Collection />
         </div>
+
+        
+       
       </div>
     </div>
   );

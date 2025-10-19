@@ -15,6 +15,7 @@ import {
   InputNumber,
   Upload,
   Button as AntButton,
+  Switch,
 } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye, FaImages } from "react-icons/fa";
 import { Loader2 } from "lucide-react";
@@ -127,9 +128,14 @@ export default function AdminProducts() {
       if (values.categoryId) formData.append('categoryId', values.categoryId);
       if (values.brandId) formData.append('brandId', values.brandId);
       
-      // Xử lý isActive - convert boolean to string
+      // Xử lý trạng thái - gửi status field thay vì isActive
       if (values.isActive !== undefined) {
-        formData.append('isActive', values.isActive ? 'true' : 'false');
+        formData.append('status', values.isActive ? 'ACTIVE' : 'INACTIVE');
+      }
+      
+      // Xử lý sản phẩm nổi bật
+      if (values.isFeatured !== undefined) {
+        formData.append('isFeatured', values.isFeatured ? 'true' : 'false');
       }
       
       // Thêm file nếu có
@@ -226,11 +232,30 @@ export default function AdminProducts() {
     { title: "Giá", dataIndex: "price", render: (p) => p ? `$${p.toLocaleString()}` : "-" },
     { title: "Tồn kho", dataIndex: "stockQuantity", render: (s) => s || 0 },
     {
-      title: "Trạng thái",
-      dataIndex: "isActive",
-      key: "isActive",
+      title: "Nổi bật",
+      dataIndex: "isFeatured",
+      key: "isFeatured",
       width: 100,
-      render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>,
+      render: (isFeatured) => (
+        <Tag color={isFeatured ? 'red' : 'purple'}>
+          {isFeatured ? '⭐ Nổi bật' : 'Bình thường'}
+        </Tag>
+      ),
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      width: 100,
+      render: (status) => {
+        const statusConfig = {
+          'ACTIVE': { color: 'green', text: 'Hoạt động' },
+          'INACTIVE': { color: 'red', text: 'Tạm dừng' },
+          'OUT_OF_STOCK': { color: 'orange', text: 'Hết hàng' }
+        };
+        const config = statusConfig[status] || { color: 'default', text: 'Không xác định' };
+        return <Tag color={config.color}>{config.text}</Tag>;
+      },
     },
     {
       title: "Ngày tạo",
@@ -365,8 +390,14 @@ export default function AdminProducts() {
     },
     {
       name: "isActive",
-      label: "Trạng thái",
-      component: <input type="checkbox" />,
+      label: "Trạng thái hoạt động",
+      component: <Switch checkedChildren="Hoạt động" unCheckedChildren="Tạm dừng" />,
+      valuePropName: "checked",
+    },
+    {
+      name: "isFeatured",
+      label: "Sản phẩm nổi bật",
+      component: <Switch checkedChildren="⭐ Nổi bật" unCheckedChildren="Bình thường" />,
       valuePropName: "checked",
     },
   ];
@@ -387,9 +418,26 @@ export default function AdminProducts() {
       render: (v) => (v ? <Image width={100} src={v} /> : "Không có"),
     },
     {
-      name: "isActive",
+      name: "isFeatured",
+      label: "Sản phẩm nổi bật",
+      render: (isFeatured) => (
+        <Tag color={isFeatured ? 'red' : 'purple'}>
+          {isFeatured ? '⭐ Nổi bật' : 'Bình thường'}
+        </Tag>
+      ),
+    },
+    {
+      name: "status",
       label: "Trạng thái",
-      render: (v) => <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>,
+      render: (status) => {
+        const statusConfig = {
+          'ACTIVE': { color: 'green', text: 'Hoạt động' },
+          'INACTIVE': { color: 'red', text: 'Tạm dừng' },
+          'OUT_OF_STOCK': { color: 'orange', text: 'Hết hàng' }
+        };
+        const config = statusConfig[status] || { color: 'default', text: 'Không xác định' };
+        return <Tag color={config.color}>{config.text}</Tag>;
+      },
     },
     {
       name: "createdAt",
