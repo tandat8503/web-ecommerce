@@ -11,6 +11,9 @@ import { uploadProduct } from '../middleware/uploadcloud.js'; // Middleware uplo
 // Tạo router instance
 const router = Router();
 
+// Route lấy sản phẩm theo category (API mới được thêm)
+router.get('/category/:categoryId', getProductsByCategory);
+
 // Áp dụng middleware authentication và authorization cho tất cả routes
 // Chỉ admin mới có thể truy cập các API quản lý sản phẩm
 router.use(authenticateToken, requireAdmin);
@@ -20,8 +23,7 @@ router.use(authenticateToken, requireAdmin);
 // Route lấy danh sách sản phẩm với phân trang và tìm kiếm
 router.get('/', listProducts);
 
-// Route lấy sản phẩm theo category (API mới được thêm)
-router.get('/category/:categoryId', getProductsByCategory);
+
 
 // Route lấy chi tiết một sản phẩm theo ID
 router.get('/:id', getProduct);

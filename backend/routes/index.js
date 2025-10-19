@@ -8,8 +8,7 @@ import authRouter from "./authRoutes.js "; // Routes xác thực: login, registe
 import addressRouter from "./addressRouter.js "; // Routes quản lý địa chỉ người dùng
 import userRouter from "./user.router.js"; // Routes thông tin người dùng (public)
 
-// User routes (yêu cầu authentication nhưng không cần admin)
-import userOrderRoutes from "./userOrderRoutes.js"; // Routes quản lý đơn hàng của user
+
 
 // Admin routes (yêu cầu authentication và quyền admin)
 import adminOrderRoutes from "./adminOrderRoutes.js"; // Routes quản lý đơn hàng
@@ -38,7 +37,7 @@ const routes = (app) => {
   // ==================== USER ROUTES ====================
   // Các routes yêu cầu authentication nhưng không cần quyền admin
   
-  app.use("/api/orders", userOrderRoutes); // User order management endpoints
+  //app.use("/api/orders", userOrderRoutes); // User order management endpoints
   
   // ==================== ADMIN ROUTES ====================
   // Tất cả routes admin đều yêu cầu authentication và quyền admin

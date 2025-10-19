@@ -18,13 +18,14 @@ export const listProducts = async (req, res) => {
     console.log('START', context);
     
     // Lấy các tham số từ query string với giá trị mặc định
-    const { page = 1, limit = 10, q, categoryId, brandId } = req.query;
+    const { page = 1, limit = 10, q, categoryId, brandId, status } = req.query;
     
     // Xây dựng điều kiện WHERE động dựa trên các filter
     const and = []; // Mảng chứa các điều kiện AND
-    if (q) and.push({ name: { contains: q, mode: 'insensitive' } }); // Tìm kiếm theo tên (không phân biệt hoa thường)
+    if (q) and.push({ name: { contains: q} }); // Tìm kiếm theo tên (không phân biệt hoa thường)
     if (categoryId) and.push({ categoryId: Number(categoryId) }); // Lọc theo category ID
     if (brandId) and.push({ brandId: Number(brandId) }); // Lọc theo brand ID
+    if (status) and.push({ status: status.toUpperCase() }); // Lọc theo trạng thái
     const where = and.length ? { AND: and } : undefined; // Nếu có điều kiện thì tạo WHERE clause
 
     // Thực hiện 2 query song song để tối ưu performance
@@ -95,8 +96,14 @@ export const createProduct = async (req, res) => {
     console.log('START', context);
     const {
       name, slug: slugInput, sku, price, stock, description,
-      categoryId, brandId, isActive
+      categoryId, brandId, isActive, isFeatured
     } = req.body;
+
+    // Validation cơ bản
+    if (!name || !sku || !price || !categoryId || !brandId) {
+      console.warn('MISSING_REQUIRED_FIELDS', { ...context });
+      return res.status(400).json({ message: 'Missing required fields: name, sku, price, categoryId, brandId' });
+    }
 
     // Xử lý image upload
     const imageUrl = req.file ? req.file.path : null;
@@ -128,21 +135,35 @@ export const createProduct = async (req, res) => {
       return res.status(409).json({ message: 'SKU already exists' });
     }
 
+    // Chuẩn bị dữ liệu để tạo sản phẩm
+    const productData = {
+      name: name.trim(),
+      slug,
+      sku: sku.trim(),
+      price: Number(price).toFixed(2),
+      stockQuantity: Number(stock) || 0,
+      description: description ? description.trim() : null,
+      categoryId: Number(categoryId),
+      brandId: Number(brandId),
+      status: isActive === 'true' || isActive === true ? 'ACTIVE' : 'INACTIVE',
+      isFeatured: isFeatured === 'true' || isFeatured === true ? true : false,
+    };
+
+    // Xử lý trạng thái trực tiếp nếu có
+    if (req.body.status && ['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK'].includes(req.body.status.toUpperCase())) {
+      productData.status = req.body.status.toUpperCase();
+    }
+
+    // Chỉ thêm image nếu có
+    if (imageUrl) {
+      productData.imageUrl = imageUrl;
+      productData.imagePublicId = imagePublicId;
+    }
+
+    console.log('Creating product with data:', productData);
+
     const created = await prisma.product.create({
-      data: {
-        name,
-        slug,
-        sku,
-        price: String(price),
-        stockQuantity: stock ?? 0,
-        description: description || null,
-        categoryId: Number(categoryId),
-        brandId: Number(brandId),
-        status: 'ACTIVE',
-        isFeatured: false,
-        imageUrl, // Thêm mới
-        imagePublicId, // Thêm mới
-      },
+      data: productData,
       include: includeBasic
     });
 
@@ -212,12 +233,28 @@ export const updateProduct = async (req, res) => {
     }
 
     if (data.stock !== undefined) {
-      data.stockQuantity = data.stock;
+      data.stockQuantity = Number(data.stock) || 0;
       delete data.stock;
     }
 
     if (data.price !== undefined) {
-      data.price = String(data.price);
+      data.price = Number(data.price).toFixed(2);
+    }
+
+    // Xử lý trạng thái từ isActive
+    if (data.isActive !== undefined) {
+      data.status = data.isActive === 'true' || data.isActive === true ? 'ACTIVE' : 'INACTIVE';
+      delete data.isActive;
+    }
+
+    // Xử lý trường isFeatured
+    if (data.isFeatured !== undefined) {
+      data.isFeatured = data.isFeatured === 'true' || data.isFeatured === true ? true : false;
+    }
+
+    // Xử lý trạng thái trực tiếp nếu có
+    if (data.status && ['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK'].includes(data.status.toUpperCase())) {
+      data.status = data.status.toUpperCase();
     }
 
     const updated = await prisma.product.update({
@@ -309,6 +346,7 @@ export const updateProductPrimaryImage = async (req, res) => {
     return res.status(500).json(payload);
   }
 };
+
 
 // Function lấy sản phẩm theo category với phân trang và sắp xếp (API mới được thêm)
 export const getProductsByCategory = async (req, res) => {

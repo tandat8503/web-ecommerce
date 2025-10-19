@@ -14,7 +14,14 @@ export const createProductSchema = Joi.object({
       Joi.string().valid('true', 'false').custom((value, helpers) => {
         return value === 'true';
       })
-    ).default(true)
+    ).default(true),
+    isFeatured: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false').custom((value, helpers) => {
+        return value === 'true';
+      })
+    ).default(false),
+    status: Joi.string().valid('ACTIVE', 'INACTIVE', 'OUT_OF_STOCK').optional()
   });
   
   export const updateProductSchema = Joi.object({
@@ -31,5 +38,12 @@ export const createProductSchema = Joi.object({
       Joi.string().valid('true', 'false').custom((value, helpers) => {
         return value === 'true';
       })
-    ).optional()
+    ).optional(),
+    isFeatured: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false').custom((value, helpers) => {
+        return value === 'true';
+      })
+    ).optional(),
+    status: Joi.string().valid('ACTIVE', 'INACTIVE', 'OUT_OF_STOCK').optional()
   });
