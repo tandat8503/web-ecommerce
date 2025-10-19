@@ -246,3 +246,144 @@
 30. **Dashboard admin** - Tổng quan doanh thu, đơn hàng, khách hàng
 31. **Báo cáo bán hàng** - Theo thời gian, sản phẩm, khách hàng
 32. **Phân tích hành vi** - Lịch sử xem, mua sắm của khách hàng
+
+---
+
+## ** BẢNG QUẢN LÝ KHO HÀNG (MỚI THÊM)**
+
+### **23. BẢNG NHÀ CUNG CẤP (`suppliers`)**
+**Mô tả:** Lưu trữ thông tin các nhà cung cấp sản phẩm cho cửa hàng, bao gồm tên, liên hệ, địa chỉ, mã số thuế.
+
+**Ví dụ dữ liệu:**
+- "Công ty Nội thất ABC" - Liên hệ: "Nguyễn Văn A" - Email: "contact@abc.com"
+- "Xưởng sản xuất XYZ" - Liên hệ: "Trần Thị B" - Điện thoại: "0123456789"
+
+---
+
+### **24. BẢNG ĐƠN ĐẶT HÀNG (`purchase_orders`)**
+**Mô tả:** Quản lý các đơn đặt hàng từ nhà cung cấp, theo dõi trạng thái từ khi đặt đến khi nhận hàng.
+
+**Ví dụ dữ liệu:**
+- "PO-20241201-001" - Nhà cung cấp: ABC - Trạng thái: PENDING - Tổng: 50,000,000đ
+- "PO-20241201-002" - Nhà cung cấp: XYZ - Trạng thái: RECEIVED - Tổng: 30,000,000đ
+
+---
+
+### **25. BẢNG CHI TIẾT ĐƠN ĐẶT HÀNG (`purchase_order_items`)**
+**Mô tả:** Lưu trữ chi tiết từng sản phẩm trong đơn đặt hàng, bao gồm số lượng, giá nhập, số lượng đã nhận.
+
+**Ví dụ dữ liệu:**
+- Đơn PO-001: 10 bàn gỗ sồi (2,000,000đ/chiếc) - Đã nhận: 8 chiếc
+- Đơn PO-001: 20 ghế xoay (800,000đ/chiếc) - Đã nhận: 20 chiếc
+
+---
+
+### **26. BẢNG QUẢN LÝ TỒN KHO (`inventory`)**
+**Mô tả:** Quản lý tồn kho chi tiết cho từng sản phẩm/biến thể, bao gồm tồn kho hiện tại, đã đặt, có thể bán.
+
+**Ví dụ dữ liệu:**
+- Bàn gỗ sồi: Tồn kho hiện tại: 15 - Đã đặt: 3 - Có thể bán: 12
+- Ghế xoay đỏ: Tồn kho hiện tại: 8 - Đã đặt: 0 - Có thể bán: 8
+
+---
+
+### **27. BẢNG THEO DÕI BIẾN ĐỘNG KHO (`stock_movements`)**
+**Mô tả:** Ghi lại mọi biến động tồn kho (nhập hàng, xuất hàng, điều chỉnh, trả hàng) để theo dõi lịch sử.
+
+**Ví dụ dữ liệu:**
+- Nhập hàng: +10 bàn gỗ sồi - Lý do: "Nhận hàng từ PO-001" - Ngày: 01/12/2024
+- Xuất hàng: -2 bàn gỗ sồi - Lý do: "Bán cho đơn hàng ORD-001" - Ngày: 02/12/2024
+
+---
+
+### **28. BẢNG CẢNH BÁO TỒN KHO (`stock_alerts`)**
+**Mô tả:** Tự động tạo cảnh báo khi tồn kho thấp, hết hàng, hoặc tồn kho quá nhiều.
+
+**Ví dụ dữ liệu:**
+- "Cảnh báo tồn kho thấp" - Bàn gỗ sồi: 2 chiếc (ngưỡng: 5) - Chưa xử lý
+- "Hết hàng" - Ghế xoay đỏ: 0 chiếc - Đã xử lý
+
+---
+
+## ** CHỨC NĂNG QUẢN LÝ KHO HÀNG (MỚI THÊM)**
+
+### **📦 CHỨC NĂNG QUẢN LÝ KHO**
+33. **Quản lý nhà cung cấp** - CRUD nhà cung cấp, theo dõi hiệu suất
+34. **Đặt hàng từ nhà cung cấp** - Tạo đơn đặt hàng, theo dõi trạng thái
+35. **Nhập hàng** - Cập nhật tồn kho khi nhận hàng từ nhà cung cấp
+36. **Quản lý tồn kho** - Theo dõi tồn kho hiện tại, đã đặt, có thể bán
+37. **Theo dõi biến động kho** - Lịch sử nhập/xuất hàng, điều chỉnh
+38. **Cảnh báo tồn kho** - Tự động cảnh báo khi hết hàng, tồn kho thấp
+39. **Báo cáo tồn kho** - Thống kê tồn kho, giá trị hàng hóa, xu hướng
+40. **Tối ưu hóa tồn kho** - Phân tích ABC, dự báo nhu cầu, đặt hàng tự động
+
+### **📊 CHỨC NĂNG PHÂN TÍCH KHO**
+41. **Dashboard tồn kho** - Tổng quan tồn kho, cảnh báo, xu hướng
+42. **Báo cáo giá trị tồn kho** - Theo danh mục, nhà cung cấp, thời gian
+43. **Phân tích ABC** - Phân loại sản phẩm theo giá trị (A: cao, B: trung bình, C: thấp)
+44. **Dự báo nhu cầu** - Dựa trên lịch sử bán hàng để dự đoán nhu cầu
+45. **Tối ưu hóa đặt hàng** - Tính toán số lượng đặt hàng tối ưu
+
+### **24. BẢNG ĐƠN ĐẶT HÀNG (`purchase_orders`)**
+**Mô tả:** Quản lý các đơn đặt hàng từ nhà cung cấp, theo dõi trạng thái từ khi đặt đến khi nhận hàng.
+
+**Ví dụ dữ liệu:**
+- "PO-20241201-001" - Nhà cung cấp: ABC - Trạng thái: PENDING - Tổng: 50,000,000đ
+- "PO-20241201-002" - Nhà cung cấp: XYZ - Trạng thái: RECEIVED - Tổng: 30,000,000đ
+
+---
+
+### **25. BẢNG CHI TIẾT ĐƠN ĐẶT HÀNG (`purchase_order_items`)**
+**Mô tả:** Lưu trữ chi tiết từng sản phẩm trong đơn đặt hàng, bao gồm số lượng, giá nhập, số lượng đã nhận.
+
+**Ví dụ dữ liệu:**
+- Đơn PO-001: 10 bàn gỗ sồi (2,000,000đ/chiếc) - Đã nhận: 8 chiếc
+- Đơn PO-001: 20 ghế xoay (800,000đ/chiếc) - Đã nhận: 20 chiếc
+
+---
+
+### **26. BẢNG QUẢN LÝ TỒN KHO (`inventory`)**
+**Mô tả:** Quản lý tồn kho chi tiết cho từng sản phẩm/biến thể, bao gồm tồn kho hiện tại, đã đặt, có thể bán.
+
+**Ví dụ dữ liệu:**
+- Bàn gỗ sồi: Tồn kho hiện tại: 15 - Đã đặt: 3 - Có thể bán: 12
+- Ghế xoay đỏ: Tồn kho hiện tại: 8 - Đã đặt: 0 - Có thể bán: 8
+
+---
+
+### **27. BẢNG THEO DÕI BIẾN ĐỘNG KHO (`stock_movements`)**
+**Mô tả:** Ghi lại mọi biến động tồn kho (nhập hàng, xuất hàng, điều chỉnh, trả hàng) để theo dõi lịch sử.
+
+**Ví dụ dữ liệu:**
+- Nhập hàng: +10 bàn gỗ sồi - Lý do: "Nhận hàng từ PO-001" - Ngày: 01/12/2024
+- Xuất hàng: -2 bàn gỗ sồi - Lý do: "Bán cho đơn hàng ORD-001" - Ngày: 02/12/2024
+
+---
+
+### **28. BẢNG CẢNH BÁO TỒN KHO (`stock_alerts`)**
+**Mô tả:** Tự động tạo cảnh báo khi tồn kho thấp, hết hàng, hoặc tồn kho quá nhiều.
+
+**Ví dụ dữ liệu:**
+- "Cảnh báo tồn kho thấp" - Bàn gỗ sồi: 2 chiếc (ngưỡng: 5) - Chưa xử lý
+- "Hết hàng" - Ghế xoay đỏ: 0 chiếc - Đã xử lý
+
+---
+
+## ** CHỨC NĂNG QUẢN LÝ KHO HÀNG (MỚI THÊM)**
+
+### **📦 CHỨC NĂNG QUẢN LÝ KHO**
+33. **Quản lý nhà cung cấp** - CRUD nhà cung cấp, theo dõi hiệu suất
+34. **Đặt hàng từ nhà cung cấp** - Tạo đơn đặt hàng, theo dõi trạng thái
+35. **Nhập hàng** - Cập nhật tồn kho khi nhận hàng từ nhà cung cấp
+36. **Quản lý tồn kho** - Theo dõi tồn kho hiện tại, đã đặt, có thể bán
+37. **Theo dõi biến động kho** - Lịch sử nhập/xuất hàng, điều chỉnh
+38. **Cảnh báo tồn kho** - Tự động cảnh báo khi hết hàng, tồn kho thấp
+39. **Báo cáo tồn kho** - Thống kê tồn kho, giá trị hàng hóa, xu hướng
+40. **Tối ưu hóa tồn kho** - Phân tích ABC, dự báo nhu cầu, đặt hàng tự động
+
+### **📊 CHỨC NĂNG PHÂN TÍCH KHO**
+41. **Dashboard tồn kho** - Tổng quan tồn kho, cảnh báo, xu hướng
+42. **Báo cáo giá trị tồn kho** - Theo danh mục, nhà cung cấp, thời gian
+43. **Phân tích ABC** - Phân loại sản phẩm theo giá trị (A: cao, B: trung bình, C: thấp)
+44. **Dự báo nhu cầu** - Dựa trên lịch sử bán hàng để dự đoán nhu cầu
+45. **Tối ưu hóa đặt hàng** - Tính toán số lượng đặt hàng tối ưu

@@ -1,6 +1,6 @@
 // Import các thư viện cần thiết
 import prisma from '../config/prisma.js'; // Prisma client để kết nối database
-import { slugify } from '../utils/slugify.js'; // Utility function để tạo slug từ tên sản phẩm
+import { slugify, generateSKU } from '../utils/slugify.js'; // Utility function để tạo slug và SKU
 import cloudinary from '../config/cloudinary.js'; // Cloudinary client để upload ảnh
 
 // Cấu hình include cơ bản cho các query sản phẩm
@@ -95,14 +95,14 @@ export const createProduct = async (req, res) => {
   try {
     console.log('START', context);
     const {
-      name, slug: slugInput, sku, price, stock, description,
-      categoryId, brandId, isActive, isFeatured
+      name, slug: slugInput, sku: skuInput, price, salePrice, costPrice, stock, minStockLevel,
+      description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured
     } = req.body;
 
     // Validation cơ bản
-    if (!name || !sku || !price || !categoryId || !brandId) {
+    if (!name || !price || !categoryId || !brandId) {
       console.warn('MISSING_REQUIRED_FIELDS', { ...context });
-      return res.status(400).json({ message: 'Missing required fields: name, sku, price, categoryId, brandId' });
+      return res.status(400).json({ message: 'Missing required fields: name, price, categoryId, brandId' });
     }
 
     // Xử lý image upload
@@ -120,7 +120,9 @@ export const createProduct = async (req, res) => {
     if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
     if (!br) return res.status(400).json({ message: 'Invalid brandId' });
 
+    // Tạo slug và SKU tự động
     const slug = slugInput?.trim() || slugify(name);
+    const sku = (skuInput && skuInput.trim()) ? skuInput.trim() : await generateSKU(name, cat.name, br.name, prisma);
 
     const [dupSlug, dupSku] = await Promise.all([
       prisma.product.findUnique({ where: { slug } }),
@@ -139,10 +141,15 @@ export const createProduct = async (req, res) => {
     const productData = {
       name: name.trim(),
       slug,
-      sku: sku.trim(),
+      sku,
       price: Number(price).toFixed(2),
+      salePrice: salePrice ? Number(salePrice).toFixed(2) : null,
+      costPrice: costPrice ? Number(costPrice).toFixed(2) : null,
       stockQuantity: Number(stock) || 0,
+      minStockLevel: Number(minStockLevel) || 5,
       description: description ? description.trim() : null,
+      metaTitle: metaTitle ? metaTitle.trim() : null,
+      metaDescription: metaDescription ? metaDescription.trim() : null,
       categoryId: Number(categoryId),
       brandId: Number(brandId),
       status: isActive === 'true' || isActive === true ? 'ACTIVE' : 'INACTIVE',
@@ -239,6 +246,18 @@ export const updateProduct = async (req, res) => {
 
     if (data.price !== undefined) {
       data.price = Number(data.price).toFixed(2);
+    }
+
+    if (data.salePrice !== undefined) {
+      data.salePrice = data.salePrice ? Number(data.salePrice).toFixed(2) : null;
+    }
+
+    if (data.costPrice !== undefined) {
+      data.costPrice = data.costPrice ? Number(data.costPrice).toFixed(2) : null;
+    }
+
+    if (data.minStockLevel !== undefined) {
+      data.minStockLevel = Number(data.minStockLevel) || 5;
     }
 
     // Xử lý trạng thái từ isActive

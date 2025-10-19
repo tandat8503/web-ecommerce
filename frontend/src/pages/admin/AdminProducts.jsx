@@ -13,7 +13,7 @@ import {
   Badge,
   Select,
   InputNumber,
-  Upload,
+  // Upload, // ĐÃ COMMENT - Không dùng upload ảnh
   Button as AntButton,
   Switch,
 } from "antd";
@@ -34,7 +34,7 @@ import {
 } from "@/api/adminProducts";
 import { getCategories } from "@/api/adminCategories";
 import { getBrands } from "@/api/adminBrands";
-import { UploadOutlined } from "@ant-design/icons";
+// import { UploadOutlined } from "@ant-design/icons"; // ĐÃ COMMENT - Không dùng upload ảnh
 
 const { Search } = Input;
 const { Option } = Select;
@@ -121,10 +121,15 @@ export default function AdminProducts() {
       
       // Xử lý từng field riêng biệt
       if (values.name) formData.append('name', values.name);
-      if (values.sku) formData.append('sku', values.sku);
+      // SKU sẽ được tự động tạo bởi backend
       if (values.description) formData.append('description', values.description);
       if (values.price) formData.append('price', values.price);
+      if (values.salePrice) formData.append('salePrice', values.salePrice);
+      if (values.costPrice) formData.append('costPrice', values.costPrice);
       if (values.stock !== undefined) formData.append('stock', values.stock);
+      if (values.minStockLevel !== undefined) formData.append('minStockLevel', values.minStockLevel);
+      if (values.metaTitle) formData.append('metaTitle', values.metaTitle);
+      if (values.metaDescription) formData.append('metaDescription', values.metaDescription);
       if (values.categoryId) formData.append('categoryId', values.categoryId);
       if (values.brandId) formData.append('brandId', values.brandId);
       
@@ -138,10 +143,10 @@ export default function AdminProducts() {
         formData.append('isFeatured', values.isFeatured ? 'true' : 'false');
       }
       
-      // Thêm file nếu có
-      if (values.image && values.image[0]?.originFileObj) {
-        formData.append('image', values.image[0].originFileObj);
-      }
+      // Thêm file nếu có - ĐÃ COMMENT
+      // if (values.image && values.image[0]?.originFileObj) {
+      //   formData.append('image', values.image[0].originFileObj);
+      // }
 
       if (editingRecord) {
         await updateProduct(editingRecord.id, formData);
@@ -229,8 +234,34 @@ export default function AdminProducts() {
     { title: "SKU", dataIndex: "sku", key: "sku", render: (t) => <code>{t}</code> },
     { title: "Danh mục", dataIndex: "category", render: (c) => c ? <Tag color="blue">{c.name}</Tag> : "-" },
     { title: "Thương hiệu", dataIndex: "brand", render: (b) => b ? <Tag color="green">{b.name}</Tag> : "-" },
-    { title: "Giá", dataIndex: "price", render: (p) => p ? `$${p.toLocaleString()}` : "-" },
-    { title: "Tồn kho", dataIndex: "stockQuantity", render: (s) => s || 0 },
+    { 
+      title: "Giá", 
+      dataIndex: "price", 
+      render: (p, record) => (
+        <div>
+          <div style={{ fontWeight: 'bold' }}>${p?.toLocaleString() || 0}</div>
+          {record.salePrice && (
+            <div style={{ color: '#ff4d4f', fontSize: '12px' }}>
+              Sale: ${record.salePrice.toLocaleString()}
+            </div>
+          )}
+        </div>
+      )
+    },
+    { 
+      title: "Tồn kho", 
+      dataIndex: "stockQuantity", 
+      render: (s, record) => (
+        <div>
+          <div>{s || 0}</div>
+          {record.minStockLevel && (
+            <div style={{ fontSize: '12px', color: s <= record.minStockLevel ? '#ff4d4f' : '#52c41a' }}>
+              Min: {record.minStockLevel}
+            </div>
+          )}
+        </div>
+      )
+    },
     {
       title: "Nổi bật",
       dataIndex: "isFeatured",
@@ -328,12 +359,6 @@ export default function AdminProducts() {
       rules: [{ required: true, message: "Vui lòng nhập tên sản phẩm" }],
     },
     {
-      name: "sku",
-      label: "SKU",
-      component: <Input placeholder="Nhập SKU" />,
-      rules: [{ required: true, message: "Vui lòng nhập SKU" }],
-    },
-    {
       name: "description",
       label: "Mô tả",
       component: <Input.TextArea rows={3} placeholder="Nhập mô tả" />,
@@ -345,9 +370,24 @@ export default function AdminProducts() {
       rules: [{ required: true, message: "Vui lòng nhập giá" }],
     },
     {
+      name: "salePrice",
+      label: "Giá khuyến mãi",
+      component: <InputNumber placeholder="Nhập giá khuyến mãi" style={{ width: "100%" }} />,
+    },
+    {
+      name: "costPrice",
+      label: "Giá nhập",
+      component: <InputNumber placeholder="Nhập giá nhập" style={{ width: "100%" }} />,
+    },
+    {
       name: "stock",
       label: "Tồn kho",
       component: <InputNumber placeholder="Nhập số lượng tồn kho" style={{ width: "100%" }} />,
+    },
+    {
+      name: "minStockLevel",
+      label: "Mức tồn kho tối thiểu",
+      component: <InputNumber placeholder="Nhập mức tồn kho tối thiểu" style={{ width: "100%" }} min={0} />,
     },
     {
       name: "categoryId",
@@ -377,16 +417,26 @@ export default function AdminProducts() {
       ),
       rules: [{ required: true, message: "Vui lòng chọn thương hiệu" }],
     },
+    // {
+    //   name: "image",
+    //   label: "Hình ảnh",
+    //   valuePropName: "fileList",
+    //   getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
+    //   component: (
+    //     <Upload name="image" listType="picture" maxCount={1} beforeUpload={() => false}>
+    //       <AntButton icon={<UploadOutlined />}>Chọn ảnh</AntButton>
+    //     </Upload>
+    //   ),
+    // },
     {
-      name: "image",
-      label: "Hình ảnh",
-      valuePropName: "fileList",
-      getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
-      component: (
-        <Upload name="image" listType="picture" maxCount={1} beforeUpload={() => false}>
-          <AntButton icon={<UploadOutlined />}>Chọn ảnh</AntButton>
-        </Upload>
-      ),
+      name: "metaTitle",
+      label: "Tiêu đề SEO",
+      component: <Input placeholder="Nhập tiêu đề SEO" maxLength={200} />,
+    },
+    {
+      name: "metaDescription",
+      label: "Mô tả SEO",
+      component: <Input.TextArea rows={2} placeholder="Nhập mô tả SEO" maxLength={500} />,
     },
     {
       name: "isActive",
@@ -409,7 +459,12 @@ export default function AdminProducts() {
     { name: "sku", label: "SKU" },
     { name: "description", label: "Mô tả" },
     { name: "price", label: "Giá", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
+    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
+    { name: "costPrice", label: "Giá nhập", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
     { name: "stockQuantity", label: "Tồn kho", render: (v) => v || 0 },
+    { name: "minStockLevel", label: "Mức tồn kho tối thiểu", render: (v) => v || 5 },
+    { name: "metaTitle", label: "Tiêu đề SEO", render: (v) => v || "-" },
+    { name: "metaDescription", label: "Mô tả SEO", render: (v) => v || "-" },
     { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },
     { name: "brand", label: "Thương hiệu", render: (v) => v?.name || "-" },
     {
