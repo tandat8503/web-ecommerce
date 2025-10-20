@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ecommerce": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "/Users/macbookpro/Workspace/test_repo/web-ecommerce/ai",
+      "env": {
+        "PYTHONPATH": "/Users/macbookpro/Workspace/test_repo/web-ecommerce/ai"
+      }
+    }
+  }
+}

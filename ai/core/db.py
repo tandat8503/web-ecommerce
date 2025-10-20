@@ -23,9 +23,15 @@ async def init_pool() -> aiomysql.Pool:
 
 
 async def get_conn():
+    """Get database connection from pool"""
     pool = await init_pool()
-    async with pool.acquire() as conn:
-        yield conn
+    return await pool.acquire()
+
+
+async def release_conn(conn):
+    """Release database connection back to pool"""
+    if conn:
+        conn.close()
 
 
 async def close_pool() -> None:
