@@ -6,6 +6,7 @@ import Sidebar from "./Sidebar";
 import Profile from "./Profile";
 import ChangePassword from "./ChangePassword";
 import LoginHistory from "./LoginHistory";
+import Address from "./Address";
 
 const { Text } = Typography;
 
@@ -125,6 +126,9 @@ export default function ProfileManager() {
             )}
             {activeSection === "history" && (
               <LoginHistory />
+            )}
+            {activeSection === "address" && (
+              <Address />
             )}
           </Col>
         </Row>

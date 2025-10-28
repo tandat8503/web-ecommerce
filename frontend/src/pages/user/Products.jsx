@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getProducts } from '../../api/adminProducts';
+import { getPublicProducts } from '../../api/adminProducts'; // ✅ Đổi sang API public (không cần token)
 import adminCategoriesAPI from '../../api/adminCategories';
 import adminBrandsAPI from '../../api/adminBrands';
 import ProductCard from '../../components/user/ProductCard';
@@ -16,11 +16,11 @@ import BreadcrumbNav from '../../components/user/BreadcrumbNav';
  * Mục đích: Hiển thị danh sách sản phẩm với các tính năng:
  * - Tìm kiếm sản phẩm theo tên
  * - Lọc theo danh mục và thương hiệu
- * - Phân trang (7 sản phẩm/trang)
+ * - Phân trang (6 sản phẩm/trang)
  * - Breadcrumb navigation
  * - Responsive grid layout (3 cột trên desktop)
  * 
- * API sử dụng: adminProducts.getProducts() - tái sử dụng API admin
+ * API sử dụng: getPublicProducts() - API public không cần token, chỉ lấy sản phẩm ACTIVE
  * Dữ liệu: Lấy từ backend với cấu trúc { items, total, page, limit }
  */
 const Products = () => {
@@ -107,11 +107,11 @@ const Products = () => {
 
   /**
    * Load danh sách sản phẩm với filters và pagination
-   * Sử dụng adminProducts.getProducts() API với các tham số:
+   * Sử dụng getPublicProducts() API (không cần token) với các tham số:
    * - page, limit: Phân trang
    * - q: Tìm kiếm theo tên
    * - categoryId, brandId: Lọc theo danh mục/thương hiệu
-   * - status: Chỉ lấy sản phẩm ACTIVE
+   * Backend tự động chỉ trả về sản phẩm ACTIVE
    */
   const loadProducts = async () => {
     try {
@@ -124,8 +124,8 @@ const Products = () => {
         limit: pagination.limit,
         q: filters.q || undefined,
         categoryId: filters.categoryId || undefined,
-        brandId: filters.brandId || undefined,
-        status: 'ACTIVE' // Chỉ lấy sản phẩm đang hoạt động
+        brandId: filters.brandId || undefined
+        // ✅ Không cần truyền status, backend tự động lọc ACTIVE cho public API
       };
       
       // Loại bỏ các giá trị rỗng để tránh gửi params không cần thiết
@@ -135,8 +135,8 @@ const Products = () => {
         }
       });
       
-          // Gọi API lấy sản phẩm
-          const response = await getProducts(params);
+          // ✅ Gọi API public (không cần token, tự động lọc ACTIVE)
+          const response = await getPublicProducts(params);
           
           if (response.data) {
             // Xử lý dữ liệu sản phẩm theo cấu trúc API backend: { items, total, page, limit }

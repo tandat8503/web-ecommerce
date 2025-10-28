@@ -10,12 +10,15 @@ import AdminProducts from "@/pages/admin/AdminProducts";
 import AdminProductImages from "@/pages/admin/AdminProductImages";
 import AdminProductVariant from "@/pages/admin/AdminProductVariant";
 import AdminProductSpecification from "@/pages/admin/AdminProductSpecification";
+import AdminCoupons from "@/pages/admin/AdminCoupons";
 
 //User
 import UserLayout from "@/layout/user/UserLayout";
 import Home from "@/pages/user/Home";
 import Products from "@/pages/user/Products";
 import ProductDetail from "@/pages/user/ProductDetail";
+import Wishlist from "@/pages/user/Wishlist";
+import Cart from "@/pages/user/Cart";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
@@ -33,6 +36,8 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: "san-pham", element: <Products /> },
       { path: "san-pham/:id", element: <ProductDetail /> },
+      { path: "wishlist", element: <Wishlist /> },
+      { path: "cart", element: <Cart /> },
       { path: "profile-manager", element: <ProfileManager /> },
     ],
   },
@@ -62,6 +67,7 @@ const router = createBrowserRouter([
       { path: "product-images", element: <AdminProductImages /> },
       { path: "product-variants", element: <AdminProductVariant /> },
       { path: "product-specifications", element: <AdminProductSpecification /> },
+      { path: "coupons", element: <AdminCoupons /> },
     ],
   },
 

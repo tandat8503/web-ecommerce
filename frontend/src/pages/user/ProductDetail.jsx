@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getProductById, getProducts } from '../../api/adminProducts';
-import { getProductVariants } from '../../api/adminproductVariant';
-import { getProductImages } from '../../api/adminProductImages';
+import { getPublicProductById, getPublicProducts } from '../../api/adminProducts';
+import { getPublicProductVariants } from '../../api/adminproductVariant';
+import { getPublicProductImages } from '../../api/adminProductImages';
 import { Button } from '../../components/ui/button';
-import { FaShoppingCart, FaHeart, FaShare } from 'react-icons/fa';
+import { FaShare } from 'react-icons/fa';
 import BreadcrumbNav from '../../components/user/BreadcrumbNav';
+import { WishlistTextButton } from '../../components/user/WishlistButton';
+import CartButton from '../../components/user/CartButton';
+import { formatPrice } from '../../lib/utils';
 
 /**
  * ProductDetail Component - Trang chi tiết sản phẩm
@@ -19,10 +22,6 @@ import BreadcrumbNav from '../../components/user/BreadcrumbNav';
  * - Add to cart với biến thể đã chọn
  */
 const ProductDetail = () => {
-  // =======================
-  // HOOKS & STATE
-  // =======================
-  
   const { id } = useParams(); // Lấy productId từ URL
   const navigate = useNavigate();
   
@@ -34,7 +33,6 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  
   // State cho biến thể được chọn
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [selectedColor, setSelectedColor] = useState('');
@@ -44,51 +42,30 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // =======================
-  // LIFECYCLE EFFECTS
-  // =======================
-  
-  // Effect 1: Load dữ liệu sản phẩm và biến thể khi component mount
+  // Load dữ liệu sản phẩm và biến thể khi component mount
   useEffect(() => {
-    console.log('ProductDetail mounted with id:', id);
     if (id) {
       loadProductData();
     }
   }, [id]);
 
-  // =======================
-  // API FUNCTIONS
-  // =======================
-  
-  /**
-   * Load thông tin sản phẩm, biến thể và hình ảnh
-   * Chạy song song 4 API calls để tối ưu performance
-   */
+  // Load thông tin sản phẩm, biến thể và hình ảnh
   const loadProductData = async () => {
     try {
-      console.log('Loading product data for id:', id);
       setLoading(true);
       setError(null);
       
-      // Gọi song song 4 API
+      // Gọi song song 4 API (sử dụng API public)
       const [productRes, variantsRes, imagesRes, featuredRes] = await Promise.all([
-        getProductById(id), // Lấy sản phẩm theo ID
-        getProductVariants({ productId: id }), // Lấy biến thể theo productId
-        getProductImages(id), // Lấy hình ảnh theo productId
-        getProducts({ // Lấy sản phẩm nổi bật
+        getPublicProductById(id), // Lấy sản phẩm theo ID (public API)
+        getPublicProductVariants({ productId: id }), // Lấy biến thể theo productId (public API)
+        getPublicProductImages(id), // Lấy hình ảnh theo productId (public API)
+        getPublicProducts({ // Lấy sản phẩm nổi bật (public API)
           page: 1,
           limit: 5,
-          isFeatured: true,
-          status: 'ACTIVE'
+          isFeatured: true
         })
       ]);
-      
-      console.log('Product response:', productRes);
-      console.log('Variants response:', variantsRes);
-      console.log('Images response:', imagesRes);
-      console.log('Featured response:', featuredRes);
-      console.log('Images data structure:', imagesRes.data);
-      console.log('Images items:', imagesRes.data?.items);
       
       // Xử lý dữ liệu sản phẩm
       if (productRes.data) {
@@ -99,7 +76,7 @@ const ProductDetail = () => {
       }
       
       // Xử lý dữ liệu biến thể
-      if (variantsRes.data && variantsRes.data.data && variantsRes.data.data.variants) {
+      if (variantsRes.data?.data?.variants) {
         setVariants(variantsRes.data.data.variants);
         
         // Tự động chọn biến thể đầu tiên nếu có
@@ -112,14 +89,13 @@ const ProductDetail = () => {
       }
       
       // Xử lý dữ liệu hình ảnh
-      if (imagesRes.data && imagesRes.data.items) {
+      if (imagesRes.data?.items) {
         setProductImages(imagesRes.data.items);
       }
       
       // Xử lý dữ liệu sản phẩm nổi bật
-      if (featuredRes.data && featuredRes.data.items) {
+      if (featuredRes.data?.items) {
         setFeaturedProducts(featuredRes.data.items);
-        console.log(`⭐ Đã tải ${featuredRes.data.items.length} sản phẩm nổi bật`);
       }
       
     } catch (err) {
@@ -130,199 +106,92 @@ const ProductDetail = () => {
     }
   };
 
-
-  // =======================
-  // EVENT HANDLERS
-  // =======================
-  
-  /**
-   * Xử lý khi user chọn màu
-   * - Cập nhật selectedColor
-   * - Tìm biến thể phù hợp với màu và size đã chọn
-   */
+  // Xử lý khi user chọn màu
   const handleColorChange = (color) => {
     setSelectedColor(color);
-    
-    // Tìm biến thể phù hợp với màu và size hiện tại
     const matchingVariant = variants.find(variant => 
-      variant.color === color && 
-      variant.size === selectedSize
+      variant.color === color && variant.size === selectedSize
     );
-    
-    if (matchingVariant) {
-      setSelectedVariant(matchingVariant);
-    } else {
-      setSelectedVariant(null);
-    }
+    setSelectedVariant(matchingVariant || null);
   };
 
-  /**
-   * Xử lý khi user chọn size
-   * - Cập nhật selectedSize
-   * - Tìm biến thể phù hợp với màu và size đã chọn
-   */
+  // Xử lý khi user chọn size
   const handleSizeChange = (size) => {
     setSelectedSize(size);
-    
-    // Tìm biến thể phù hợp với màu và size hiện tại
     const matchingVariant = variants.find(variant => 
-      variant.color === selectedColor && 
-      variant.size === size
+      variant.color === selectedColor && variant.size === size
     );
-    
-    if (matchingVariant) {
-      setSelectedVariant(matchingVariant);
-    } else {
-      setSelectedVariant(null);
-    }
+    setSelectedVariant(matchingVariant || null);
   };
 
-  /**
-   * Xử lý khi user thay đổi số lượng
-   */
+  // Xử lý khi user thay đổi số lượng
   const handleQuantityChange = (newQuantity) => {
     if (newQuantity >= 1) {
       setQuantity(newQuantity);
     }
   };
 
-  /**
-   * Xử lý khi user click "Thêm vào giỏ hàng"
-   * TODO: Implement add to cart logic
-   */
-  const handleAddToCart = () => {
-    if (!selectedVariant) {
-      alert('Vui lòng chọn màu và size');
-      return;
-    }
-    
-    // TODO: Implement add to cart với selectedVariant và quantity
-    console.log('Add to cart:', {
-      variant: selectedVariant,
-      quantity: quantity
-    });
-    
-    alert(`Đã thêm ${quantity} sản phẩm vào giỏ hàng!`);
+  // Xử lý khi user click "Thêm vào giỏ hàng"
+  const handleAddToCart = (result) => {
+    console.log('Add to cart success:', result);
   };
 
-
-  /**
-   * Xử lý khi user chọn hình ảnh
-   */
+  // Xử lý khi user chọn hình ảnh
   const handleImageSelect = (index) => {
     setSelectedImageIndex(index);
   };
 
-  /**
-   * Xử lý khi user click nút yêu thích
-   */
-  const handleAddToWishlist = () => {
-    console.log('Add to wishlist:', product);
-    // TODO: Implement wishlist logic
-  };
-
-  /**
-   * Xử lý khi user click nút chia sẻ
-   */
+  // Xử lý khi user click nút chia sẻ
   const handleShare = () => {
     console.log('Share product:', product);
-    // TODO: Implement share logic
   };
 
-  /**
-   * Xử lý khi user click "Mua ngay"
-   * TODO: Implement buy now logic
-   */
+  // Xử lý khi user click "Mua ngay"
   const handleBuyNow = () => {
-    if (!selectedVariant) {
+    if (variants.length > 0 && !selectedVariant) {
       alert('Vui lòng chọn màu và size');
       return;
     }
-    
-    // TODO: Implement buy now với selectedVariant và quantity
-    console.log('Buy now:', {
-      variant: selectedVariant,
-      quantity: quantity
-    });
-    
     alert(`Chuyển đến trang thanh toán với ${quantity} sản phẩm!`);
   };
 
-  // =======================
-  // HELPER FUNCTIONS
-  // =======================
-  
-  /**
-   * Lấy danh sách màu unique từ variants
-   */
+  // Lấy danh sách màu unique từ variants
   const getUniqueColors = () => {
-    const colors = variants
+    return variants
       .map(v => v.color)
       .filter((color, index, self) => color && self.indexOf(color) === index);
-    return colors;
   };
 
-  /**
-   * Lấy danh sách size unique từ variants
-   */
+  // Lấy danh sách size unique từ variants
   const getUniqueSizes = () => {
-    const sizes = variants
+    return variants
       .map(v => v.size)
       .filter((size, index, self) => size && self.indexOf(size) === index);
-    return sizes;
   };
 
-  /**
-   * Lấy giá hiển thị (ưu tiên giá biến thể, fallback về giá sản phẩm)
-   */
+  // Lấy giá hiển thị (ưu tiên giá biến thể, fallback về giá sản phẩm)
   const getDisplayPrice = () => {
-    if (selectedVariant && selectedVariant.price) {
-      return selectedVariant.price;
-    }
-    // Ưu tiên giá khuyến mãi nếu có
-    if (product?.salePrice && product.salePrice !== product.price) {
-      return product.salePrice;
-    }
+    if (selectedVariant?.price) return selectedVariant.price;
+    if (product?.salePrice && product.salePrice !== product.price) return product.salePrice;
     return product?.price || 0;
   };
 
-  /**
-   * Lấy stock hiển thị (ưu tiên stock biến thể, fallback về stock sản phẩm)
-   */
+  // Lấy stock hiển thị (ưu tiên stock biến thể, fallback về stock sản phẩm)
   const getDisplayStock = () => {
-    if (selectedVariant && selectedVariant.stockQuantity !== undefined) {
-      return selectedVariant.stockQuantity;
-    }
+    if (selectedVariant?.stockQuantity !== undefined) return selectedVariant.stockQuantity;
     return product?.stockQuantity || 0;
   };
 
-  /**
-   * Lấy hình ảnh hiện tại để hiển thị
-   */
-  const getCurrentImage = () => {
-    const allImages = getAllImages();
-    if (allImages.length > 0) {
-      return allImages[selectedImageIndex]?.url;
-    }
-    return product?.imageUrl;
-  };
-
-  /**
-   * Lấy danh sách hình ảnh để hiển thị
-   */
+  // Lấy danh sách hình ảnh để hiển thị
   const getAllImages = () => {
     const images = [];
     
     // Thêm hình chính của sản phẩm (nếu có)
     if (product?.imageUrl) {
-      images.push({ 
-        url: product.imageUrl, 
-        isMain: true,
-        id: 'main'
-      });
+      images.push({ url: product.imageUrl, isMain: true, id: 'main' });
     }
     
-    // Thêm các hình ảnh từ API (đã được sắp xếp theo sortOrder)
+    // Thêm các hình ảnh từ API
     if (productImages.length > 0) {
       productImages.forEach(img => {
         images.push({ 
@@ -342,19 +211,12 @@ const ProductDetail = () => {
     });
   };
 
-  /**
-   * Format giá tiền theo định dạng Việt Nam
-   */
-  const formatPrice = (price) => {
-    if (!price) return '0₫';
-    return `${price.toLocaleString('vi-VN')}₫`;
+  // Lấy hình ảnh hiện tại để hiển thị
+  const getCurrentImage = () => {
+    const allImages = getAllImages();
+    return allImages[selectedImageIndex]?.url || product?.imageUrl;
   };
 
-
-  // =======================
-  // RENDER LOGIC
-  // =======================
-  
   // Loading state
   if (loading) {
     return (
@@ -385,16 +247,12 @@ const ProductDetail = () => {
     );
   }
 
-  // Main render
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-8xl mx-auto px-4 py-6">
-          {/* Breadcrumb Navigation */}
-          <div className="mb-4">
-            <BreadcrumbNav />
-          </div>
+          <BreadcrumbNav />
         </div>
       </div>
 
@@ -443,20 +301,17 @@ const ProductDetail = () => {
 
             {/* Action buttons */}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleAddToWishlist}
-                className="flex-1"
-              >
-                <FaHeart className="mr-2" />
-                Yêu thích
-              </Button>
+              <WishlistTextButton 
+                productId={Number(id)} 
+                className="flex-1 cursor-pointer"
+              />
               <Button
                 variant="outline"
                 onClick={handleShare}
                 className="flex-1"
               >
-                <FaShare className="mr-2" />
+                <FaShare className="mr-2 " />
+                
                 Chia sẻ
               </Button>
             </div>
@@ -479,10 +334,10 @@ const ProductDetail = () => {
               {product.salePrice && product.salePrice !== product.price ? (
                 <>
                   <div className="text-3xl sm:text-4xl font-bold text-red-600">
-                    {product.salePrice.toLocaleString('vi-VN')} ₫
+                    {formatPrice(product.salePrice)}
                   </div>
                   <div className="text-xl text-gray-500 line-through">
-                    {product.price.toLocaleString('vi-VN')} ₫
+                    {formatPrice(product.price)}
                   </div>
                   <div className="text-base text-red-600 font-medium">
                     Tiết kiệm: {((product.price - product.salePrice) / product.price * 100).toFixed(0)}%
@@ -490,7 +345,7 @@ const ProductDetail = () => {
                 </>
               ) : (
                 <div className="text-3xl sm:text-4xl font-bold text-red-600">
-                  {getDisplayPrice().toLocaleString('vi-VN')} ₫
+                  {formatPrice(getDisplayPrice())}
                 </div>
               )}
             </div>
@@ -568,7 +423,7 @@ const ProductDetail = () => {
                       size="default"
                       onClick={() => handleQuantityChange(quantity - 1)}
                       disabled={quantity <= 1}
-                      className="w-10 h-10 text-lg"
+                      className="w-10 h-10 text-lg cursor-pointer"
                     >
                       -
                     </Button>
@@ -578,7 +433,7 @@ const ProductDetail = () => {
                       size="default"
                       onClick={() => handleQuantityChange(quantity + 1)}
                       disabled={quantity >= getDisplayStock()}
-                      className="w-10 h-10 text-lg"
+                      className="w-10 h-10 text-lg cursor-pointer"
                     >
                       +
                     </Button>
@@ -588,22 +443,21 @@ const ProductDetail = () => {
 
               {/* Add to Cart & Buy Now Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Add to Cart Button */}
-                <Button
-                  onClick={handleAddToCart}
-                  disabled={!selectedVariant || getDisplayStock() === 0}
-                  variant="outline"
-                  className="py-4 text-xl border-primary text-primary hover:bg-primary hover:text-white font-semibold"
-                >
-                  <FaShoppingCart className="mr-3" />
-                  Thêm vào giỏ hàng
-                </Button>
+                <CartButton
+                  productId={Number(id)}
+                  variantId={selectedVariant?.id ? Number(selectedVariant.id) : null}
+                  quantity={quantity}
+                  size="lg"
+                  className="py-4 text-xl font-semibold cursor-pointer"
+                  onAddToCart={handleAddToCart}
+                  disabled={getDisplayStock() === 0}
+                  showBadge={false}
+                />
 
-                {/* Buy Now Button */}
                 <Button
                   onClick={handleBuyNow}
-                  disabled={!selectedVariant || getDisplayStock() === 0}
-                  className="py-4 text-xl bg-primary hover:bg-primary/90 font-semibold"
+                  disabled={getDisplayStock() === 0}
+                  className="py-4 text-xl bg-primary hover:bg-primary/90 font-semibold cursor-pointer"
                 >
                   Mua ngay
                 </Button>
@@ -747,13 +601,13 @@ const ProductDetail = () => {
                         <div className="text-red-600 font-semibold text-sm">
                           {featuredProduct.salePrice && featuredProduct.salePrice !== featuredProduct.price ? (
                             <>
-                              {featuredProduct.salePrice.toLocaleString('vi-VN')}₫
+                              {formatPrice(featuredProduct.salePrice)}
                               <span className="text-xs text-gray-500 line-through ml-1">
-                                {featuredProduct.price.toLocaleString('vi-VN')}₫
+                                {formatPrice(featuredProduct.price)}
                               </span>
                             </>
                           ) : (
-                            `${featuredProduct.price.toLocaleString('vi-VN')}₫`
+                            formatPrice(featuredProduct.price)
                           )}
                         </div>
                       </div>

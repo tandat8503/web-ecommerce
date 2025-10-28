@@ -63,10 +63,7 @@ export default function LoginForm({ onSwitchToRegister }) {
         }
         
         console.log("Login successful, showing toast...");
-        toast.success("🎉 Đăng nhập thành công!", {
-          position: "top-right",
-          autoClose: 2000,
-        });
+        toast.success("🎉 Đăng nhập thành công!");
         
         // Delay redirect để toast có thời gian hiển thị và UserHeader cập nhật
         setTimeout(() => {
@@ -75,13 +72,10 @@ export default function LoginForm({ onSwitchToRegister }) {
           } else {
             window.location.href = "/";
           }
-        }, 2500);
+        }, 1000);
       } else {
         console.log("Login failed:", response.data.message);
-        toast.error(` ${response.data.message || "Đăng nhập thất bại"}`, {
-          position: "top-right",
-          autoClose: 3000,
-        });
+        toast.error(response.data.message || "Đăng nhập thất bại");
       }
     } catch (error) {
       console.error("Login error:", error);
@@ -97,10 +91,7 @@ export default function LoginForm({ onSwitchToRegister }) {
         errorMessage = error.message || "Có lỗi xảy ra";
       }
       
-      toast.error(` ${errorMessage}`, {
-        position: "top-right",
-        autoClose: 5000,
-      });
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -30,17 +30,11 @@ axiosClient.interceptors.request.use((config) => {
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Chỉ log lỗi, không tự động xóa token hoặc redirect
     if (error.response?.status === 401) {
-      // Token hết hạn hoặc không hợp lệ
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      
-      // Redirect về trang login
-      if (window.location.pathname.startsWith('/admin')) {
-        window.location.href = '/auth';
-      } else {
-        window.location.href = '/auth';
-      }
+      console.error('Token expired or invalid:', error.response?.data?.message);
+      // Không xóa token tự động - để component tự xử lý
+      // Token có thể vẫn hợp lệ nhưng API endpoint không cho phép
     }
     return Promise.reject(error);
   }

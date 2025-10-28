@@ -1,5 +1,5 @@
 import { Card, Avatar, Typography, Tag, Button, Upload } from "antd";
-import { FaUser, FaKey, FaHistory, FaDownload } from "react-icons/fa";
+import { FaUser, FaKey, FaHistory, FaDownload, FaMapMarkerAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
 
 const { Title, Text } = Typography;
@@ -142,6 +142,17 @@ export default function Sidebar({
         >
           <FaHistory className="inline mr-2" />
           Lịch sử đăng nhập
+        </button>
+        <button 
+          onClick={() => setActiveSection("address")}
+          className={`block w-full p-3 rounded-lg text-left transition-colors ${
+            activeSection === "address" 
+              ? "bg-blue-50 text-blue-600 font-medium" 
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <FaMapMarkerAlt className="inline mr-2" />
+          Địa chỉ của tôi
         </button>
       </div>
     </Card>

@@ -1,16 +1,16 @@
 import React from "react";
-import { FaHeart, FaEye, FaFire } from "react-icons/fa";
+import { FaEye, FaFire } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
+import WishlistButton from "./WishlistButton";
 
 const ProductCard = ({
   product,
   showActions = true,
   showBrand = true,
   showStock = true,
-  onAddToWishlist,
   className = "",
 }) => {
   // Hook để điều hướng
@@ -137,13 +137,14 @@ const ProductCard = ({
         {/* Action Buttons */}
         {showActions && (
           <div className="absolute right-3 top-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-            <Button
-              size="icon"
-              className="bg-white/95 hover:bg-white shadow-lg rounded-full h-10 w-10"
-              onClick={() => onAddToWishlist?.(product)}
-            >
-              <FaHeart className="text-gray-600 hover:text-red-500" />
-            </Button>
+            {/* Nút yêu thích - Dùng component WishlistButton */}
+            <WishlistButton 
+              productId={product.id} 
+              size="md"
+              className="shadow-lg"
+            />
+            
+            {/* Nút xem nhanh */}
             <Button
               size="icon"
               className="bg-white/95 hover:bg-white shadow-lg rounded-full h-10 w-10 cursor-pointer"

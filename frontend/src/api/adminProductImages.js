@@ -1,17 +1,45 @@
 import axiosClient from './axiosClient';
 
 /**
- * Lấy danh sách ảnh của sản phẩm
+ * Lấy danh sách ảnh của sản phẩm - ADMIN
+ * Yêu cầu: Token admin
+ * @param {number|string} productId - ID của sản phẩm
+ * @returns {Promise} Response chứa danh sách hình ảnh
  */
 export async function getProductImages(productId) {
   return await axiosClient.get(`admin/product-images/${productId}`);
 }
 
 /**
- * Lấy chi tiết 1 ảnh
+ * Lấy danh sách ảnh của sản phẩm (PUBLIC - không cần token)
+ * API này dùng cho trang user (ProductDetail), không yêu cầu đăng nhập
+ * Cả user và admin đều có thể sử dụng API này
+ * @param {number|string} productId - ID của sản phẩm
+ * @returns {Promise} Response chứa danh sách hình ảnh của sản phẩm
+ */
+export async function getPublicProductImages(productId) {
+  return await axiosClient.get(`product-images/public/${productId}`);
+}
+
+/**
+ * Lấy chi tiết 1 ảnh - ADMIN
+ * Yêu cầu: Token admin
+ * @param {number|string} imageId - ID của hình ảnh
+ * @returns {Promise} Response chứa thông tin chi tiết hình ảnh
  */
 export async function getProductImage(imageId) {
   return await axiosClient.get(`admin/product-images/image/${imageId}`);
+}
+
+/**
+ * Lấy chi tiết 1 ảnh (PUBLIC - không cần token)
+ * API này dùng cho trang user (ProductDetail), không yêu cầu đăng nhập
+ * Cả user và admin đều có thể sử dụng API này
+ * @param {number|string} imageId - ID của hình ảnh
+ * @returns {Promise} Response chứa thông tin chi tiết hình ảnh
+ */
+export async function getPublicProductImage(imageId) {
+  return await axiosClient.get(`product-images/public/image/${imageId}`);
 }
 
 /**
@@ -62,14 +90,16 @@ export async function updateProductPrimaryImage(productId, data) {
 
 // Default export object chứa tất cả functions
 const adminProductImagesAPI = {
-  getProductImages,
-  getProductImage,
-  createProductImage,
-  updateProductImage,
-  deleteProductImage,
-  setPrimaryImage,
-  reorderImages,
-  updateProductPrimaryImage
+  getProductImages, // Lấy danh sách ảnh (admin - cần token)
+  getPublicProductImages, // Lấy danh sách ảnh (public - không cần token)
+  getProductImage, // Lấy chi tiết ảnh (admin - cần token)
+  getPublicProductImage, // Lấy chi tiết ảnh (public - không cần token)
+  createProductImage, // Tạo ảnh mới
+  updateProductImage, // Cập nhật ảnh
+  deleteProductImage, // Xóa ảnh
+  setPrimaryImage, // Set ảnh chính
+  reorderImages, // Sắp xếp lại thứ tự ảnh
+  updateProductPrimaryImage // Cập nhật ảnh chính của product
 };
 
 export default adminProductImagesAPI;

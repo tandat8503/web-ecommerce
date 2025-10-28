@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getProductById } from '../../api/adminProducts';
+import { getPublicProductById } from '../../api/adminProducts';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,6 +22,8 @@ const BreadcrumbNav = () => {
   // Ví dụ: '/san-pham' -> 'Tất cả sản phẩm'
   const routeMap = {
     '/san-pham': 'Tất cả sản phẩm',
+    '/wishlist': 'Danh sách yêu thích',
+    '/cart': 'Giỏ hàng',
     '/ban': 'Bàn',
     '/ghe': 'Ghế',
     '/tu': 'Tủ',
@@ -43,10 +45,10 @@ const BreadcrumbNav = () => {
     }
   }, [location.pathname, isProductDetail]);
 
-  // Function để load tên sản phẩm
+  // Function để load tên sản phẩm (✅ Dùng API public để user không cần đăng nhập)
   const loadProductName = async (productId) => {
     try {
-      const response = await getProductById(productId);
+      const response = await getPublicProductById(productId);
       if (response.data && response.data.name) {
         setProductName(response.data.name);
       }

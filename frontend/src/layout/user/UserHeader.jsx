@@ -13,6 +13,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
 import { toast } from "react-toastify";
 import { getPublicCategories } from "@/api/adminCategories";
+import useWishlistStore from "@/stores/wishlistStore";
+import useCartStore from "@/stores/cartStore";
+import { CartIconButton } from "@/components/user/CartButton";
 
 /* --------------------------
   Component con: Dropdown hiển thị tên danh mục
@@ -59,6 +62,23 @@ export default function UserHeader() {
   const [loadingCategories, setLoadingCategories] = useState(false);
 
   const navigate = useNavigate();
+  
+  // ========== ZUSTAND - Lấy số lượng wishlist và cart từ Zustand stores ==========
+  const { getWishlistCount, resetWishlist } = useWishlistStore();
+  const { getCartCount, resetCart } = useCartStore();
+  
+  // ✅ Subscribe vào store để trigger re-render khi state thay đổi
+  const wishlistCount = useWishlistStore((state) => state.items.length);
+  const cartCount = useCartStore((state) => state.totalQuantity);
+  
+  // Debug logs để theo dõi state changes
+  console.log('🔍 UserHeader - wishlistCount:', wishlistCount);
+  console.log('🔍 UserHeader - cartCount:', cartCount);
+  
+  // Force re-render khi state thay đổi
+  useEffect(() => {
+    console.log('🔍 UserHeader - State changed, re-rendering...')
+  }, [wishlistCount, cartCount]);
 
   // Lấy danh mục public
   useEffect(() => {
@@ -103,9 +123,17 @@ export default function UserHeader() {
     try {
       setLoadingLogout(true);
       await logout();
+      
+      // Xóa localStorage
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       setUser(null);
+      
+      // ✨ QUAN TRỌNG: Reset Zustand wishlist và cart state khi logout
+      // Để badge số lượng wishlist và cart biến mất ngay lập tức
+      resetWishlist();
+      resetCart();
+      
       toast.success("👋 Đăng xuất thành công!", { autoClose: 2000 });
       navigate("/");
     } catch (error) {
@@ -274,24 +302,22 @@ export default function UserHeader() {
               )}
 
               {/* Icon yêu thích */}
-              <div className="relative group">
+              <Link to="/wishlist" className="relative group">
                 <div className="p-2 rounded-full hover:bg-white/20 transition-colors cursor-pointer">
                   <FaHeart style={{ fontSize: 22, color: "white" }} />
                 </div>
-                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  2
-                </div>
-              </div>
+                {/* Badge số lượng wishlist */}
+                {wishlistCount > 0 && (
+                  <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse">
+                    {wishlistCount}
+                  </div>
+                )}
+              </Link>
 
               {/* Icon giỏ hàng */}
-              <div className="relative group">
-                <div className="p-2 rounded-full hover:bg-white/20 transition-colors cursor-pointer">
-                  <FaShoppingCart style={{ fontSize: 22, color: "white" }} />
-                </div>
-                <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  1
-                </div>
-              </div>
+              <Link to="/cart">
+                <CartIconButton className="text-white " />
+              </Link>
             </div>
           </Col>
         </Row>

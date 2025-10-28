@@ -3,7 +3,8 @@ import axiosClient from './axiosClient';
 
 /**
  * Lấy danh sách sản phẩm với phân trang và tìm kiếm (admin)
- * @param {Object} params - Tham số query: page, limit, q, categoryId, brandId
+ * Yêu cầu: Token admin
+ * @param {Object} params - Tham số query: page, limit, q, categoryId, brandId, status
  * @returns {Promise} Response chứa danh sách sản phẩm và thông tin phân trang
  */
 export async function getProducts(params) {
@@ -11,13 +12,37 @@ export async function getProducts(params) {
 }
 
 /**
+ * Lấy danh sách sản phẩm PUBLIC (không cần token)
+ * API này dùng cho trang user, tự động chỉ lấy sản phẩm ACTIVE
+ * Cả user và admin đều có thể sử dụng API này
+ * @param {Object} params - Tham số query: page, limit, q, categoryId, brandId
+ * @returns {Promise} Response chứa danh sách sản phẩm ACTIVE và thông tin phân trang
+ */
+export async function getPublicProducts(params) {
+  return await axiosClient.get('admin/products/public', { params });
+}
+
+/**
  * Lấy chi tiết một sản phẩm theo ID (admin)
+ * Yêu cầu: Token admin
  * @param {number|string} id - ID của sản phẩm
  * @returns {Promise} Response chứa thông tin chi tiết sản phẩm
  */
 export async function getProductById(id) {
   return await axiosClient.get(`admin/products/${id}`);
 }
+
+/**
+ * Lấy chi tiết một sản phẩm theo ID (PUBLIC - không cần token)
+ * API này dùng cho trang user (ProductDetail), không yêu cầu đăng nhập
+ * Cả user và admin đều có thể sử dụng API này
+ * @param {number|string} id - ID của sản phẩm
+ * @returns {Promise} Response chứa thông tin chi tiết sản phẩm
+ */
+export async function getPublicProductById(id) {
+  return await axiosClient.get(`admin/products/public/${id}`);
+}
+
 
 /**
  * Tạo sản phẩm mới với upload ảnh (admin)
@@ -78,8 +103,10 @@ export async function getProductsByCategory(categoryId, params = {}) {
 // Default export object chứa tất cả functions (để tương thích với Dashboard)
 // Object này được sử dụng khi import toàn bộ module: import adminProductsAPI from './adminProducts'
 const adminProductsAPI = {
-  getProducts, // Lấy danh sách sản phẩm
-  getProductById, // Lấy chi tiết sản phẩm
+  getProducts, // Lấy danh sách sản phẩm (admin - cần token)
+  getPublicProducts, // Lấy danh sách sản phẩm (public - không cần token)
+  getProductById, // Lấy chi tiết sản phẩm (admin - cần token)
+  getPublicProductById, // Lấy chi tiết sản phẩm (public - không cần token)
   createProduct, // Tạo sản phẩm mới
   updateProduct, // Cập nhật sản phẩm
   deleteProduct, // Xóa sản phẩm

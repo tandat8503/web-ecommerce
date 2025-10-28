@@ -103,11 +103,8 @@ export default function RegisterForm({ onSwitchToLogin }) {
           // Vẫn tiếp tục với user data từ register nếu có lỗi
         }
         
-        toast.success("🎉 Đăng ký thành công! Chào mừng bạn đến với OFFICE PRO!", {
-          position: "top-right",
-          autoClose: 2000,
-        });
-        
+        console.log("Register successful");
+        toast.success(" Đăng ký thành công! Chào mừng bạn đến với OFFICE PRO!");
         window.location.href = "/";
       }
     } catch (error) {
@@ -127,10 +124,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
         errorMessage = error.message || "Có lỗi xảy ra";
       }
       
-      toast.error(`❌ ${errorMessage}`, {
-        position: "top-right",
-        autoClose: 5000,
-      });
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

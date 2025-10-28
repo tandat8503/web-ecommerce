@@ -13,7 +13,8 @@ import {
   FaBoxOpen,
   FaShapes,
   FaImage,
-  FaPhotoVideo
+  FaPhotoVideo,
+  FaTicketAlt
 } from "react-icons/fa";
 import { Link, useLocation } from "react-router-dom";
 
@@ -100,6 +101,11 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             key: "/admin/banners",
             icon: <FaPhotoVideo />,
             label: <Link to="/admin/banners">Quản lý banner</Link>,
+          },
+          {
+            key: "/admin/coupons",
+            icon: <FaTicketAlt />,
+            label: <Link to="/admin/coupons">Quản lý mã giảm giá</Link>,
           },
           
         ]}
