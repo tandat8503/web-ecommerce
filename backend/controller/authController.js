@@ -32,19 +32,10 @@ export const login = async (req, res) => {
       })
     }
 
-    // Tìm user (có thể là admin hoặc user thường)
-    let user = await prisma.adminUser.findUnique({
+    // Tìm user (chỉ 1 bảng User duy nhất)
+    const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() }
     })
-    let userType = 'admin'
-
-    // Nếu không tìm thấy admin, tìm user thường
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() }
-      })
-      userType = 'user'
-    }
 
     if (!user) {
       console.warn('NOT_FOUND_USER', context)
@@ -53,6 +44,9 @@ export const login = async (req, res) => {
         message: 'Email hoặc password không đúng'
       })
     }
+    
+    // Phân loại user type dựa trên role
+    const userType = user.role === 'ADMIN' ? 'admin' : 'user'
 
     // Kiểm tra user có active không
     if (!user.isActive) {
@@ -93,7 +87,7 @@ export const login = async (req, res) => {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role || 'USER',
+      role: user.role,
       isActive: user.isActive,
       userType: userType
     }

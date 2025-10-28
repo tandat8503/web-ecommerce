@@ -39,8 +39,8 @@ export const authenticateToken = async (req, res, next) => {
       })
     }
     
-    // Tìm user trong database (có thể là admin hoặc user thường)
-    let user = await prisma.adminUser.findUnique({
+    // Tìm user trong database (chỉ 1 bảng User duy nhất)
+    const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
         id: true,
@@ -48,32 +48,9 @@ export const authenticateToken = async (req, res, next) => {
         firstName: true,
         lastName: true,
         role: true,
-        isActive: true,
-        //userType: 'admin'
+        isActive: true
       }
     })
-    if (user) {
-      user.userType = 'admin'
-    }
-
-    // Nếu không tìm thấy admin, tìm user thường
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          isActive: true
-        }
-      })
-      
-      if (user) {
-        user.role = 'USER'
-        user.userType = 'user'
-      }
-    }
 
     if (!user || !user.isActive) {
       return res.status(401).json({ 
@@ -82,9 +59,16 @@ export const authenticateToken = async (req, res, next) => {
       })
     }
 
+    // Phân loại user type dựa trên role
+    if (user.role === 'ADMIN') {
+      user.userType = 'admin'
+    } else {
+      user.userType = 'user'
+    }
+
     // Lưu thông tin user vào request
     req.user = user
-    console.log('Auth middleware success:', { userId: user.id, userType: user.userType })
+    console.log('Auth middleware success:', { userId: user.id, role: user.role, userType: user.userType })
     next()
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {

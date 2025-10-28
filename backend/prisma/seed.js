@@ -8,12 +8,12 @@ async function main() {
     // 1. Tao admin
     console.log("Inserting admin user");
     const hashedPassword = await bcrypt.hash('admin123', 10);
-    const admin = await prisma.adminUser.upsert({
+    const admin = await prisma.user.upsert({
         where: {email:'admin@ecommerce.com'},
         update:{},
         create:{
             email: 'admin@ecommerce.com',
-            password:hashedPassword,
+            password: hashedPassword,
             firstName: 'Admin',
             lastName: 'Admin',
             role: 'ADMIN',
