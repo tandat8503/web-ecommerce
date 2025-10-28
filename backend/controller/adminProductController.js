@@ -56,19 +56,73 @@ export const listProducts = async (req, res) => {
   }
 };
 
-// Function lấy chi tiết một sản phẩm theo ID
-export const getProduct = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.products.get', params: req.params };
-  try {
-    console.log('START', context);
+// // Function lấy chi tiết một sản phẩm theo ID
+// export const getProduct = async (req, res) => {
+//   // Tạo context object để log và debug
+//   const context = { path: 'admin.products.get', params: req.params };
+//   try {
+//     console.log('START', context);
     
-    // Lấy ID từ URL params và chuyển đổi sang number
+//     // Lấy ID từ URL params và chuyển đổi sang number
+//     const id = Number(req.params.id);
+    
+//     // Tìm sản phẩm theo ID với thông tin category và brand
+//     const product = await prisma.product.findUnique({ 
+//       where: { id }, 
+//       include: includeBasic 
+//     });
+    
+//     // Kiểm tra sản phẩm có tồn tại không
+//     if (!product) {
+//       console.warn('NOT_FOUND', context);
+//       return res.status(404).json({ message: 'Not found' });
+//     }
+    
+//     console.log('END', { ...context, id });
+//     return res.json(product);
+//   } catch (error) {
+//     // Xử lý lỗi và log
+//     console.error('ERROR', { ...context, error: error.message });
+//     const payload = { message: 'Server error' };
+//     // Chỉ hiển thị chi tiết lỗi trong môi trường development
+//     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
+//     return res.status(500).json(payload);
+//   }
+// };
+
+
+// ✅ Function lấy chi tiết một sản phẩm theo ID
+// 🔄 TỰ ĐỘNG DETECT: Public (không token) hoặc Admin (có token)  
+export const getProduct = async (req, res) => {
+  // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user (GIỐNG listProducts)
+  const isPublicRoute = !req.user;
+  
+  // Tạo context với path tự động
+  const context = { 
+    path: isPublicRoute ? 'public.products.get' : 'admin.products.get', 
+    params: req.params 
+  };
+  
+  try {
+    // Log phân biệt public vs admin
+    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
+    
+    // Lấy ID từ URL params
     const id = Number(req.params.id);
     
-    // Tìm sản phẩm theo ID với thông tin category và brand
-    const product = await prisma.product.findUnique({ 
-      where: { id }, 
+    // 🔑 BƯỚC 2: Xây dựng điều kiện WHERE
+    const where = { id };
+    
+    // 🚨 QUAN TRỌNG: Public chỉ xem sản phẩm ACTIVE
+    if (isPublicRoute) {
+      where.status = 'ACTIVE';
+      console.log('📌 PUBLIC API: Force status = ACTIVE');
+    }
+    // Admin xem tất cả (không thêm điều kiện status)
+    
+    // 🔑 BƯỚC 3: Dùng findFirst thay vì findUnique để có thể filter theo status
+    const product = await prisma.product.findFirst({ 
+      where, 
       include: includeBasic 
     });
     
@@ -78,13 +132,13 @@ export const getProduct = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
     
-    console.log('END', { ...context, id });
+    // Log kết quả
+    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', { ...context, id });
     return res.json(product);
   } catch (error) {
-    // Xử lý lỗi và log
-    console.error('ERROR', { ...context, error: error.message });
+    // Xử lý lỗi
+    console.error('❌ ERROR', { ...context, error: error.message });
     const payload = { message: 'Server error' };
-    // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
   }

@@ -213,7 +213,7 @@ export const deleteAddress = async (req, res) => {
     if (wasDefault) {
       const another = await prisma.address.findFirst({
         where: { userId },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "asc" }, //asc: tăng dần, desc: giảm dần
       });
       if (another) {
         await prisma.address.update({

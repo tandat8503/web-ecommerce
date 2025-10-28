@@ -46,7 +46,7 @@ app.use(cors({
 // --- Rate limiting ---
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  max: 100, // Giới hạn 100 requests
+  max: 200, // Giới hạn 100 requests
   message: 'Quá nhiều requests, vui lòng thử lại sau'
 })
 app.use(limiter)

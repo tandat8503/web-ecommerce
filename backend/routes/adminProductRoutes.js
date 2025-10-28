@@ -11,11 +11,22 @@ import { uploadProduct } from '../middleware/uploadcloud.js'; // Middleware uplo
 // Tạo router instance
 const router = Router();
 
+/**
+ * ✅ API PUBLIC - Cho phép user frontend lấy danh sách sản phẩm (không cần đăng nhập)
+ *    Cả user và admin đều có thể thấy danh sách sản phẩm
+ */
+router.get('/public', listProducts);
+
+/**
+ * ✅ API PUBLIC - Cho phép user xem chi tiết sản phẩm (không cần đăng nhập)
+ *    Cả user và admin đều có thể thấy chi tiết sản phẩm
+ */
+router.get('/public/:id', getProduct);
+
 // Route lấy sản phẩm theo category (API mới được thêm)
 router.get('/category/:categoryId', getProductsByCategory);
 
-// Áp dụng middleware authentication và authorization cho tất cả routes
-// Chỉ admin mới có thể truy cập các API quản lý sản phẩm
+// Tất cả route dưới đây đều cần auth và admin
 router.use(authenticateToken, requireAdmin);
 
 // ==================== PRODUCT ROUTES ====================

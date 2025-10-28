@@ -56,22 +56,15 @@ export const addressSchema = Joi.object({
       "any.required": "Tỉnh/Thành phố là bắt buộc",
     }),
 
-  // Mã bưu điện: không bắt buộc, nếu có thì phải là 4–10 số
-  postalCode: Joi.string()
-    .pattern(/^[0-9]{4,10}$/)   // chỉ chấp nhận số, 4–10 ký tự
-    .optional()                 // không bắt buộc
-    .allow(null, "")            // cho phép null hoặc chuỗi rỗng
-    .messages({
-      "string.pattern.base": "Mã bưu điện không hợp lệ (4–10 số)",
-    }),
-
-  // Loại địa chỉ: chỉ cho phép "home" hoặc "office"
-  // Nếu không truyền thì mặc định là "home"
+  // Loại địa chỉ: chỉ cho phép "HOME" hoặc "OFFICE" (theo enum trong database)
+  // Nếu không truyền thì mặc định là "HOME"
   addressType: Joi.string()
-    .valid("HOME", "OFFICE")    // chỉ chấp nhận 2 giá trị
-    .default("HOME")            // nếu không gửi thì tự gán "home"
+  .valid("home", "office", "HOME", "OFFICE")
+  .insensitive()  // không phân biệt hoa thường
+
+    .default("HOME")          // mặc định là "HOME"
     .messages({
-      "any.only": "Loại địa chỉ không hợp lệ (home, office)",
+      "any.only": "Loại địa chỉ không hợp lệ (HOME, OFFICE)",
     }),
 
   // Có phải địa chỉ mặc định hay không: true/false
@@ -83,7 +76,9 @@ export const addressSchema = Joi.object({
   note: Joi.string()
     .max(255)      // tối đa 255 ký tự
     .optional()    // không bắt buộc
+    .allow(null, "")  // cho phép null hoặc chuỗi rỗng
     .messages({
       "string.max": "Ghi chú tối đa 255 ký tự",
     }),
 });
+

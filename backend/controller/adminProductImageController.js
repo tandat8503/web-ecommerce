@@ -2,23 +2,33 @@ import prisma from '../config/prisma.js';
 import cloudinary from '../config/cloudinary.js';
 
 // ============================
-// LẤY DANH SÁCH ẢNH SẢN PHẨM
+// ✅ LẤY DANH SÁCH ẢNH SẢN PHẨM
+// 🔄 TỰ ĐỘNG DETECT: Public (không token) hoặc Admin (có token)
 // ============================
 export const getProductImages = async (req, res) => {
-  const context = { path: 'admin.productImages.list', params: req.params };
+  // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user
+  const isPublicRoute = !req.user;
+  
+  const context = { 
+    path: isPublicRoute ? 'public.productImages.list' : 'admin.productImages.list', 
+    params: req.params 
+  };
+  
   try {
-    console.log('START', context);
+    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
     const productId = Number(req.params.productId);
     
+    // 🔑 BƯỚC 2: Public và Admin đều xem tất cả ảnh (không filter)
+    // Product images không cần filter theo isActive, chỉ cần thuộc product đó
     const images = await prisma.productImage.findMany({
       where: { productId },
       orderBy: { sortOrder: 'asc' }
     });
 
-    console.log('END', { ...context, count: images.length });
+    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', { ...context, count: images.length });
     return res.json({ items: images, total: images.length });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    console.error('❌ ERROR', { ...context, error: error.message });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -27,24 +37,33 @@ export const getProductImages = async (req, res) => {
 };
 
 // ============================
-// LẤY CHI TIẾT 1 ẢNH
+// ✅ LẤY CHI TIẾT 1 ẢNH
+// 🔄 TỰ ĐỘNG DETECT: Public (không token) hoặc Admin (có token)
 // ============================
 export const getProductImage = async (req, res) => {
-  const context = { path: 'admin.productImages.get', params: req.params };
+  // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user
+  const isPublicRoute = !req.user;
+  
+  const context = { 
+    path: isPublicRoute ? 'public.productImages.get' : 'admin.productImages.get', 
+    params: req.params 
+  };
+  
   try {
-    console.log('START', context);
+    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
     const id = Number(req.params.id);
     
+    // 🔑 BƯỚC 2: Public và Admin đều xem tất cả ảnh (không filter)
     const image = await prisma.productImage.findUnique({ where: { id } });
     if (!image) {
       console.warn('NOT_FOUND', context);
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    console.log('END', context);
+    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', context);
     return res.json(image);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    console.error('❌ ERROR', { ...context, error: error.message });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 

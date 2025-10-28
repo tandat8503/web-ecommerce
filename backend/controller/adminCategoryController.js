@@ -9,7 +9,7 @@ export const listCategories = async (req, res) => {
   const context = { path: "admin.categories.list", query: req.query };
   try {
     const { page = 1, limit = 10, q } = req.query;
-    const where = q ? { name: { contains: q, mode: "insensitive" } } : undefined;
+    const where = q ? { name: { contains: q } } : undefined;
 
     const [items, total] = await Promise.all([
       prisma.category.findMany({

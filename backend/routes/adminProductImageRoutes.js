@@ -14,12 +14,25 @@ import {
 } from '../controller/adminProductImageController.js';
 
 const router = Router();
+
+/**
+ * ✅ API PUBLIC - Lấy danh sách ảnh của sản phẩm (không cần đăng nhập)
+ * Dùng cho user xem gallery ảnh sản phẩm
+ */
+router.get('/public/:productId', getProductImages);
+
+/**
+ * ✅ API PUBLIC - Lấy chi tiết 1 ảnh (không cần đăng nhập)
+ */
+router.get('/public/image/:id', getProductImage);
+
+// Tất cả route dưới đây đều cần auth và admin
 router.use(authenticateToken, requireAdmin);
 
-// Lấy danh sách ảnh của sản phẩm
+// Lấy danh sách ảnh của sản phẩm - Admin
 router.get('/:productId', getProductImages);
 
-// Lấy chi tiết 1 ảnh
+// Lấy chi tiết 1 ảnh - Admin
 router.get('/image/:id', getProductImage);
 
 // Tạo ảnh mới cho sản phẩm

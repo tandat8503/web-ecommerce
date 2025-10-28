@@ -100,9 +100,13 @@ export const createProductVariant = async (req, res) => {
 
 
 // ==============================
-// Lấy danh sách biến thể (có phân trang + tìm kiếm)
+// ✅ Lấy danh sách biến thể (có phân trang + tìm kiếm)
+// 🔄 TỰ ĐỘNG DETECT: Public (không token) hoặc Admin (có token)
 // ==============================
 export const getProductVariants = async (req, res) => {
+  // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user
+  const isPublicRoute = !req.user;
+  
   try {
     // Lấy query params từ request, nếu không truyền thì mặc định page=1, limit=5
     const { page = 1, limit = 5, keyword, productId } = req.query;
@@ -124,6 +128,13 @@ export const getProductVariants = async (req, res) => {
         : {}),
     };
 
+    // 🔑 BƯỚC 2: Public chỉ xem biến thể ACTIVE
+    if (isPublicRoute) {
+      where.isActive = true;
+      console.log('🌐 PUBLIC API: Chỉ lấy variants isActive = true');
+    }
+    // Admin xem tất cả (không filter isActive)
+
     // Thực hiện 2 query song song: lấy danh sách items + đếm tổng số bản ghi
     const [items, total] = await Promise.all([
       prisma.productVariant.findMany({
@@ -137,6 +148,12 @@ export const getProductVariants = async (req, res) => {
       }),
       prisma.productVariant.count({ where }), // Đếm tổng số bản ghi thoả mãn điều kiện
     ]);
+
+    // Log phân biệt public vs admin
+    console.log(
+      isPublicRoute ? '✅ PUBLIC API' : '✅ ADMIN API', 
+      `- Found ${items.length}/${total} variants`
+    );
 
     // Trả response cho client
     res.json({
@@ -163,21 +180,51 @@ export const getProductVariants = async (req, res) => {
 
 
 // ===========================
-//  LẤY CHI TIẾT BIẾN THỂ
+// ✅ LẤY CHI TIẾT BIẾN THỂ
+// 🔄 TỰ ĐỘNG DETECT: Public (không token) hoặc Admin (có token)
 // ===========================
 export const getProductVariantById = async (req, res) => {
+  // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user
+  const isPublicRoute = !req.user;
+  
   try {
     const { id } = req.params;
 
+    // 🔑 BƯỚC 2: Xây dựng điều kiện WHERE
+    const where = { id: Number(id) };
+    
+    // 🚨 QUAN TRỌNG: Public chỉ xem biến thể ACTIVE
+    if (isPublicRoute) {
+      // Sử dụng findFirst để có thể filter theo isActive
+      const variant = await prisma.productVariant.findFirst({
+        where: {
+          ...where,
+          isActive: true, // Public chỉ xem biến thể active
+        },
+        include: { product: { select: { name: true, brand: true } } },
+      });
+
+      if (!variant) {
+        console.warn('🌐 PUBLIC API: Variant not found or not active');
+        return res.status(404).json({ message: "Không tìm thấy biến thể" });
+      }
+
+      console.log('✅ PUBLIC API: Found variant', { id: variant.id, isActive: variant.isActive });
+      return res.json({ data: variant });
+    }
+
+    // Admin xem tất cả (kể cả isActive = false)
     const variant = await prisma.productVariant.findUnique({
-      where: { id: Number(id) },
+      where,
       include: { product: { select: { name: true, brand: true } } },
     });
 
     if (!variant) {
+      console.warn('🔒 ADMIN API: Variant not found');
       return res.status(404).json({ message: "Không tìm thấy biến thể" });
     }
 
+    console.log('✅ ADMIN API: Found variant', { id: variant.id, isActive: variant.isActive });
     res.json({ data: variant });
   } catch (error) {
     console.error("❌ Lỗi getProductVariantById:", error);
