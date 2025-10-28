@@ -112,28 +112,11 @@ export const login = async (req, res) => {
   }
 }
 
-// Lấy thông tin user hiện tại
-export const getProfile = async (req, res) => {
-  const context = { path: 'auth.profile', userId: req.user?.id };
-  try {
-    console.log('START', context)
-    res.json({
-      success: true,
-      message: 'Lấy thông tin profile thành công',
-      data: {
-        user: req.user
-      }
-    })
-  } catch (error) {
-    console.error('ERROR', { ...context, error: error.message })
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server'
-    })
-  } finally {
-    console.log('END', context)
-  }
-}
+// ========================================
+// LƯU Ý: getProfile() đã được chuyển sang userController.js
+// Hãy sử dụng /api/user/profile thay vì /api/auth/profile
+// userController.getUserProfile() có đầy đủ logic hơn
+// ========================================
 
 // Đăng ký user mới
 export const register = async (req, res) => {

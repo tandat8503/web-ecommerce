@@ -4,22 +4,21 @@ import {
   login, 
   register, 
   logout, 
-  getProfile, 
-  googleLogin   // 👈 thêm vào
+  googleLogin
 } from "../controller/authController.js";
 import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
 
-// Public routes
+// Public routes - không cần authentication
 router.post("/login", login);
 router.post("/register", register);
+router.post("/google", googleLogin); // Google Login
 
-// Google Login route
-router.post("/google", googleLogin);   // 👈 route Google login
-
-// Protected routes
+// Protected routes - cần authentication
 router.post("/logout", authenticateToken, logout);
-router.get("/profile", authenticateToken, getProfile);
+
+// LƯU Ý: Profile đã chuyển sang /api/user/profile
+// Sử dụng userController.getUserProfile() thay vì getProfile()
 
 export default router;

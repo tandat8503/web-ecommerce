@@ -13,6 +13,7 @@ const userResponse = (user) => ({
   lastName: user.lastName,
   phone: user.phone,
   avatar: user.avatar,
+  role: user.role, // Thêm role để phân biệt ADMIN vs CUSTOMER
   isActive: user.isActive,
   isVerified: user.isVerified,
   lastLoginAt: user.lastLoginAt,
@@ -21,18 +22,43 @@ const userResponse = (user) => ({
 });
 
 // ==============================
-// Lấy thông tin user (profile)
+// Lấy thông tin user (profile) - Tự động phân biệt ADMIN vs CUSTOMER
 // ==============================
 export const getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    
+    // Lấy đầy đủ thông tin user từ database (có phone, avatar, v.v.)
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        isVerified: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
 
-    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy thông tin" });
+    }
+
+    // Phân biệt message theo role
+    const message = user.role === 'ADMIN' 
+      ? "Lấy thông tin admin thành công" 
+      : "Lấy thông tin khách hàng thành công";
 
     res.json({
       code: 200,
-      message: "Lấy thông tin thành công",
+      message,
       data: { user: userResponse(user) },
     });
   } catch (error) {
@@ -41,7 +67,7 @@ export const getUserProfile = async (req, res) => {
 };
 
 // ==============================
-// Đổi mật khẩu
+// Đổi mật khẩu - Tự động phân biệt ADMIN vs CUSTOMER
 // ==============================
 export const changePassword = async (req, res) => {
   try {
@@ -59,7 +85,7 @@ export const changePassword = async (req, res) => {
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return res.status(404).json({ message: "User không tồn tại" });
+    if (!user) return res.status(404).json({ message: "Không tìm thấy thông tin" });
 
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
@@ -73,9 +99,14 @@ export const changePassword = async (req, res) => {
       data: { password: hashedPassword },
     });
 
-    res.json({ message: "Đổi mật khẩu thành công" });
+    // Phân biệt message theo role
+    const message = user.role === 'ADMIN' 
+      ? "Đổi mật khẩu admin thành công" 
+      : "Đổi mật khẩu thành công";
+
+    res.json({ code: 200, message });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ code: 500, error: error.message });
   }
 };
 
@@ -120,29 +151,44 @@ export const updateUserProfile = async (req, res) => {
       data: updateData,
     });
 
+    // Phân biệt message theo role
+    const message = updatedUser.role === 'ADMIN' 
+      ? "Cập nhật profile admin thành công" 
+      : "Cập nhật profile thành công";
+
     return res.json({
       code: 200,
-      message: "Cập nhật profile thành công",
+      message,
       data: { user: userResponse(updatedUser) },
     });
   } catch (error) {
-    console.error("Update user error:", error);
-    res.status(500).json({ message: "Lỗi server", error: error.message });
+    console.error("Update profile error:", error);
+    res.status(500).json({ code: 500, message: "Lỗi server", error: error.message });
   }
 };
 
 
 // ==============================
-// Xem lịch sử đăng nhập
+// Xem lịch sử đăng nhập - Tự động phân biệt ADMIN vs CUSTOMER
 // ==============================
 export const getLoginHistory = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Lấy thông tin user để check role
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { role: true }
+    });
+
+    // Số lượng lịch sử tùy theo role
+    const limit = userRole === 'ADMIN' ? 50 : 10;
 
     const history = await prisma.loginHistory.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
-      take: 10, // chỉ lấy 10 lần gần nhất, tránh quá tải
+      take: limit,
       select: {
         id: true,
         loginMethod: true,
@@ -154,14 +200,19 @@ export const getLoginHistory = async (req, res) => {
       },
     });
 
+    // Phân biệt message theo role
+    const message = userRole === 'ADMIN' 
+      ? "Lấy lịch sử đăng nhập admin thành công" 
+      : "Lấy lịch sử đăng nhập thành công";
+
     res.json({
       code: 200,
-      message: "Lấy lịch sử đăng nhập thành công",
+      message,
       data: history,
     });
   } catch (error) {
     console.error("Get login history error:", error);
-    res.status(500).json({ message: "Lỗi server", error: error.message });
+    res.status(500).json({ code: 500, message: "Lỗi server", error: error.message });
   }
 };
 

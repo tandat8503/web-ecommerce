@@ -2,46 +2,89 @@
 import prisma from "../config/prisma.js";
 
 /**
- * Tạo mã đơn hàng có ý nghĩa theo format: NTVP + YYMMDD + XXX
- * Ví dụ: NTVP241221001, NTVP241221002...
- * NTVP = Tên shop, YYMMDD = Ngày tháng năm, XXX = Số thứ tự trong ngày
+ * Tạo mã đơn hàng tự động từ database
+ * Format: <maKH><mã SP><ngay-thang><stt đơn của KH đã đặt>
+ * Ví dụ: 001LAPT241221001, 001PHON241221002...
+ * 
+ * @param {number} userId - ID của khách hàng từ database
+ * @param {string} productSku - Mã SKU của sản phẩm đầu tiên trong đơn hàng
+ * @returns {Promise<string>} - Mã đơn hàng đã tạo
  */
-const generateOrderNumber = async () => {
+const generateOrderNumber = async (userId, productSku) => {
   try {
-    // Lấy thời gian hiện tại
+    // ===== BƯỚC 1: LẤY THÔNG TIN KHÁCH HÀNG TỪ DATABASE =====
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true }
+    });
+
+    if (!user) {
+      throw new Error('Không tìm thấy thông tin khách hàng trong database');
+    }
+
+    // Lấy mã khách hàng (maKH) - format 3 chữ số
+    // VD: User ID = 1 -> 001, User ID = 25 -> 025
+    const userCode = String(user.id).padStart(3, '0');
+    
+    // ===== BƯỚC 2: LẤY MÃ SẢN PHẨM TỪ SKU =====
+    // Lấy 4 ký tự đầu của mã SKU sản phẩm để đưa vào mã đơn hàng
+    // VD: SKU = "LAPTOP001" -> LAPT hoặc SKU = "PHONE" -> PHON
+    let productCode = 'PROD'; // Mặc định nếu không có SKU
+    
+    if (productSku && productSku !== 'PROD') {
+      // Lấy tối đa 4 ký tự từ mã SKU và chuyển thành chữ hoa
+      productCode = productSku.substring(0, 4).toUpperCase().padEnd(4, 'X').substring(0, 4);
+    }
+    
+    // ===== BƯỚC 4: LẤY NGÀY THÁNG HIỆN TẠI =====
     const now = new Date();
     
-    // Lấy 2 chữ số cuối của năm (ví dụ: 2024 -> 24)
+    // Lấy 2 chữ số cuối của năm (2024 -> 24)
     const year = now.getFullYear().toString().slice(-2);
     
-    // Lấy tháng hiện tại và thêm số 0 phía trước nếu < 10 (ví dụ: 1 -> 01, 12 -> 12)
+    // Lấy tháng (1-12, thêm số 0 nếu < 10)
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
-    // Lấy ngày hiện tại và thêm số 0 phía trước nếu < 10 (ví dụ: 1 -> 01, 21 -> 21)
+    // Lấy ngày (1-31, thêm số 0 nếu < 10)
     const day = String(now.getDate()).padStart(2, '0');
     
-    // Tạo prefix theo format: NTVP + YYMMDD (ví dụ: NTVP241221)
-    const datePrefix = `NTVP${year}${month}${day}`;
+    // Tạo mã ngày-tháng: YYMMDD
+    // VD: 24/12/21 -> 241221
+    const dateCode = `${year}${month}${day}`;
     
-    // Đếm số đơn hàng đã tạo trong ngày hôm nay (có cùng prefix)
+    // ===== BƯỚC 5: ĐẾM SỐ ĐƠN HÀNG CỦA KHÁCH HÀNG ĐÃ ĐẶT TRONG NGÀY TỪ DATABASE =====
+    // Đếm số đơn hàng của KH này đã đặt trong ngày hôm nay
     const todayOrderCount = await prisma.order.count({
       where: {
-        orderNumber: {
-          startsWith: datePrefix  // Tìm tất cả order có mã bắt đầu bằng datePrefix
+        userId: user.id,
+        createdAt: {
+          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()), // Bắt đầu ngày hôm nay 00:00:00
+          lt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) // Kết thúc ngày hôm nay 23:59:59
         }
       }
     });
     
-    // Tạo số thứ tự 3 chữ số, bắt đầu từ 001 (ví dụ: 0 -> 001, 5 -> 006)
+    // Tạo số thứ tự đơn hàng (3 chữ số)
+    // VD: Đơn hàng thứ 1 -> 001, thứ 2 -> 002
     const orderSequence = String(todayOrderCount + 1).padStart(3, '0');
     
-    // Trả về mã đơn hàng hoàn chỉnh (ví dụ: NTVP241221001)
-    return `${datePrefix}${orderSequence}`;
+    // ===== BƯỚC 6: TẠO MÃ ĐƠN HÀNG HOÀN CHỈNH =====
+    // Format: <maKH><masp><mã SP><ngay-thang><stt đơn>
+    // VD: 001PROLAP241221001 - Đơn hàng số 001 của KH 001, SP LAP, ngày 24/12/21
+    const orderNumber = `${userCode}${shopCode}${productCode}${dateCode}${orderSequence}`;
+    
+    console.log(`✅ Tạo mã đơn hàng thành công: ${orderNumber} cho user ${user.id} (${user.email})`);
+    
+    return orderNumber;
+    
   } catch (error) {
-    // Nếu có lỗi, ghi log và trả về mã fallback
-    console.error('Error generating order number:', error);
-    // Tạo mã fallback: NTVP + 8 chữ số cuối của timestamp
-    return `NTVP${Date.now().toString().slice(-8)}`;
+    console.error('❌ Lỗi khi tạo mã đơn hàng:', error);
+    
+    // Fallback: Tạo mã backup nếu có lỗi
+    const timestamp = Date.now().toString().slice(-8);
+    const userCode = String(userId).padStart(3, '0');
+    const productCode = productSku ? productSku.substring(0, 4).toUpperCase() : 'XXXX';
+    return `${userCode}PRO${productCode}${timestamp}`;
   }
 };
 
@@ -132,10 +175,20 @@ export const createOrder = async (req, res) => {
     }
 
     const totalAmount = subtotal + shippingFee - discountAmount;
-    const orderNumber = await generateOrderNumber();
+    
+    // Lấy mã SKU của sản phẩm đầu tiên trong giỏ hàng để tạo mã đơn hàng
+    // cartItems[0].product.sku hoặc cartItems[0].variant.sku
+    const firstProductSku = cartItems[0]?.variant?.sku || cartItems[0]?.product?.sku || 'PROD';
+    
+    // 5. Tạo mã đơn hàng với SKU sản phẩm từ database
+    const orderNumber = await generateOrderNumber(userId, firstProductSku);
 
-    // 5. Tạo đơn hàng
+    // 6. Tạo transaction ID unique
+    const transactionId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    // 7. Tạo đơn hàng và payment trong transaction
     const result = await prisma.$transaction(async (tx) => {
+      // ===== TẠO ĐƠN HÀNG =====
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -161,31 +214,82 @@ export const createOrder = async (req, res) => {
         }
       });
 
-      await tx.orderItem.createMany({ data: orderItems.map(item => ({ ...item, orderId: order.id })) });
+      // ===== TẠO PAYMENT RECORD =====
+      // Tạo 1 Payment cho đơn hàng - đảm bảo 1 Order = 1 Payment
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          paymentMethod, // Phải trùng với Order.paymentMethod
+          paymentStatus: 'PENDING',
+          amount: totalAmount,
+          transactionId // Mã giao dịch duy nhất
+        }
+      });
 
+      // ===== TẠO CHI TIẾT ĐƠN HÀNG =====
+      await tx.orderItem.createMany({ 
+        data: orderItems.map(item => ({ ...item, orderId: order.id })) 
+      });
+
+      // ===== TRỪ TỒN KHO =====
       for (const update of stockUpdates) {
         if (update.table === 'Product') {
-          await tx.product.update({ where: { id: update.id }, data: { stockQuantity: update.currentStock - update.quantity } });
+          await tx.product.update({ 
+            where: { id: update.id }, 
+            data: { stockQuantity: update.currentStock - update.quantity } 
+          });
         } else {
-          await tx.productVariant.update({ where: { id: update.id }, data: { stockQuantity: update.currentStock - update.quantity } });
+          await tx.productVariant.update({ 
+            where: { id: update.id }, 
+            data: { stockQuantity: update.currentStock - update.quantity } 
+          });
         }
       }
 
+      // ===== XỬ LÝ COUPON =====
       if (couponId) {
-        await tx.coupon.update({ where: { id: couponId }, data: { usedCount: { increment: 1 } } });
-        await tx.couponUsage.create({ data: { couponId, userId, orderId: order.id } });
+        await tx.coupon.update({ 
+          where: { id: couponId }, 
+          data: { usedCount: { increment: 1 } } 
+        });
+        await tx.couponUsage.create({ 
+          data: { couponId, userId, orderId: order.id } 
+        });
       }
 
+      // ===== XÓA GIỎ HÀNG =====
       await tx.shoppingCart.deleteMany({ where: { userId } });
+      
       return order;
     });
 
-    // 6. Lấy thông tin đơn hàng đầy đủ
+    // 7. Lấy thông tin đơn hàng đầy đủ
     const orderDetails = await prisma.order.findUnique({
       where: { id: result.id },
       include: {
-        orderItems: { include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true } },
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } }
+        orderItems: { 
+          include: { 
+            product: { 
+              include: { 
+                images: { where: { isPrimary: true }, take: 1 } 
+              } 
+            }, 
+            variant: true 
+          } 
+        },
+        user: { 
+          select: { 
+            id: true, 
+            firstName: true, 
+            lastName: true, 
+            email: true, 
+            phone: true 
+          } 
+        },
+        payments: true, // Include thông tin payment
+        couponUsages: {
+          include: { coupon: true }
+        }
       }
     });
 
