@@ -70,15 +70,6 @@ export default function UserHeader() {
   // ✅ Subscribe vào store để trigger re-render khi state thay đổi
   const wishlistCount = useWishlistStore((state) => state.items.length);
   const cartCount = useCartStore((state) => state.totalQuantity);
-  
-  // Debug logs để theo dõi state changes
-  console.log('🔍 UserHeader - wishlistCount:', wishlistCount);
-  console.log('🔍 UserHeader - cartCount:', cartCount);
-  
-  // Force re-render khi state thay đổi
-  useEffect(() => {
-    console.log('🔍 UserHeader - State changed, re-rendering...')
-  }, [wishlistCount, cartCount]);
 
   // Lấy danh mục public
   useEffect(() => {
@@ -111,11 +102,18 @@ export default function UserHeader() {
     };
 
     loadUserData();
-    const handleStorageChange = (e) => {
-      if (e.key === "user") loadUserData();
+    
+    // Lắng nghe event userUpdated từ LoginForm/RegisterForm
+    const handleUserUpdated = () => {
+      loadUserData();
     };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    
+    window.addEventListener("userUpdated", handleUserUpdated);
+    
+    // Cleanup khi component unmount
+    return () => {
+      window.removeEventListener("userUpdated", handleUserUpdated);
+    };
   }, []);
 
   // Đăng xuất
@@ -134,7 +132,7 @@ export default function UserHeader() {
       resetWishlist();
       resetCart();
       
-      toast.success("👋 Đăng xuất thành công!", { autoClose: 2000 });
+      toast.success(" Đăng xuất thành công!");
       navigate("/");
     } catch (error) {
       toast.error("❌ Có lỗi xảy ra khi đăng xuất", { autoClose: 3000 });
@@ -154,7 +152,7 @@ export default function UserHeader() {
         </Link>
       ),
     },
-    ...(user?.userType !== "admin" || user?.role !== "ADMIN"
+    ...(user?.role !== 'ADMIN'
       ? [
           {
             key: "orders",
@@ -167,7 +165,7 @@ export default function UserHeader() {
           },
         ]
       : []),
-    ...(user?.userType === "admin" && user?.role === "ADMIN"
+    ...(user?.role === 'ADMIN'
       ? [
           {
             key: "admin",

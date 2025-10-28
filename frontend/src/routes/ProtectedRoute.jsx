@@ -33,7 +33,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }) {
       
       // Kiểm tra quyền admin nếu cần
       if (requireAdmin) {
-        if (user.userType !== 'admin' || user.role !== 'ADMIN') {
+        if (user.role !== 'ADMIN') {
           toast.error("❌ Bạn không có quyền truy cập trang admin");
           navigate("/");
           return;

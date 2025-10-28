@@ -1,15 +1,12 @@
 import { Layout, Menu } from "antd";
 import {
-  FaUser,
-  FaUsers,
-  FaShoppingCart,
-  FaCog,
-  FaTags,
   FaHome,
   FaChevronLeft,
   FaChevronRight,
   FaList,
+  FaUsers,
   FaTrademark,
+  FaShoppingCart,
   FaBoxOpen,
   FaShapes,
   FaImage,

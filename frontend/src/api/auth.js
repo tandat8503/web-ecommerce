@@ -14,12 +14,7 @@ export async function register(data) {
   return await axiosClient.post("auth/register", data);
 }
 
-/**
- * Lấy thông tin profile
- */
-export async function getProfile() {
-  return await axiosClient.get("auth/profile");
-}
+
 
 /**
  * Đăng xuất

@@ -3,7 +3,6 @@ import { Form, Input, Button, Card, Typography, Divider, Checkbox, Space } from 
 import {  FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaGift } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { login } from "@/api/auth";
-import { getUserProfile } from "@/api/userProfile";
 import { toast } from "react-toastify";
 
 const { Title, Text } = Typography;
@@ -27,60 +26,32 @@ export default function LoginForm({ onSwitchToRegister }) {
   const onFinish = async (values) => {
     try {
       setLoading(true);
-      console.log("Login data being sent:", values);
-      
       const response = await login(values);
-      console.log("Login response:", response);
       
       if (response.data.success) {
         const userData = response.data.data.user;
-        console.log("Login response user data:", userData);
-        console.log("Login response avatar:", userData.avatar);
-        console.log("Login response avatar type:", typeof userData.avatar);
         
         localStorage.setItem("token", response.data.data.accessToken);
         localStorage.setItem("user", JSON.stringify(userData));
         
-        // Gọi API getUserProfile để lấy đầy đủ thông tin user (bao gồm avatar)
-        try {
-          console.log("Fetching full user profile after login...");
-          const profileResponse = await getUserProfile();
-          if (profileResponse.data.code === 200) {
-            const fullUserData = profileResponse.data.data.user;
-            console.log("Full user profile from API:", fullUserData);
-            console.log("Full user profile avatar:", fullUserData.avatar);
-            
-            // Cập nhật localStorage với thông tin đầy đủ
-            localStorage.setItem("user", JSON.stringify(fullUserData));
-            console.log("Updated localStorage with full user profile");
-            
-            // Dispatch event để UserHeader cập nhật
-            window.dispatchEvent(new CustomEvent('userUpdated'));
-          }
-        } catch (profileError) {
-          console.error("Error fetching full user profile:", profileError);
-          // Vẫn tiếp tục với user data từ login nếu có lỗi
-        }
+        // Dispatch event để UserHeader cập nhật
+        window.dispatchEvent(new CustomEvent('userUpdated'));
         
-        console.log("Login successful, showing toast...");
         toast.success("🎉 Đăng nhập thành công!");
         
         // Delay redirect để toast có thời gian hiển thị và UserHeader cập nhật
         setTimeout(() => {
-          if (response.data.data.user.userType === 'admin') {
+          // Kiểm tra role từ backend response
+          if (userData.role === 'ADMIN') {
             window.location.href = "/admin";
           } else {
             window.location.href = "/";
           }
         }, 1000);
       } else {
-        console.log("Login failed:", response.data.message);
         toast.error(response.data.message || "Đăng nhập thất bại");
       }
     } catch (error) {
-      console.error("Login error:", error);
-      console.error("Error response:", error.response);
-      
       let errorMessage = "Đăng nhập thất bại";
       
       if (error.response) {

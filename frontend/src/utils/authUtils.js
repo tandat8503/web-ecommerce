@@ -25,7 +25,7 @@ export const isAdmin = () => {
   
   try {
     const user = JSON.parse(userData);
-    return user.userType === 'admin' && user.role === 'ADMIN';
+    return user.role === 'ADMIN';
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
@@ -72,3 +72,4 @@ export const debugAuth = () => {
   console.log('🔍 AUTH DEBUG:', status);
   return status;
 };
+

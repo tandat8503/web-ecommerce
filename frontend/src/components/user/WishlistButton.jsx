@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import useWishlistStore from "@/stores/wishlistStore";
 
@@ -15,6 +16,9 @@ export default function WishlistButton({
   showTooltip = true,//hiển thị tooltip
   onToggle //callback function
 }) {
+  // ========== ROUTER HOOK ==========
+  const navigate = useNavigate();
+  
   // ========== ZUSTAND HOOKS ==========
   const { toggleWishlist, loading } = useWishlistStore();
   // ✅ Subscribe vào store để trigger re-render khi state thay đổi
@@ -35,6 +39,14 @@ export default function WishlistButton({
 
     // Nếu đang loading thì không cho click
     if (isToggling || loading) return;
+
+    // Kiểm tra đăng nhập: Nếu chưa có token thì redirect đến trang auth
+    const token = localStorage.getItem('token');
+    if (!token) {
+      //redirect=encodeURIComponent(window.location.pathname) là để lưu lại url hiện tại để sau khi đăng nhập thì redirect về url đó
+      navigate('/auth?redirect=' + encodeURIComponent(window.location.pathname));
+      return;
+    }
 
     try {
       setIsToggling(true);
@@ -120,6 +132,7 @@ export default function WishlistButton({
  * Dùng cho ProductDetail page hoặc nơi cần button to hơn
  */
 export function WishlistTextButton({ productId, className = "" }) {
+  const navigate = useNavigate();
   const { toggleWishlist, loading } = useWishlistStore();
   // ✅ Subscribe vào store để trigger re-render khi state thay đổi
   const wishlistItems = useWishlistStore((state) => state.items);
@@ -135,6 +148,13 @@ export function WishlistTextButton({ productId, className = "" }) {
     e.stopPropagation();
     
     if (isToggling || loading) return;
+
+    // Kiểm tra đăng nhập: Nếu chưa có token thì redirect đến trang auth
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/auth?redirect=' + encodeURIComponent(window.location.pathname));
+      return;
+    }
 
     try {
       setIsToggling(true);
