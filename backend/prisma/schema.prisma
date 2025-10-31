@@ -360,11 +360,12 @@ model Order {
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
   // Relations
-  user         User            @relation(fields: [userId], references: [id])
-  orderItems   OrderItem[]
-  payments     Payment[]
-  reviews      ProductReview[]
-  couponUsages CouponUsage[]
+  user             User                @relation(fields: [userId], references: [id])
+  orderItems       OrderItem[]
+  payments         Payment[]
+  reviews          ProductReview[]
+  couponUsages     CouponUsage[]
+  statusHistory    OrderStatusHistory[]
 
   @@map("orders")
 }
@@ -391,6 +392,21 @@ model OrderItem {
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 
   @@map("order_items")
+}
+
+// ===========================
+// LỊCH SỬ THAY ĐỔI TRẠNG THÁI ĐƠN HÀNG
+// ===========================
+model OrderStatusHistory {
+  id        Int         @id @default(autoincrement())
+  orderId   Int         @map("order_id")
+  status    OrderStatus
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_status_history")
 }
 
 // ===========================
@@ -571,7 +587,6 @@ enum OrderStatus {
   PENDING
   CONFIRMED
   PROCESSING
-  SHIPPED
   DELIVERED
   CANCELLED
 }

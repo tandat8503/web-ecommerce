@@ -1,322 +1,286 @@
-// Import các thư viện cần thiết
-import prisma from "../config/prisma.js"; // Prisma client để kết nối database
+import prisma from '../config/prisma.js';
+//hàm lấy danh sách trạng thái có thể chọn tiếp theo (không cho chọn ngược)
+// Logic: Mỗi trạng thái chỉ có thể chuyển sang các trạng thái phía sau, không thể quay lại
+const getAvailableStatuses = (currentStatus) => {
+  const orderTransitions = {
+    PENDING: ["CONFIRMED", "CANCELLED"],        // Chờ xác nhận → Đã xác nhận hoặc Hủy
+    CONFIRMED: ["PROCESSING", "CANCELLED"],     // Đã xác nhận → Đang giao hoặc Hủy (không thể quay về PENDING)
+    PROCESSING: ["DELIVERED"],                  // Đang giao → Đã giao (không thể quay về CONFIRMED)
+    DELIVERED: [],                              // Đã giao → Không thể thay đổi (trạng thái cuối cùng)
+    CANCELLED: []                               // Đã hủy → Không thể thay đổi (trạng thái cuối cùng)
+  };
+  return orderTransitions[currentStatus] || [];
+};
 
-// =======================
-// LẤY DANH SÁCH ĐƠN HÀNG VỚI PHÂN TRANG VÀ TÌM KIẾM (ADMIN)
-// =======================
-export const getOrders = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.orders.list', query: req.query };
-  try {
-    console.log('START', context);
-    
-    // Lấy các tham số từ query string với giá trị mặc định
-    const { page = 1, limit = 10, status, paymentStatus, q, userId } = req.query;
-    
-    // Xây dựng điều kiện WHERE động dựa trên các filter
-    const and = []; // Mảng chứa các điều kiện AND
-    if (status) and.push({ status }); // Lọc theo trạng thái đơn hàng
-    if (paymentStatus) and.push({ paymentStatus }); // Lọc theo trạng thái thanh toán
-    if (userId) and.push({ userId: Number(userId) }); // Lọc theo user ID
-    if (q) {
-      // Tìm kiếm theo tên user hoặc order number
-      and.push({
-        OR: [
-          { orderNumber: { contains: q, mode: 'insensitive' } },
-          { user: { firstName: { contains: q, mode: 'insensitive' } } },
-          { user: { lastName: { contains: q, mode: 'insensitive' } } }
-        ]
+//hàm lấy label trạng thái dựa vào status của đơn hàng để hiển thị cho người dùng
+const getStatusLabel = (status) => {
+  const statusLabels = {
+    PENDING: "Chờ xác nhận",
+    CONFIRMED: "Đã xác nhận",
+    PROCESSING: "Đang giao",
+    DELIVERED: "Đã giao",
+    CANCELLED: "Đã hủy"
+  };
+  return statusLabels[status] || status;
+};
+
+//hàm hoàn trả tồn kho cho đơn hàng khi hủy đơn hàng
+const restoreStockForOrder = async (tx, orderItems) => {
+  for (const item of orderItems) {
+    if (item.variantId) {
+      await tx.productVariant.update({
+        where: { id: item.variantId },
+        data: { stockQuantity: { increment: item.quantity } }
+      });
+    } else {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: { stockQuantity: { increment: item.quantity } }
       });
     }
-    const where = and.length ? { AND: and } : undefined; // Nếu có điều kiện thì tạo WHERE clause
-
-    // Thực hiện 2 query song song để tối ưu performance
-    const [items, total] = await Promise.all([
-      // Query 1: Lấy danh sách đơn hàng với phân trang
-      prisma.order.findMany({
-        where,
-        orderBy: { createdAt: 'desc' }, // Sắp xếp theo thời gian tạo (mới nhất trước)
-        skip: (Number(page) - 1) * Number(limit), // Bỏ qua các bản ghi của trang trước
-        take: Number(limit), // Lấy đúng số lượng bản ghi của trang hiện tại
-        include: {
-          user: {
-            select: { id: true, firstName: true, lastName: true, email: true, phone: true }
-          },
-          orderItems: {
-            include: {
-              product: { select: { id: true, name: true, imageUrl: true } },
-              variant: { select: { id: true, name: true, sku: true } }
-            }
-          },
-          payments: true,
-          couponUsages: {
-            include: { coupon: { select: { code: true, discountType: true, discountValue: true } } }
-          }
-        }
-      }),
-      // Query 2: Đếm tổng số đơn hàng thỏa mãn điều kiện
-      prisma.order.count({ where })
-    ]);
-
-    // Tạo response payload với thông tin phân trang
-    const payload = { items, total, page: Number(page), limit: Number(limit) };
-    console.log('END', { ...context, total: payload.total });
-    return res.json(payload);
-  } catch (error) {
-    // Xử lý lỗi và log
-    console.error('ERROR', { ...context, error: error.message });
-    const payload = { message: 'Server error' };
-    // Chỉ hiển thị chi tiết lỗi trong môi trường development
-    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
-    return res.status(500).json(payload);
   }
 };
 
-// =======================
-// LẤY CHI TIẾT ĐƠN HÀNG (ADMIN)
-// =======================
-export const getOrderById = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.orders.getById', params: req.params };
+//hàm lấy danh sách đơn hàng cho admin
+export const listOrders = async (req, res) => {
+  const context = { path: 'admin.orders.list', query: req.query };
   try {
     console.log('START', context);
+    const { page = 1, limit = 10, status, q } = req.query;
     
-    // Lấy ID từ URL params và chuyển đổi sang number
-    const { id } = req.params;
-    
-    // Tìm đơn hàng theo ID với đầy đủ thông tin liên quan
-    const order = await prisma.order.findUnique({
-      where: { id: Number(id) },
-      include: {
-        user: {
-          select: { 
-            id: true, 
-            firstName: true, 
-            lastName: true, 
-            email: true, 
-            phone: true,
-            addresses: {
-              where: { isDefault: true },
-              select: { id: true, address: true, city: true, district: true, ward: true }
+    const conditions = [];//điều kiện lọc đơn hàng
+    if (status) conditions.push({ status });//điều kiện lọc theo trạng thái
+    if (q) {//điều kiện lọc theo số đơn hàng hoặc tên khách hàng
+      conditions.push({
+        OR: [
+          { orderNumber: { contains: q } },//điều kiện lọc theo số đơn hàng
+          { user: { firstName: { contains: q } } },//điều kiện lọc theo tên khách hàng
+          { user: { lastName: { contains: q } } }//điều kiện lọc theo họ khách hàng
+        ]
+      });
+    }
+    const where = conditions.length ? { AND: conditions } : undefined;//điều kiện lọc đơn hàng
+
+    const [items, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          orderItems: {
+            include: {
+              product: { select: { id: true, name: true, imageUrl: true } }
             }
           }
+        }
+      }),
+      prisma.order.count({ where })
+    ]);
+
+    // Format dữ liệu cho frontend dễ xử lý
+    const formattedItems = items.map(order => ({
+      ...order,
+      statusLabel: getStatusLabel(order.status),
+      availableStatuses: getAvailableStatuses(order.status).map(s => ({
+        value: s,
+        label: getStatusLabel(s)
+      }))
+    }));
+
+    const payload = { 
+      items: formattedItems, 
+      total, //tổng số đơn hàng
+      page: Number(page), //trang hiện tại
+      limit: Number(limit) //số lượng đơn hàng trên mỗi trang
+    };
+    console.log('END', { ...context, total: payload.total });
+    return res.json(payload);
+  } catch (error) {
+    console.error('ERROR', { ...context, error: error.message });
+    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+  }
+};
+//hàm lấy chi tiết đơn hàng cho admin
+export const getOrder = async (req, res) => {
+  const context = { path: 'admin.orders.get', params: req.params };
+  try {
+    console.log('START', context);
+    const id = Number(req.params.id);
+    
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true }
         },
         orderItems: {
           include: { 
-            product: { 
-              select: { 
-                id: true, 
-                name: true, 
-                imageUrl: true, 
-                price: true,
-                category: { select: { name: true } },
-                brand: { select: { name: true } }
-              } 
-            }, 
-            variant: { 
-              select: { 
-                id: true, 
-                name: true, 
-                sku: true,
-                price: true
-              } 
-            } 
-          }
-        },
-        payments: {
-          orderBy: { createdAt: 'desc' } // Sắp xếp theo thời gian tạo (mới nhất trước)
-        },
-        couponUsages: {
-          include: { 
-            coupon: { 
-              select: { 
-                code: true, 
-                discountType: true, 
-                discountValue: true,
-                description: true
-              } 
-            } 
-          }
-        },
-        reviews: {
-          include: {
-            user: { select: { firstName: true, lastName: true } }
+            product: { select: { id: true, name: true, imageUrl: true, price: true } },
+            variant: { select: { id: true, name: true, price: true } }
           }
         }
       }
     });
 
-    // Kiểm tra đơn hàng có tồn tại không
     if (!order) {
       console.warn('NOT_FOUND', context);
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json({ message: 'Not found' });
     }
 
-    console.log('END', { ...context, id });
-    return res.json(order);
+    // Format dữ liệu cho frontend dễ xử lý
+    const formattedOrder = {
+      ...order,
+      statusLabel: getStatusLabel(order.status),
+      availableStatuses: getAvailableStatuses(order.status).map(s => ({
+        value: s,
+        label: getStatusLabel(s)
+      }))
+    };
+
+    console.log('END', context);
+    return res.json(formattedOrder);
   } catch (error) {
-    // Xử lý lỗi và log
     console.error('ERROR', { ...context, error: error.message });
-    const payload = { message: 'Server error' };
-    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
-    return res.status(500).json(payload);
+    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
 
-// =======================
-// CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG (ADMIN)
-// =======================
-export const updateOrderStatus = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.orders.updateStatus', params: req.params, body: req.body };
+//hàm cập nhật trạng thái đơn hàng (admin)
+// Logic: Chỉ cho phép chuyển trạng thái tiến lên, không cho phép quay lại trạng thái cũ
+export const updateOrder = async (req, res) => {
+  const context = { path: 'admin.orders.update', params: req.params, body: req.body };
   try {
     console.log('START', context);
-    
-    const { id } = req.params;
-    const { status, paymentStatus, notes } = req.body;
+    const id = Number(req.params.id);
+    const { status } = req.body;
 
-    // LOGIC ĐẶC BIỆT: Định nghĩa luồng chuyển đổi trạng thái hợp lệ
-    // Tuân thủ database schema nhưng bỏ qua SHIPPED vì web không có vận chuyển
-    const orderTransitions = {
-      PENDING: ["CONFIRMED", "CANCELLED"], // Chờ xác nhận → Xác nhận hoặc Hủy
-      CONFIRMED: ["PROCESSING", "CANCELLED"], // Đã xác nhận → Đang xử lý hoặc Hủy
-      PROCESSING: ["DELIVERED", "CANCELLED"], // Đang xử lý → Giao hàng hoặc Hủy (bỏ qua SHIPPED)
-      SHIPPED: ["DELIVERED"], // Đã vận chuyển → Giao hàng (nếu có vận chuyển)
-      DELIVERED: [], // Đã giao hàng → Không thể thay đổi nữa
-      CANCELLED: [], // Đã hủy → Không thể thay đổi nữa
-    };
+    // Validate: Trạng thái là bắt buộc
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
 
-    const paymentTransitions = {
-      PENDING: ["PAID", "FAILED"], // Chờ thanh toán → Đã thanh toán hoặc Thất bại
-      PAID: [], // Đã thanh toán → Không thể thay đổi nữa
-      FAILED: ["PENDING"], // Thanh toán thất bại → Có thể thử lại
-    };
+    // Validate: Trạng thái phải thuộc enum OrderStatus
+    const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
 
-    // Lấy đơn hàng hiện tại để kiểm tra trạng thái
+    // Lấy đơn hàng hiện tại từ database
     const currentOrder = await prisma.order.findUnique({
-      where: { id: Number(id) },
+      where: { id },
       select: { 
-        status: true, 
-        paymentStatus: true,
-        userId: true,
+        status: true,
         orderItems: {
           include: {
-            product: { select: { id: true, name: true, stockQuantity: true } }
+            product: { select: { id: true, name: true, stockQuantity: true } },
+            variant: { select: { id: true, name: true, stockQuantity: true } }
           }
         }
       }
     });
 
     if (!currentOrder) {
-      console.warn('ORDER_NOT_FOUND', context);
-      return res.status(404).json({ message: 'Order not found' });
+      console.warn('NOT_FOUND', context);
+      return res.status(404).json({ message: 'đơn hàng không tồn tại' });
     }
 
-    // LOGIC ĐẶC BIỆT: Kiểm tra logic chuyển trạng thái đơn hàng
-    if (status && orderTransitions[currentOrder.status] && !orderTransitions[currentOrder.status].includes(status)) {
-      console.warn('INVALID_ORDER_TRANSITION', { ...context, currentStatus: currentOrder.status, newStatus: status });
+    // Kiểm tra: Không cho phép cập nhật nếu đơn đã ở trạng thái cuối (DELIVERED hoặc CANCELLED)
+    if (currentOrder.status === 'DELIVERED' || currentOrder.status === 'CANCELLED') {
       return res.status(400).json({ 
-        message: `Cannot change order status from ${currentOrder.status} to ${status}` 
+        message: `Không thể thay đổi trạng thái. Đơn hàng đã ở trạng thái: ${currentOrder.status}` 
       });
     }
 
-    // LOGIC ĐẶC BIỆT: Kiểm tra logic chuyển trạng thái thanh toán
-    if (paymentStatus && paymentTransitions[currentOrder.paymentStatus] && !paymentTransitions[currentOrder.paymentStatus].includes(paymentStatus)) {
-      console.warn('INVALID_PAYMENT_TRANSITION', { ...context, currentPaymentStatus: currentOrder.paymentStatus, newPaymentStatus: paymentStatus });
+    // Kiểm tra: Không cho phép chọn trạng thái hiện tại
+    if (status === currentOrder.status) {
       return res.status(400).json({ 
-        message: `Cannot change payment status from ${currentOrder.paymentStatus} to ${paymentStatus}` 
+        message: `đơn hàng đã ở trạng thái: ${currentOrder.status}` 
       });
     }
 
-    // LOGIC ĐẶC BIỆT: Khi hủy đơn hàng, cần cộng lại stock
-    if (status === 'CANCELLED' && currentOrder.status !== 'CANCELLED') {
-      console.log('RESTORING_STOCK_FOR_CANCELLED_ORDER', { ...context, orderId: id });
-      
-      // Cộng lại stock cho từng sản phẩm trong đơn hàng
-      for (const item of currentOrder.orderItems) {
-        await prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            stockQuantity: {
-              increment: item.quantity // Cộng lại số lượng đã trừ
-            }
-          }
-        });
-      }
+    // Kiểm tra: Chỉ cho phép chọn các trạng thái tiếp theo (không cho chọn ngược)
+    const availableStatuses = getAvailableStatuses(currentOrder.status);
+    if (!availableStatuses.includes(status)) {
+      return res.status(400).json({ 
+        message: `Không thể thay đổi trạng thái. Đơn hàng đã ở trạng thái: ${currentOrder.status}` 
+      });
     }
 
-    // LOGIC ĐẶC BIỆT: Khi xác nhận đơn hàng, cần trừ stock
-    if (status === 'CONFIRMED' && currentOrder.status === 'PENDING') {
-      console.log('REDUCING_STOCK_FOR_CONFIRMED_ORDER', { ...context, orderId: id });
-      
-      // Kiểm tra stock có đủ không trước khi trừ
-      for (const item of currentOrder.orderItems) {
-        if (item.product.stockQuantity < item.quantity) {
-          return res.status(400).json({ 
-            message: `Insufficient stock for product ${item.product.name}. Available: ${item.product.stockQuantity}, Required: ${item.quantity}` 
-          });
-        }
-      }
-      
-      // Trừ stock cho từng sản phẩm
-      for (const item of currentOrder.orderItems) {
-        await prisma.product.update({
-          where: { id: item.productId },
-          data: {
-            stockQuantity: {
-              decrement: item.quantity // Trừ số lượng
-            }
-          }
-        });
-      }
-    }
+    // Cập nhật trong transaction để đảm bảo tính toàn vẹn dữ liệu
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Cập nhật trạng thái đơn hàng
+      const order = await tx.order.update({
+        where: { id },
+        data: { status }
+      });
 
-    // Cập nhật trạng thái đơn hàng với đúng field names theo database schema
-    const updateData = {};
-    if (status) updateData.status = status;
-    if (paymentStatus) updateData.paymentStatus = paymentStatus;
-    if (notes) updateData.adminNote = notes; // Sử dụng adminNote thay vì adminNotes
-    // updatedAt sẽ tự động cập nhật bởi Prisma @updatedAt
+      // 2. Lưu lịch sử thay đổi trạng thái vào bảng OrderStatusHistory
+      await tx.orderStatusHistory.create({
+        data: { orderId: id, status }
+      });
 
-    const updatedOrder = await prisma.order.update({
-      where: { id: Number(id) },
-      data: updateData,
-      include: {
-        user: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true }
-        },
-        orderItems: {
-          include: {
-            product: { select: { id: true, name: true, imageUrl: true } },
-            variant: { select: { id: true, name: true, sku: true } }
-          }
-        }
+      // 3. Nếu hủy đơn → hoàn trả tồn kho cho các sản phẩm
+      if (status === 'CANCELLED' && currentOrder.status !== 'CANCELLED') {
+        await restoreStockForOrder(tx, currentOrder.orderItems);
       }
+
+      return order;
     });
 
-    console.log('END', { ...context, id, newStatus: status, newPaymentStatus: paymentStatus });
-    return res.json(updatedOrder);
+    console.log('END', { ...context, id: updated.id, oldStatus: currentOrder.status, newStatus: updated.status });
+    return res.json({
+      id: updated.id,
+      orderNumber: updated.orderNumber,
+      status: updated.status,
+      statusLabel: getStatusLabel(updated.status),
+      message: `Order status updated from ${currentOrder.status} to ${updated.status}`
+    });
   } catch (error) {
-    // Xử lý lỗi và log
     console.error('ERROR', { ...context, error: error.message });
-    const payload = { message: 'Server error' };
-    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
-    return res.status(500).json(payload);
+    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
 
-// =======================
-// THỐNG KÊ ĐƠN HÀNG (ADMIN)
-// =======================
+
+//hàm cập nhật ghi chú đơn hàng (admin)
+export const updateOrderNotes = async (req, res) => {
+  const context = { path: 'admin.orders.updateNotes', params: req.params, body: req.body };
+  try {
+    console.log('START', context);
+    const id = Number(req.params.id);
+    const { notes } = req.body;
+
+    const found = await prisma.order.findUnique({ where: { id } });
+    if (!found) {
+      console.warn('NOT_FOUND', context);
+      return res.status(404).json({ message: 'Not found' });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: { adminNote: notes || null }
+    });
+
+    console.log('END', { ...context, id: updated.id });
+    return res.json({
+      id: updated.id,
+      orderNumber: updated.orderNumber,
+      adminNote: updated.adminNote
+    });
+  } catch (error) {
+    console.error('ERROR', { ...context, error: error.message });
+    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+  }
+};
+
 export const getOrderStats = async (req, res) => {
-  // Tạo context object để log và debug
   const context = { path: 'admin.orders.stats', query: req.query };
   try {
     console.log('START', context);
+    const { period = '30d' } = req.query;
     
-    const { period = '30d' } = req.query; // 7d, 30d, 90d, 1y
-    
-    // Tính toán ngày bắt đầu dựa trên period
     const now = new Date();
     let startDate;
     switch (period) {
@@ -336,7 +300,6 @@ export const getOrderStats = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Thực hiện các query thống kê song song
     const [
       totalOrders,
       totalRevenue,
@@ -344,36 +307,23 @@ export const getOrderStats = async (req, res) => {
       recentOrders,
       topProducts
     ] = await Promise.all([
-      // Tổng số đơn hàng trong khoảng thời gian
       prisma.order.count({
-        where: {
-          createdAt: { gte: startDate }
-        }
+        where: { createdAt: { gte: startDate } }
       }),
-      
-      // Tổng doanh thu trong khoảng thời gian
       prisma.order.aggregate({
         where: {
           createdAt: { gte: startDate },
-          paymentStatus: 'PAID' // Chỉ tính đơn hàng đã thanh toán
+          paymentStatus: 'PAID'
         },
         _sum: { totalAmount: true }
       }),
-      
-      // Thống kê đơn hàng theo trạng thái
       prisma.order.groupBy({
         by: ['status'],
-        where: {
-          createdAt: { gte: startDate }
-        },
+        where: { createdAt: { gte: startDate } },
         _count: { status: true }
       }),
-      
-      // 5 đơn hàng gần nhất
       prisma.order.findMany({
-        where: {
-          createdAt: { gte: startDate }
-        },
+        where: { createdAt: { gte: startDate } },
         orderBy: { createdAt: 'desc' },
         take: 5,
         include: {
@@ -382,14 +332,12 @@ export const getOrderStats = async (req, res) => {
           }
         }
       }),
-      
-      // Top 5 sản phẩm bán chạy
       prisma.orderItem.groupBy({
         by: ['productId'],
         where: {
           order: {
             createdAt: { gte: startDate },
-            status: { not: 'CANCELLED' } // Không tính đơn hàng đã hủy
+            status: { not: 'CANCELLED' }
           }
         },
         _sum: { quantity: true },
@@ -399,21 +347,16 @@ export const getOrderStats = async (req, res) => {
       })
     ]);
 
-    // Lấy thông tin chi tiết của top products
     const topProductsWithDetails = await Promise.all(
       topProducts.map(async (item) => {
         const product = await prisma.product.findUnique({
           where: { id: item.productId },
           select: { id: true, name: true, imageUrl: true, price: true }
         });
-        return {
-          ...item,
-          product
-        };
+        return { ...item, product };
       })
     );
 
-    // Tạo response payload
     const stats = {
       period,
       totalOrders,
@@ -429,10 +372,7 @@ export const getOrderStats = async (req, res) => {
     console.log('END', { ...context, totalOrders, totalRevenue: stats.totalRevenue });
     return res.json(stats);
   } catch (error) {
-    // Xử lý lỗi và log
     console.error('ERROR', { ...context, error: error.message });
-    const payload = { message: 'Server error' };
-    if (process.env.NODE_ENV !== 'production') payload.error = error.message;
-    return res.status(500).json(payload);
+    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };

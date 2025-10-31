@@ -1,200 +1,137 @@
-
 import prisma from "../config/prisma.js";
 
 /**
- * Tạo mã đơn hàng tự động từ database
- * Format: <maKH><mã SP><ngay-thang><stt đơn của KH đã đặt>
- * Ví dụ: 001LAPT241221001, 001PHON241221002...
- * 
- * @param {number} userId - ID của khách hàng từ database
- * @param {string} productSku - Mã SKU của sản phẩm đầu tiên trong đơn hàng
- * @returns {Promise<string>} - Mã đơn hàng đã tạo
+ * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
+ * - maKH: userId padStart(3)
+ * - YYYYMMDD: ngày đặt hàng
+ * - SEQ3: số thứ tự đơn của user trong ngày (001, 002, ...)
  */
-const generateOrderNumber = async (userId, productSku) => {
+const generateOrderNumber = async (userId) => {
   try {
-    // ===== BƯỚC 1: LẤY THÔNG TIN KHÁCH HÀNG TỪ DATABASE =====
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true }
+      select: { id: true }
     });
+    if (!user) throw new Error("User không tồn tại");
+//lấy mã người dùng và định dạng thành 3 chữ số vd: 001
+    const userCode = String(user.id).padStart(3, "0");
+    const now = new Date();//lấy ngày hiện tại vd: 2025-10-30
+    const year = now.getFullYear().toString();//lấy năm hiện tại vd: 2025
+    const month = String(now.getMonth() + 1).padStart(2, "0");//lấy tháng hiện tại vd: 10
+    const day = String(now.getDate()).padStart(2, "0");//lấy ngày hiện tại vd: 30
+    const dateCode = `${year}${month}${day}`;//định dạng thành YYYYMMDD vd: 20251030
 
-    if (!user) {
-      throw new Error('Không tìm thấy thông tin khách hàng trong database');
-    }
+    // Tính khoảng thời gian trong ngày hiện tại vd: 2025-10-30 00:00:00 đến 2025-10-30 23:59:59
+    //lấy thời gian đầu tiên của ngày hiện tại vd: 2025-10-30 00:00:00
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    //lấy thời gian cuối cùng của ngày hiện tại vd: 2025-10-31 00:00:00
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    // Lấy mã khách hàng (maKH) - format 3 chữ số
-    // VD: User ID = 1 -> 001, User ID = 25 -> 025
-    const userCode = String(user.id).padStart(3, '0');
-    
-    // ===== BƯỚC 2: LẤY MÃ SẢN PHẨM TỪ SKU =====
-    // Lấy 4 ký tự đầu của mã SKU sản phẩm để đưa vào mã đơn hàng
-    // VD: SKU = "LAPTOP001" -> LAPT hoặc SKU = "PHONE" -> PHON
-    let productCode = 'PROD'; // Mặc định nếu không có SKU
-    
-    if (productSku && productSku !== 'PROD') {
-      // Lấy tối đa 4 ký tự từ mã SKU và chuyển thành chữ hoa
-      productCode = productSku.substring(0, 4).toUpperCase().padEnd(4, 'X').substring(0, 4);
-    }
-    
-    // ===== BƯỚC 4: LẤY NGÀY THÁNG HIỆN TẠI =====
-    const now = new Date();
-    
-    // Lấy 2 chữ số cuối của năm (2024 -> 24)
-    const year = now.getFullYear().toString().slice(-2);
-    
-    // Lấy tháng (1-12, thêm số 0 nếu < 10)
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    
-    // Lấy ngày (1-31, thêm số 0 nếu < 10)
-    const day = String(now.getDate()).padStart(2, '0');
-    
-    // Tạo mã ngày-tháng: YYMMDD
-    // VD: 24/12/21 -> 241221
-    const dateCode = `${year}${month}${day}`;
-    
-    // ===== BƯỚC 5: ĐẾM SỐ ĐƠN HÀNG CỦA KHÁCH HÀNG ĐÃ ĐẶT TRONG NGÀY TỪ DATABASE =====
-    // Đếm số đơn hàng của KH này đã đặt trong ngày hôm nay
-    const todayOrderCount = await prisma.order.count({
+    // Đếm số đơn đã tạo bởi user trong hôm nay
+    const todayCount = await prisma.order.count({
       where: {
         userId: user.id,
-        createdAt: {
-          gte: new Date(now.getFullYear(), now.getMonth(), now.getDate()), // Bắt đầu ngày hôm nay 00:00:00
-          lt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) // Kết thúc ngày hôm nay 23:59:59
-        }
+        createdAt: { gte: startOfDay, lt: endOfDay }//lấy thời gian đầu tiên của ngày hiện tại đến thời gian cuối cùng của ngày hiện tại
       }
     });
+//lấy số thứ tự đơn của user trong ngày (001, 002, ...)
+    const seq = String(todayCount + 1).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
+//định dạng thành <maKH><YYYYMMDD><SEQ3> vd: 00120251030001
+    return `${userCode}${dateCode}${seq}`;
+  } catch (e) {
+    console.error("Lỗi khi tạo mã đơn hàng:", e);
+    const userCode = String(userId).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
+    return `${userCode}${new Date().toISOString().slice(0,10).replace(/-/g,'')}${Date.now().toString().slice(-3)}`;
     
-    // Tạo số thứ tự đơn hàng (3 chữ số)
-    // VD: Đơn hàng thứ 1 -> 001, thứ 2 -> 002
-    const orderSequence = String(todayOrderCount + 1).padStart(3, '0');
-    
-    // ===== BƯỚC 6: TẠO MÃ ĐƠN HÀNG HOÀN CHỈNH =====
-    // Format: <maKH><masp><mã SP><ngay-thang><stt đơn>
-    // VD: 001PROLAP241221001 - Đơn hàng số 001 của KH 001, SP LAP, ngày 24/12/21
-    const orderNumber = `${userCode}${shopCode}${productCode}${dateCode}${orderSequence}`;
-    
-    console.log(`✅ Tạo mã đơn hàng thành công: ${orderNumber} cho user ${user.id} (${user.email})`);
-    
-    return orderNumber;
-    
-  } catch (error) {
-    console.error('❌ Lỗi khi tạo mã đơn hàng:', error);
-    
-    // Fallback: Tạo mã backup nếu có lỗi
-    const timestamp = Date.now().toString().slice(-8);
-    const userCode = String(userId).padStart(3, '0');
-    const productCode = productSku ? productSku.substring(0, 4).toUpperCase() : 'XXXX';
-    return `${userCode}PRO${productCode}${timestamp}`;
   }
 };
 
-/**
- * Tạo đơn hàng mới từ giỏ hàng
- */
+// Tạo đơn hàng từ giỏ hàng (viết theo các bước rõ ràng, dễ đọc)
 export const createOrder = async (req, res) => {
   try {
+    // BƯỚC 1: Lấy dữ liệu đầu vào cơ bản
     const userId = req.user.id;
-    const { addressId, paymentMethod, customerNote, couponCode } = req.body;
+    const { addressId, paymentMethod, customerNote, cartItemIds } = req.body;
 
-    // 1. Lấy giỏ hàng và địa chỉ
+    // BƯỚC 2: Lấy giỏ hàng (chỉ item được chọn) và địa chỉ giao hàng của user
+    if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
+      return res.status(400).json({ message: "Vui lòng chọn sản phẩm trong giỏ hàng để đặt" });
+    }
+    //lấy danh sách id của sản phẩm được chọn
+    const selectedIds = cartItemIds.map((x) => Number(x)).filter((n) => !isNaN(n));
+    //lấy danh sách sản phẩm trong giỏ hàng
     const [cartItems, shippingAddress] = await Promise.all([
+      //lấy danh sách sản phẩm trong giỏ hàng và địa chỉ giao hàng của user
       prisma.shoppingCart.findMany({
-        where: { userId },
-        include: { product: { include: { images: { where: { isPrimary: true }, take: 1 } } }, variant: true }
+        where: { userId, id: { in: selectedIds } },
+        include: { product: true, variant: true }
       }),
       prisma.address.findFirst({ where: { id: Number(addressId), userId } })
     ]);
 
+    // Kiểm tra điều kiện tối thiểu
     if (!cartItems.length) return res.status(400).json({ message: "Giỏ hàng trống" });
     if (!shippingAddress) return res.status(400).json({ message: "Địa chỉ không hợp lệ" });
 
-    // 2. Tính toán đơn hàng
-    let subtotal = 0;
-    const orderItems = [];
-    const stockUpdates = [];
+    // BƯỚC 3: Chuẩn hóa item và tính tiền
+    let subtotal = 0;                 // tổng tiền hàng
+    const orderItems = [];            // dữ liệu chi tiết đơn (phù hợp DB)
+    const stockUpdates = [];          // danh sách cần trừ kho
 
     for (const item of cartItems) {
-      const stock = item.variant?.stockQuantity || item.product.stockQuantity;
+      // tồn kho: ưu tiên variant, nếu không có thì dùng product
+      const stock = item.variant?.stockQuantity ?? item.product.stockQuantity;
       if (item.quantity > stock) {
         return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
       }
 
-      const price = item.product.salePrice || item.variant?.price || item.product.price;
-      const total = price * item.quantity;
-      subtotal += total;
+      // đơn giá: ưu tiên variant.price, fallback product.price
+      const unitPrice = Number(item.variant?.price ?? item.product.price);//đơn giá của sản phẩm
+      const totalPrice = unitPrice * item.quantity; // tổng tiền của sản phẩm = đơn giá × số lượng
+      //  tổng tiền tạm tính của đơn hàng: subtotal = subtotal tổng tiền của đơn hàng  hiện tại + tổng tiền sản phẩm
+      subtotal = subtotal + totalPrice;//vd sp1: 100000, sp2: 200000, sp3: 300000 => subtotal = 100000 + 200000 + 300000 = 600000
 
+      // thêm vào danh sách orderItems đúng cấu trúc DB
       orderItems.push({
         productId: item.productId,
-        variantId: item.variantId,
+        variantId: item.variantId ?? null,
         productName: item.product.name,
         productSku: item.variant?.sku || item.product.sku,
         variantName: item.variant?.name || null,
         quantity: item.quantity,
-        unitPrice: price,
-        totalPrice: total
+        unitPrice,
+        totalPrice
       });
 
+      // ghi lại để trừ kho sau khi tạo đơn thành công
       stockUpdates.push({
-        table: item.variantId ? 'ProductVariant' : 'Product',
-        id: item.variantId || item.productId,
-        currentStock: stock,
-        quantity: item.quantity
+        isVariant: !!item.variantId,//nếu có variantId thì là true, nếu không có thì là false
+        id: item.variantId ?? item.productId,//nếu có variantId thì là variantId, nếu không có thì là productId
+        currentStock: stock,//tồn kho hiện tại của sản phẩm
+        quantity: item.quantity//số lượng sản phẩm
       });
     }
 
-    // 3. Xử lý mã giảm giá
-    let discountAmount = 0;
-    let couponId = null;
-
-    if (couponCode) {
-      const coupon = await prisma.coupon.findFirst({
-        where: { code: couponCode, status: 'ACTIVE', startDate: { lte: new Date() }, endDate: { gte: new Date() } }
-      });
-
-      if (!coupon) return res.status(400).json({ message: "Mã giảm giá không hợp lệ" });
-      if (coupon.usedCount >= coupon.usageLimit) return res.status(400).json({ message: "Mã đã hết lượt sử dụng" });
-      if (subtotal < coupon.minimumAmount) return res.status(400).json({ message: `Đơn hàng phải tối thiểu ${coupon.minimumAmount}` });
-
-      discountAmount = coupon.discountType === 'PERCENT' 
-        ? (subtotal * coupon.discountValue) / 100 
-        : coupon.discountValue;
-      
-      if (discountAmount > subtotal) discountAmount = subtotal;
-      couponId = coupon.id;
-    }
-
-    // 4. Tính phí ship
-    let shippingFee = 30000;
-    try {
-      const totalWeight = cartItems.reduce((sum, item) => sum + (0.5 * item.quantity), 0);
-      const ghtkResult = await calculateGHTKShipping('TP. Hồ Chí Minh', 'Quận 8', shippingAddress.city, shippingAddress.district, totalWeight);
-      shippingFee = ghtkResult.shippingFee;
-    } catch (error) {
-      console.error('GHTK API error:', error);
-      shippingFee = subtotal >= 500000 ? 0 : 30000;
-    }
-
+    // BƯỚC 4: Tính tổng đơn
+    const discountAmount = 0; // bản cơ bản: chưa áp dụng giảm giá
+    const shippingFee = 0;    // bản cơ bản: phí ship 0
+    //tổng tiền cuối cùng của đơn hàng = tổng tiền của đơn hàng + phí ship - giảm giá
     const totalAmount = subtotal + shippingFee - discountAmount;
-    
-    // Lấy mã SKU của sản phẩm đầu tiên trong giỏ hàng để tạo mã đơn hàng
-    // cartItems[0].product.sku hoặc cartItems[0].variant.sku
-    const firstProductSku = cartItems[0]?.variant?.sku || cartItems[0]?.product?.sku || 'PROD';
-    
-    // 5. Tạo mã đơn hàng với SKU sản phẩm từ database
-    const orderNumber = await generateOrderNumber(userId, firstProductSku);
 
-    // 6. Tạo transaction ID unique
-    const transactionId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    // BƯỚC 5: Tạo mã đơn hàng và mã giao dịch thanh toán
+    const orderNumber = await generateOrderNumber(userId);//tạo mã đơn hàng
+    //tạo mã giao dịch thanh toán
+    const transactionId = `TXN${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // 7. Tạo đơn hàng và payment trong transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // ===== TẠO ĐƠN HÀNG =====
+    // BƯỚC 6: Tạo đơn trong transaction (đảm bảo tính toàn vẹn)
+    const created = await prisma.$transaction(async (tx) => {
+      // 6.1 Tạo Order
       const order = await tx.order.create({
         data: {
           orderNumber,
           userId,
-          status: 'PENDING',
-          paymentStatus: 'PENDING',
+          status: "PENDING",
+          paymentStatus: "PENDING",
           subtotal,
           shippingFee,
           discountAmount,
@@ -214,591 +151,213 @@ export const createOrder = async (req, res) => {
         }
       });
 
-      // ===== TẠO PAYMENT RECORD =====
-      // Tạo 1 Payment cho đơn hàng - đảm bảo 1 Order = 1 Payment
+      // 6.2 Tạo Payment (mỗi Order 1 Payment)
       await tx.payment.create({
         data: {
           orderId: order.id,
-          paymentMethod, // Phải trùng với Order.paymentMethod
-          paymentStatus: 'PENDING',
+          paymentMethod,
+          paymentStatus: "PENDING",
           amount: totalAmount,
-          transactionId // Mã giao dịch duy nhất
+          transactionId
+          
         }
       });
 
-      // ===== TẠO CHI TIẾT ĐƠN HÀNG =====
-      await tx.orderItem.createMany({ 
-        data: orderItems.map(item => ({ ...item, orderId: order.id })) 
+      // 6.3 Tạo OrderItem hàng loạt
+      await tx.orderItem.createMany({ data: orderItems.map((i) => ({ ...i, orderId: order.id })) });
+
+      // 6.3.1 Lưu lịch sử trạng thái đầu tiên (PENDING)
+      await tx.orderStatusHistory.create({
+        data: { orderId: order.id, status: "PENDING" }
       });
 
-      // ===== TRỪ TỒN KHO =====
-      for (const update of stockUpdates) {
-        if (update.table === 'Product') {
-          await tx.product.update({ 
-            where: { id: update.id }, 
-            data: { stockQuantity: update.currentStock - update.quantity } 
-          });
+      // 6.4 Trừ tồn kho theo từng item
+      for (const s of stockUpdates) {
+        if (s.isVariant) {
+          await tx.productVariant.update({ where: { id: s.id }, data: { stockQuantity: s.currentStock - s.quantity } });
         } else {
-          await tx.productVariant.update({ 
-            where: { id: update.id }, 
-            data: { stockQuantity: update.currentStock - update.quantity } 
-          });
+          await tx.product.update({ where: { id: s.id }, data: { stockQuantity: s.currentStock - s.quantity } });
         }
       }
 
-      // ===== XỬ LÝ COUPON =====
-      if (couponId) {
-        await tx.coupon.update({ 
-          where: { id: couponId }, 
-          data: { usedCount: { increment: 1 } } 
-        });
-        await tx.couponUsage.create({ 
-          data: { couponId, userId, orderId: order.id } 
-        });
-      }
+      // 6.5 Xóa các item đã đặt khỏi giỏ hàng của user
+      await tx.shoppingCart.deleteMany({ where: { userId, id: { in: selectedIds } } });
 
-      // ===== XÓA GIỎ HÀNG =====
-      await tx.shoppingCart.deleteMany({ where: { userId } });
-      
       return order;
     });
 
-    // 7. Lấy thông tin đơn hàng đầy đủ
+    // BƯỚC 7: Lấy đơn hàng đầy đủ để trả về cho FE
     const orderDetails = await prisma.order.findUnique({
-      where: { id: result.id },
+      where: { id: created.id },
       include: {
-        orderItems: { 
-          include: { 
-            product: { 
-              include: { 
-                images: { where: { isPrimary: true }, take: 1 } 
-              } 
-            }, 
-            variant: true 
-          } 
-        },
-        user: { 
-          select: { 
-            id: true, 
-            firstName: true, 
-            lastName: true, 
-            email: true, 
-            phone: true 
-          } 
-        },
-        payments: true, // Include thông tin payment
-        couponUsages: {
-          include: { coupon: true }
-        }
+        orderItems: { include: { product: true, variant: true } },
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        payments: true
       }
     });
 
-    res.status(201).json({ message: "Tạo đơn hàng thành công", order: orderDetails });
-
+    return res.status(201).json({ message: "Tạo đơn hàng thành công", order: orderDetails });
   } catch (error) {
-    console.error('Create order error:', error);
-    res.status(500).json({ message: "Lỗi server", error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-/**
- * Lấy danh sách đơn hàng của user với phân trang và lọc theo trạng thái
- * Hỗ trợ phân trang và lọc theo trạng thái đơn hàng
- */
+// Danh sách đơn hàng (phân trang, lọc theo trạng thái)
 export const getUserOrders = async (req, res) => {
   try {
-    // Lấy ID của user từ token đã xác thực
     const userId = req.user.id;
-    
-    // Lấy các tham số từ query string: trang hiện tại, số lượng/trang, trạng thái
     const { page = 1, limit = 10, status } = req.query;
 
-    // Tính số record cần bỏ qua để phân trang (ví dụ: trang 2, limit 10 -> skip 10)
-    const skip = (Number(page) - 1) * Number(limit);
-    
-    // Tạo điều kiện where: chỉ lấy đơn hàng của user hiện tại
-    const whereClause = { userId };
-    
-    // Nếu có filter theo trạng thái thì thêm vào điều kiện
-    if (status) {
-      whereClause.status = status;
-    }
+    const where = { userId };
+    if (status) where.status = status;
 
-    // Thực hiện 2 query song song để tối ưu performance
-    const [orders, totalCount] = await Promise.all([
-      // Query 1: Lấy danh sách đơn hàng với phân trang
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [items, total] = await Promise.all([
       prisma.order.findMany({
-        where: whereClause,  // Điều kiện lọc
-        include: {
-          orderItems: {  // Include chi tiết sản phẩm trong đơn hàng
-            include: {
-              product: {  // Include thông tin sản phẩm
-                include: {
-                  images: { where: { isPrimary: true }, take: 1 }  // Chỉ lấy ảnh chính
-                }
-              },
-              variant: true  // Include thông tin biến thể
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' },  // Sắp xếp theo ngày tạo mới nhất
-        skip,  // Bỏ qua số record
-        take: Number(limit)  // Lấy số record theo limit
+        where,
+        include: { orderItems: { include: { product: true, variant: true } } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: Number(limit)
       }),
-      // Query 2: Đếm tổng số đơn hàng để tính phân trang
-      prisma.order.count({ where: whereClause })
+      prisma.order.count({ where })
     ]);
 
-    // Trả về response thành công với dữ liệu và thông tin phân trang
-    res.status(200).json({
-      message: "Lấy danh sách đơn hàng thành công",
-      orders,  // Danh sách đơn hàng
-      pagination: {  // Thông tin phân trang
-        currentPage: Number(page),  // Trang hiện tại
-        totalPages: Math.ceil(totalCount / Number(limit)),  // Tổng số trang
-        totalCount,  // Tổng số đơn hàng
-        hasNext: skip + Number(limit) < totalCount,  // Có trang tiếp theo không
-        hasPrev: Number(page) > 1  // Có trang trước không
-      }
-    });
+    return res.json({ items, total, page: Number(page), limit: Number(limit) });
   } catch (error) {
-    // Xử lý lỗi
-    console.error('Get user orders error:', error);
-    res.status(500).json({
-      message: "Lỗi server",
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-/**
- * Lấy chi tiết đơn hàng theo ID
- * Chỉ cho phép user xem đơn hàng của chính mình
- */
+// Chi tiết đơn hàng (chỉ được xem đơn của chính mình)
 export const getOrderById = async (req, res) => {
   try {
-    // Lấy ID của user từ token đã xác thực
     const userId = req.user.id;
-    
-    // Lấy ID đơn hàng từ URL params
     const { id } = req.params;
+    const { status: statusFilter } = req.query || {};
+    if (!id || isNaN(id)) return res.status(400).json({ message: "ID đơn hàng không hợp lệ" });
 
-    // Kiểm tra ID có hợp lệ không (phải là số)
-    if (!id || isNaN(id)) {
-      return res.status(400).json({ 
-        message: "ID đơn hàng không hợp lệ" 
-      });
-    }
-
-    // Tìm đơn hàng theo ID và kiểm tra thuộc về user hiện tại
+    // Lấy chi tiết đơn hàng (bao gồm adminNote - ghi chú của admin)
     const order = await prisma.order.findFirst({
-      where: { 
-        id: Number(id),  // Chuyển ID thành số
-        userId  // Đảm bảo đơn hàng thuộc về user hiện tại
-      },
+      where: { id: Number(id), userId },
       include: {
-        orderItems: {  // Include chi tiết sản phẩm trong đơn hàng
-          include: {
-            product: {  // Include thông tin sản phẩm
-              include: {
-                images: { where: { isPrimary: true }, take: 1 }  // Chỉ lấy ảnh chính
-              }
-            },
-            variant: true  // Include thông tin biến thể sản phẩm
-          }
-        },
-        user: {  // Include thông tin user đặt hàng
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true
-          }
-        },
-        couponUsages: {  // Include thông tin mã giảm giá đã sử dụng
-          include: { coupon: true }
-        }
+        orderItems: { include: { product: true, variant: true } },
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        payments: true,
+        statusHistory: { orderBy: { createdAt: "asc" } }
       }
+      // Không dùng select cho Order nên tất cả fields (bao gồm adminNote) đều được trả về
     });
 
-    // Kiểm tra đơn hàng có tồn tại không
-    if (!order) {
-      return res.status(404).json({ 
-        message: "Không tìm thấy đơn hàng" 
-      });
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    if (statusFilter && String(order.status) !== String(statusFilter)) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng với trạng thái yêu cầu" });
     }
 
-    // Trả về thông tin đơn hàng chi tiết
-    res.status(200).json({
-      message: "Lấy chi tiết đơn hàng thành công",
-      order
-    });
+    // Dựng timeline từ lịch sử thay đổi trạng thái (chính xác 100%)
+    const paidPayment = order.payments.find((p) => p.paymentStatus === "PAID");
+    
+    // Tìm thời gian của từng status trong history (lấy lần xuất hiện cuối cùng để chính xác)
+    const getStatusTime = (targetStatus) => {
+      // Tìm tất cả các record có status này và lấy record mới nhất
+      const historyItems = order.statusHistory.filter(h => h.status === targetStatus);
+      if (historyItems.length === 0) return null;
+      // Lấy record có thời gian mới nhất (vì đã orderBy createdAt asc, nên phần tử cuối là mới nhất)
+      const latestItem = historyItems[historyItems.length - 1];
+      return latestItem.createdAt;
+    };
+    
+    //tạo timeline từ lịch sử thay đổi trạng thái
+    const timeline = {
+      //thời gian tạo đơn hàng
+      pendingAt: order.createdAt,
+      //thời gian xác nhận đơn hàng
+      confirmedAt: getStatusTime("CONFIRMED"),
+      //thời gian đang giao hàng
+      processingAt: getStatusTime("PROCESSING"),
+      //thời gian nhận hàng
+      deliveredAt: getStatusTime("DELIVERED"),
+      //thời gian hủy đơn hàng
+      cancelledAt: getStatusTime("CANCELLED"),
+      //thời gian thanh toán đơn hàng
+      paymentConfirmedAt: paidPayment?.paidAt || null
+    };
+    return res.status(200).json({ message: "Lấy chi tiết đơn hàng thành công", order: { ...order, timeline } });
   } catch (error) {
-    // Xử lý lỗi
-    console.error('Get order by ID error:', error);
-    res.status(500).json({
-      message: "Lỗi server",
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-/**
- * Hủy đơn hàng (chỉ được hủy khi status = PENDING)
- * Khi hủy đơn hàng sẽ hoàn trả lại tồn kho sản phẩm
- */
+// Hủy đơn (PENDING → CANCELLED) và hoàn trả tồn kho
 export const cancelOrder = async (req, res) => {
   try {
-    // Lấy ID của user từ token đã xác thực
     const userId = req.user.id;
-    
-    // Lấy ID đơn hàng từ URL params
     const { id } = req.params;
+    if (!id || isNaN(id)) return res.status(400).json({ message: "ID đơn hàng không hợp lệ" });
 
-    // Kiểm tra ID có hợp lệ không (phải là số)
-    if (!id || isNaN(id)) {
-      return res.status(400).json({ 
-        message: "ID đơn hàng không hợp lệ" 
-      });
-    }
-
-    // Tìm đơn hàng theo ID và kiểm tra thuộc về user hiện tại
     const order = await prisma.order.findFirst({
-      where: { 
-        id: Number(id),  // Chuyển ID thành số
-        userId  // Đảm bảo đơn hàng thuộc về user hiện tại
-      },
-      include: {
-        orderItems: {  // Include chi tiết sản phẩm để hoàn trả tồn kho
-          include: {
-            product: true,  // Include thông tin sản phẩm chính
-            variant: true  // Include thông tin biến thể sản phẩm
-          }
-        }
-      }
+      where: { id: Number(id), userId },
+      include: { orderItems: true }
     });
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    if (order.status !== "PENDING") return res.status(400).json({ message: "Chỉ có thể hủy đơn hàng đang chờ xử lý" });
 
-    // Kiểm tra đơn hàng có tồn tại không
-    if (!order) {
-      return res.status(404).json({ 
-        message: "Không tìm thấy đơn hàng" 
-      });
-    }
-
-    // Kiểm tra đơn hàng có đang ở trạng thái PENDING không
-    if (order.status !== 'PENDING') {
-      return res.status(400).json({
-        message: "Chỉ có thể hủy đơn hàng đang chờ xử lý"
-      });
-    }
-
-    // ===== HỦY ĐƠN HÀNG VÀ HOÀN TRẢ TỒN KHO =====
-    // Sử dụng transaction để đảm bảo tất cả operations thành công hoặc rollback
     await prisma.$transaction(async (tx) => {
-      // ===== CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG =====
-      // Cập nhật trạng thái đơn hàng thành CANCELLED và thanh toán thành FAILED
-      await tx.order.update({
-        where: { id: Number(id) },
-        data: { 
-          status: 'CANCELLED',  // Trạng thái: đã hủy
-          paymentStatus: 'FAILED'  // Trạng thái thanh toán: thất bại
-        }
+      await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED", paymentStatus: "FAILED" } });
+
+      // Lưu lịch sử thay đổi trạng thái
+      await tx.orderStatusHistory.create({
+        data: { orderId: order.id, status: "CANCELLED" }
       });
 
-      // ===== HOÀN TRẢ TỒN KHO =====
-      // Duyệt qua từng sản phẩm trong đơn hàng để hoàn trả tồn kho
-      for (const orderItem of order.orderItems) {
-        if (orderItem.variantId) {
-          // Nếu có variant thì hoàn trả tồn kho variant
+      // Hoàn trả tồn kho (User chỉ được hủy khi PENDING)
+      for (const item of order.orderItems) {
+        if (item.variantId) {
           await tx.productVariant.update({
-            where: { id: orderItem.variantId },
-            data: { 
-              stockQuantity: { increment: orderItem.quantity }  // Tăng tồn kho lên
-            }
+            where: { id: item.variantId },
+            data: { stockQuantity: { increment: item.quantity } }
           });
         } else {
-          // Nếu không có variant thì hoàn trả tồn kho product chính
           await tx.product.update({
-            where: { id: orderItem.productId },
-            data: { 
-              stockQuantity: { increment: orderItem.quantity }  // Tăng tồn kho lên
-            }
+            where: { id: item.productId },
+            data: { stockQuantity: { increment: item.quantity } }
           });
         }
       }
     });
 
-    // Trả về response thành công
-    res.status(200).json({
-      message: "Hủy đơn hàng thành công"
-    });
+    return res.status(200).json({ message: "Hủy đơn hàng thành công" });
   } catch (error) {
-    // Xử lý lỗi
-    console.error('Cancel order error:', error);
-    res.status(500).json({
-      message: "Lỗi server",
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-/**
- * Tính phí vận chuyển với API Giao Hàng Tiết Kiệm (GHTK)
- * Sử dụng API thực tế để tính phí ship chính xác
- */
-export const calculateShipping = async (req, res) => {
+// Xác nhận đã nhận hàng (PROCESSING → DELIVERED)
+export const confirmReceivedOrder = async (req, res) => {
   try {
-    // Lấy ID của user từ token đã xác thực
     const userId = req.user.id;
-    
-    // Lấy dữ liệu từ request body
-    const { addressId, items } = req.body;
+    const { id } = req.params;
+    if (!id || isNaN(id)) return res.status(400).json({ message: "ID đơn hàng không hợp lệ" });
 
-    // ===== KIỂM TRA ĐỊA CHỈ =====
-    // Kiểm tra địa chỉ giao hàng có hợp lệ không
-    const shippingAddress = await prisma.address.findFirst({
-      where: { 
-        id: Number(addressId), 
-        userId 
-      }
-    });
+    const order = await prisma.order.findFirst({ where: { id: Number(id), userId } });
+    if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    if (order.status !== "PROCESSING") {
+      return res.status(400).json({ message: "Chỉ xác nhận khi đơn đang ở trạng thái Đang xử lý" });
+    }
 
-    if (!shippingAddress) {
-      return res.status(400).json({ 
-        message: "Địa chỉ giao hàng không hợp lệ" 
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({ where: { id: order.id }, data: { status: "DELIVERED" } });
+      await tx.orderStatusHistory.create({
+        data: { orderId: order.id, status: "DELIVERED" }
       });
-    }
-
-    // ===== TÍNH GIÁ TRỊ VÀ TRỌNG LƯỢNG ĐƠN HÀNG =====
-    let totalValue = 0;
-    let totalWeight = 0;
-
-    for (const item of items) {
-      // Lấy thông tin sản phẩm
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId }
-      });
-
-      if (!product) {
-        return res.status(400).json({
-          message: `Sản phẩm ID ${item.productId} không tồn tại`
-        });
-      }
-
-      // Tính giá trị sản phẩm (ưu tiên giá khuyến mãi)
-      const productPrice = product.salePrice || product.price;
-      totalValue += productPrice * item.quantity;
-      
-      // Ước tính trọng lượng (giả sử mỗi sản phẩm 0.5kg)
-      totalWeight += 0.5 * item.quantity;
-    }
-
-    // ===== TÍNH PHÍ SHIP VỚI API GHTK =====
-    let shippingResult = {};
-
-    try {
-      // Gọi API GHTK để tính phí ship
-      shippingResult = await calculateGHTKShipping(
-        'TP. Hồ Chí Minh', // Tỉnh shop
-        'Quận 8', // Quận shop
-        shippingAddress.city, // Tỉnh người nhận
-        shippingAddress.district, // Quận người nhận
-        totalWeight
-      );
-    } catch (apiError) {
-      console.error('GHTK API error:', apiError);
-      // Fallback về logic cũ nếu API lỗi
-      shippingResult = {
-        shippingFee: totalValue >= 500000 ? 0 : 30000,
-        estimatedDelivery: "2-3 ngày",
-        shippingMethod: totalValue >= 500000 ? "FREE_SHIP" : "STANDARD"
-      };
-    }
-
-    // Trả về thông tin phí vận chuyển
-    res.status(200).json({
-      message: "Tính phí vận chuyển thành công",
-      shipping: {
-        ...shippingResult,
-        totalWeight: Math.round(totalWeight * 10) / 10,
-        totalValue,
-        shippingProvider: "GHTK",
-        shippingAddress: {
-          city: shippingAddress.city,
-          district: shippingAddress.district,
-          ward: shippingAddress.ward
-        }
-      }
     });
-
+    return res.status(200).json({ message: "Đã xác nhận nhận hàng" });
   } catch (error) {
-    // Xử lý lỗi
-    console.error('Calculate shipping error:', error);
-    res.status(500).json({
-      message: "Lỗi server",
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
+    return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
-/**
- * Tính phí ship với API Giao Hàng Tiết Kiệm (GHTK)
- * @param {string} pickProvince - Tỉnh lấy hàng
- * @param {string} pickDistrict - Quận lấy hàng  
- * @param {string} province - Tỉnh giao hàng
- * @param {string} district - Quận giao hàng
- * @param {number} weight - Trọng lượng (kg)
- */
-const calculateGHTKShipping = async (pickProvince, pickDistrict, province, district, weight) => {
-  try {
-    // Tạo URL với query parameters
-    const params = new URLSearchParams({
-      pick_province: pickProvince,
-      pick_district: pickDistrict,
-      province: province,
-      district: district,
-      weight: weight
-    });
 
-    // Gọi API GHTK
-    const response = await fetch(`https://services.giaohangtietkiem.vn/services/shipment/fee?${params}`, {
-      method: 'GET',
-      headers: {
-        'Token': process.env.GHTK_TOKEN || 'your_ghtk_token_here',
-        'Content-Type': 'application/json'
-      }
-    });
 
-    if (!response.ok) {
-      throw new Error(`GHTK API error: ${response.status}`);
-    }
 
-    const data = await response.json();
-    
-    // Kiểm tra response có thành công không
-    if (data.success === false) {
-      throw new Error(`GHTK API error: ${data.message}`);
-    }
-
-    // Trả về kết quả đã format
-    return {
-      shippingFee: data.fee.fee || 30000, // Phí ship từ API hoặc fallback 30k
-      estimatedDelivery: data.fee.deliver_time || "2-3 ngày", // Thời gian giao hàng
-      shippingMethod: "GHTK_STANDARD", // Phương thức vận chuyển
-      ghtkData: data.fee // Dữ liệu gốc từ GHTK để debug
-    };
-
-  } catch (error) {
-    console.error('GHTK API call failed:', error);
-    throw error; // Re-throw để fallback logic xử lý
-  }
-};
-
-/**
- * Kiểm tra mã giảm giá trước khi đặt hàng
- * Giúp user biết mã có hợp lệ và số tiền được giảm
- */
-export const validateCoupon = async (req, res) => {
-  try {
-    // Lấy ID của user từ token đã xác thực
-    const userId = req.user.id;
-    
-    // Lấy dữ liệu từ request body
-    const { couponCode, subtotal } = req.body;
-
-    // Kiểm tra mã giảm giá có được cung cấp không
-    if (!couponCode) {
-      return res.status(400).json({
-        message: "Mã giảm giá là bắt buộc"
-      });
-    }
-
-    // ===== TÌM VÀ KIỂM TRA COUPON =====
-    // Tìm coupon trong database
-    const coupon = await prisma.coupon.findFirst({
-      where: {
-        code: couponCode,
-        status: 'ACTIVE',
-        startDate: { lte: new Date() },
-        endDate: { gte: new Date() }
-      }
-    });
-
-    // Kiểm tra coupon có tồn tại không
-    if (!coupon) {
-      return res.status(400).json({
-        valid: false,
-        message: "Mã giảm giá không hợp lệ hoặc đã hết hạn"
-      });
-    }
-
-    // ===== KIỂM TRA ĐIỀU KIỆN SỬ DỤNG =====
-    // Kiểm tra đã hết lượt sử dụng chưa
-    if (coupon.usedCount >= coupon.usageLimit) {
-      return res.status(400).json({
-        valid: false,
-        message: "Mã giảm giá đã hết lượt sử dụng"
-      });
-    }
-
-    // Kiểm tra đơn hàng có đạt giá trị tối thiểu không
-    if (subtotal < coupon.minimumAmount) {
-      return res.status(400).json({
-        valid: false,
-        message: `Đơn hàng phải có giá trị tối thiểu ${coupon.minimumAmount.toLocaleString('vi-VN')} VND để sử dụng mã này`,
-        minimumAmount: coupon.minimumAmount,
-        currentAmount: subtotal,
-        requiredAmount: coupon.minimumAmount - subtotal
-      });
-    }
-
-    // ===== TÍNH TOÁN SỐ TIỀN GIẢM GIÁ =====
-    let discountAmount = 0;
-    
-    if (coupon.discountType === 'PERCENT') {
-      // Giảm theo phần trăm
-      discountAmount = (subtotal * coupon.discountValue) / 100;
-    } else {
-      // Giảm theo số tiền cố định
-      discountAmount = coupon.discountValue;
-    }
-
-    // Đảm bảo số tiền giảm không vượt quá tổng tiền
-    if (discountAmount > subtotal) {
-      discountAmount = subtotal;
-    }
-
-    // Tính số tiền phải trả sau khi giảm giá
-    const finalAmount = subtotal - discountAmount;
-
-    // Trả về thông tin mã giảm giá hợp lệ
-    res.status(200).json({
-      valid: true,
-      message: "Mã giảm giá hợp lệ",
-      coupon: {
-        code: coupon.code,
-        name: coupon.name,
-        discountType: coupon.discountType,
-        discountValue: coupon.discountValue,
-        minimumAmount: coupon.minimumAmount,
-        usageLimit: coupon.usageLimit,
-        usedCount: coupon.usedCount,
-        remainingUses: coupon.usageLimit - coupon.usedCount
-      },
-      discount: {
-        discountAmount,
-        finalAmount,
-        savings: discountAmount
-      }
-    });
-
-  } catch (error) {
-    // Xử lý lỗi
-    console.error('Validate coupon error:', error);
-    res.status(500).json({
-      message: "Lỗi server",
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
-    });
-  }
-};
