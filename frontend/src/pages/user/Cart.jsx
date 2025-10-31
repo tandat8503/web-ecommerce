@@ -308,7 +308,10 @@ export default function Cart() {
             </div>
             
             <Button 
-              onClick={() => navigate("/checkout")}
+              onClick={() => {
+                const ids = Array.from(selectedItems);
+                navigate(`/checkout${ids.length ? `?selected=${ids.join(',')}` : ''}`)
+              }}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-semibold mb-3 cursor-pointer"
               disabled={selectedItems.size === 0}
             >

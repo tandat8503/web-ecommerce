@@ -24,6 +24,10 @@ const BreadcrumbNav = () => {
     '/san-pham': 'Tất cả sản phẩm',
     '/wishlist': 'Danh sách yêu thích',
     '/cart': 'Giỏ hàng',
+    '/checkout': 'Đặt hàng',
+    '/order-success': 'Đặt hàng thành công',
+    '/orders': 'Danh sách đơn hàng',
+    '/orders/:id': 'Chi tiết đơn hàng',
     '/ban': 'Bàn',
     '/ghe': 'Ghế',
     '/tu': 'Tủ',
@@ -31,11 +35,14 @@ const BreadcrumbNav = () => {
     '/gioi-thieu': 'Giới thiệu',
   };
 
-  // Kiểm tra nếu đang ở trang chi tiết sản phẩm
+  // Kiểm tra nếu đang ở trang chi tiết sản phẩm / chi tiết đơn hàng
   const isProductDetail = location.pathname.startsWith('/san-pham/') && location.pathname !== '/san-pham';
+  const isOrderDetail = location.pathname.startsWith('/orders/') && location.pathname !== '/orders';
 
   // Lấy tên trang hiện tại từ routeMap, nếu không có thì dùng 'Trang'
-  const currentPage = routeMap[location.pathname] || 'Trang';
+  const currentPage = isOrderDetail
+    ? 'Chi tiết đơn hàng'
+    : (routeMap[location.pathname] || 'Trang');
 
   // Effect để load tên sản phẩm khi ở trang chi tiết
   useEffect(() => {
@@ -101,6 +108,23 @@ const BreadcrumbNav = () => {
           </>
         )}
         
+        {/* Nếu là chi tiết đơn hàng: thêm link về danh sách đơn */}
+        {isOrderDetail && (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link 
+                  to="/orders" 
+                  className="hover:text-blue-600 transition-colors duration-200 font-medium"
+                >
+                  Danh sách đơn hàng
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </>
+        )}
+
         {/* Item 4: Tên sản phẩm hoặc trang hiện tại - không click được, màu xanh nổi bật */}
         <BreadcrumbItem>
           <BreadcrumbPage className="text-blue-600 font-semibold">

@@ -11,6 +11,7 @@ import AdminProductImages from "@/pages/admin/AdminProductImages";
 import AdminProductVariant from "@/pages/admin/AdminProductVariant";
 import AdminProductSpecification from "@/pages/admin/AdminProductSpecification";
 import AdminCoupons from "@/pages/admin/AdminCoupons";
+import AdminOrders from "@/pages/admin/AdminOrders";
 
 //User
 import UserLayout from "@/layout/user/UserLayout";
@@ -19,6 +20,10 @@ import Products from "@/pages/user/Products";
 import ProductDetail from "@/pages/user/ProductDetail";
 import Wishlist from "@/pages/user/Wishlist";
 import Cart from "@/pages/user/Cart";
+import Checkout from "@/pages/user/Checkout";
+import OrderSuccess from "@/pages/user/OrderSuccess";
+import MyOrders from "@/pages/user/MyOrders";
+import OrderDetail from "@/pages/user/OrderDetail";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
@@ -38,6 +43,10 @@ const router = createBrowserRouter([
       { path: "san-pham/:id", element: <ProductDetail /> },
       { path: "wishlist", element: <Wishlist /> },
       { path: "cart", element: <Cart /> },
+      { path: "checkout", element: <Checkout /> },
+      { path: "order-success", element: <OrderSuccess /> },
+      { path: "orders", element: <MyOrders /> },
+      { path: "orders/:id", element: <OrderDetail /> },
       { path: "profile-manager", element: <ProfileManager /> },
     ],
   },
@@ -68,6 +77,7 @@ const router = createBrowserRouter([
       { path: "product-variants", element: <AdminProductVariant /> },
       { path: "product-specifications", element: <AdminProductSpecification /> },
       { path: "coupons", element: <AdminCoupons /> },
+      { path: "orders", element: <AdminOrders /> },
     ],
   },
 

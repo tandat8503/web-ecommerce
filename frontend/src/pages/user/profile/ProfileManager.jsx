@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Row, Col, Typography, Modal } from "antd";
 import { getUserProfile, uploadAvatar } from "@/api/userProfile";
 import { toast } from "react-toastify";
@@ -11,6 +12,7 @@ import Address from "./Address";
 const { Text } = Typography;
 
 export default function ProfileManager() {
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeSection, setActiveSection] = useState("profile");
@@ -20,6 +22,15 @@ export default function ProfileManager() {
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  // Đọc query param section (?section=address) để mở thẳng tab tương ứng
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const section = params.get("section");
+    if (section && ["profile", "password", "history", "address"].includes(section)) {
+      setActiveSection(section);
+    }
+  }, [location.search]);
 
   const fetchUserProfile = async () => {
     try {
