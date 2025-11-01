@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Steps } from "antd";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Steps, Card, Descriptions, Tag, List, Space, Skeleton } from "antd";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { getOrderById, cancelOrder, confirmReceivedOrder } from "@/api/orders";
 import { formatPrice } from "@/lib/utils";
@@ -59,14 +56,14 @@ export default function OrderDetail() {
     return labels[status] || status;
   };
 
-  const getStatusBadgeClass = (s) => {
+  const getStatusTagColor = (s) => {
     switch (String(s)) {
-      case 'PENDING': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'CONFIRMED': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'PROCESSING': return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-      case 'DELIVERED': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'CANCELLED': return 'bg-rose-100 text-rose-700 border-rose-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'PENDING': return 'orange';
+      case 'CONFIRMED': return 'blue';
+      case 'PROCESSING': return 'cyan';
+      case 'DELIVERED': return 'green';
+      case 'CANCELLED': return 'red';
+      default: return 'default';
     }
   };
 
@@ -102,116 +99,127 @@ export default function OrderDetail() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <BreadcrumbNav />
-
-      <Card className="mt-6">
-        <CardContent className="p-6 space-y-6">
+      <div className="max-w-5xl mx-auto mt-6">
+        <Card>
           {loading || !order ? (
-            <div className="space-y-3">
-              {[...Array(4)].map((_, i) => (<Skeleton key={i} className="h-6 w-full" />))}
-            </div>
+            <Skeleton active paragraph={{ rows: 8 }} />
           ) : (
-            <>
-              {/* Header giống Shopee: mã đơn + trạng thái + tổng */}
+            <Space direction="vertical" size="large" className="w-full">
+              {/* Header */}
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-500">Mã đơn: <span className="text-gray-800 font-medium">{order.orderNumber}</span></div>
-                <div className="flex items-center gap-4">
-                  <span className={`rounded-full px-3 py-1 text-sm border ${getStatusBadgeClass(order.status)}`}>{getStatusLabel(order.status)}</span>
-                  <div className="flex items-center gap-2 text-right">
-                    <span className="text-sm font-semibold text-gray-900">Tổng tiền:</span>
-                    <span className="text-lg font-bold text-red-600">{formatPrice(Number(order.totalAmount))}</span>
-                  </div>
-                </div>
+                <h2 className="text-xl font-semibold">Chi tiết đơn hàng</h2>
+                <Tag color={getStatusTagColor(order.status)}>{getStatusLabel(order.status)}</Tag>
               </div>
 
-              {/* Timeline trạng thái đơn hàng (Ant Design Steps) */}
-              <div className="bg-white rounded border p-6">
+              {/* Timeline */}
+              <div className="border rounded p-4">
                 <Steps
                   current={steps.current}
                   items={steps.steps.map((s) => ({ title: s.label, description: s.time }))}
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded border bg-white p-4">
-                  <div className="font-semibold mb-2">Địa chỉ giao hàng</div>
-                  <div className="text-sm text-gray-700">
-                    {order.shippingAddress.fullName} • {order.shippingAddress.phone}<br />
-                    {order.shippingAddress.streetAddress}, {order.shippingAddress.ward}, {order.shippingAddress.district}, {order.shippingAddress.city}
-                  </div>
-                </div>
-                <div className="rounded border bg-white p-4">
-                  <div className="font-semibold mb-2">Thanh toán</div>
-                  <div className="text-sm text-gray-700">Phương thức: {order.paymentMethod}</div>
-                  <div className="text-sm text-gray-700">Trạng thái: {order.paymentStatus}</div>
-                </div>
-              </div>
+              {/* Thông tin đơn hàng */}
+              <Descriptions column={1} bordered title="Thông tin đơn hàng">
+                <Descriptions.Item label="Mã đơn hàng">
+                  <span className="font-semibold text-gray-900">{order.orderNumber}</span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Ngày đặt">
+                  <span className="font-semibold text-gray-900">
+                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString("vi-VN") : "-"}
+                  </span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Trạng thái">
+                  <Tag color={getStatusTagColor(order.status)}>{getStatusLabel(order.status)}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Phương thức thanh toán">
+                  <span className="font-semibold text-gray-900">{order.paymentMethod}</span>
+                </Descriptions.Item>
+              </Descriptions>
 
-              {/* Ghi chú admin (nếu có) */}
+              {/* Thông tin nhận hàng */}
+              <Descriptions column={1} bordered title="Thông tin nhận hàng">
+                <Descriptions.Item label="Họ tên">
+                  <span className="font-semibold text-gray-900">{order.shippingAddress.fullName}</span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Số điện thoại">
+                  <span className="font-semibold text-gray-900">{order.shippingAddress.phone}</span>
+                </Descriptions.Item>
+                {order.user?.email && (
+                  <Descriptions.Item label="Email">
+                    <span className="font-semibold text-gray-900">{order.user.email}</span>
+                  </Descriptions.Item>
+                )}
+                <Descriptions.Item label="Địa chỉ">
+                  <span className="font-semibold text-gray-900">
+                    {`${order.shippingAddress.streetAddress}, ${order.shippingAddress.ward}, ${order.shippingAddress.district}, ${order.shippingAddress.city}`}
+                  </span>
+                </Descriptions.Item>
+              </Descriptions>
+
+              {/* Ghi chú admin */}
               {order.adminNote && (
-                <div className="rounded border bg-white p-4">
-                  <div className="font-semibold mb-2">Ghi chú từ shop</div>
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">{order.adminNote}</div>
+                <div>
+                  <h3 className="text-base font-semibold mb-3">Ghi chú từ shop</h3>
+                  <p className="whitespace-pre-wrap">{order.adminNote}</p>
                 </div>
               )}
 
-              <div className="overflow-x-auto rounded border bg-white">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Sản phẩm</TableHead>
-                      <TableHead className="text-center">Số lượng</TableHead>
-                      <TableHead className="text-right">Đơn giá</TableHead>
-                      <TableHead className="text-right">Thành tiền</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {order.orderItems.map((it) => {
-                      const qty = Number(it.quantity ?? it.qty ?? it.count ?? it.amount ?? 1);
-                      return (
-                      <TableRow key={it.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
+              {/* Sản phẩm */}
+              <div>
+                <h3 className="text-base font-semibold mb-3">Sản phẩm</h3>
+                <List
+                  dataSource={order.orderItems}
+                  renderItem={(it) => {
+                    const qty = Number(it.quantity ?? it.qty ?? it.count ?? it.amount ?? 1);
+                    return (
+                      <List.Item>
+                        <List.Item.Meta
+                          avatar={
                             <img
-                              src={(it.product?.primaryImage || it.product?.imageUrl || "/placeholder-product.jpg")}
+                              src={it.product?.primaryImage || it.product?.imageUrl || "/placeholder-product.jpg"}
                               alt={it.productName}
-                              className="h-14 w-14 rounded border object-cover"
+                              className="h-20 w-20 rounded border object-cover"
                             />
+                          }
+                          title={<span className="font-semibold text-gray-900">{it.productName}</span>}
+                          description={
                             <div>
-                              <div className="text-sm font-medium">{it.productName}</div>
-                              {it.variantName && (<div className="text-xs text-gray-500">{it.variantName}</div>)}
+                              {it.variantName && <div className="text-sm text-gray-500 mb-1">{it.variantName}</div>}
+                              <div className="flex items-center gap-4">
+                                <span className="text-gray-600">SL: {qty}</span>
+                                <span className="text-base font-semibold text-red-600">{formatPrice(Number(it.totalPrice))}</span>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">{qty}</TableCell>
-                        <TableCell className="text-right">{formatPrice(Number(it.unitPrice))}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatPrice(Number(it.totalPrice))}</TableCell>
-                      </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                          }
+                        />
+                      </List.Item>
+                    );
+                  }}
+                />
               </div>
 
-              <div className="flex items-center justify-between">
-                <Button variant="outline" className="cursor-pointer" onClick={() => navigate('/orders')}>Quay lại danh sách</Button>
-                <div className="flex gap-2">
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-4 border-t">
+                <span className="text-gray-900 font-bold text-lg">Tổng tiền: <span className="text-xl font-bold text-red-600">{formatPrice(Number(order.totalAmount))}</span></span>
+                <Space>
                   {order.status === 'PENDING' && (
-                    <Button variant="outline" className="cursor-pointer" disabled={actionLoading} onClick={handleCancel}>Hủy đơn</Button>
+                    <Button variant="outline" disabled={actionLoading} onClick={handleCancel}>Hủy đơn</Button>
                   )}
                   {order.status === 'PROCESSING' && (
-                    <Button className="bg-emerald-600 hover:bg-emerald-700 cursor-pointer" disabled={actionLoading} onClick={handleConfirmReceived}>Xác nhận đã nhận</Button>
+                    <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleConfirmReceived}>Xác nhận đã nhận</Button>
                   )}
                   {order.status === 'DELIVERED' && (
-                    <Button className="bg-blue-600 hover:bg-blue-700 cursor-pointer" onClick={() => navigate(`/orders/${id}/review`)}>
+                    <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => navigate(`/orders/${id}/review`)}>
                       Viết đánh giá
                     </Button>
                   )}
-                </div>
+                </Space>
               </div>
-            </>
+            </Space>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

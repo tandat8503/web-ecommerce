@@ -174,8 +174,8 @@ export default function AdminOrders() {
 
   // Hàm mở modal cập nhật trạng thái và ghi chú
   const handleOpenUpdateModal = (record) => {
-    setEditingRecord(record);
-    setModalOpen(true);
+    setEditingRecord(record);//  set đơn hàng đang cập nhật
+    setModalOpen(true);//  mở modal cập nhật trạng thái và ghi chú
   };
 
   // Table columns
