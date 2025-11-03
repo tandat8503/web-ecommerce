@@ -6,13 +6,12 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
-import { PrismaClient } from '@prisma/client'
+import prisma from './config/prisma.js'
 //import authRoutes from './routes/authRoutes.js'
 import Routes from './routes/index.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
-const prisma = new PrismaClient()
 
 // --- Security middleware ---
 app.use(helmet())
@@ -36,7 +35,7 @@ app.use(cors({
     }
   },
   credentials: true,             // nếu dùng cookie
-  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
 }))
 
@@ -87,9 +86,12 @@ app.get('/api/test-db', async (req, res) => {
 // --- Error handling ---
 app.use((err, req, res, next) => {
   console.error('Error:', err)
+  console.error('Error stack:', err.stack)
   res.status(500).json({
     success: false,
-    message: 'Internal server error'
+    message: 'Internal server error',
+    error: process.env.NODE_ENV !== 'production' ? err.message : undefined,
+    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
   })
 })
 
@@ -109,9 +111,23 @@ process.on('SIGINT', async () => {
 })
 
 // --- Start server ---
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
-  console.log(`🌐 Health check: http://localhost:${PORT}/api/health`)
-  console.log(`🗄️  Database test: http://localhost:${PORT}/api/test-db`)
-  console.log(`🟢 Auth endpoints: http://localhost:${PORT}/api/auth`)
-})
+const startServer = async () => {
+  try {
+    // Kiểm tra kết nối database trước khi start server
+    await prisma.$connect()
+    console.log('✅ Database connected successfully')
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`)
+      console.log(`🌐 Health check: http://localhost:${PORT}/api/health`)
+      console.log(`🗄️  Database test: http://localhost:${PORT}/api/test-db`)
+      console.log(`🟢 Auth endpoints: http://localhost:${PORT}/api/auth`)
+    })
+  } catch (error) {
+    console.error('❌ Failed to connect to database:', error.message)
+    console.error('Please check your DATABASE_URL in .env file')
+    process.exit(1)
+  }
+}
+
+startServer()

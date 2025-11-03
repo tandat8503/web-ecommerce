@@ -4,8 +4,8 @@
 // ==================== IMPORT ROUTES ====================
 
 // Public routes (không cần authentication)
-import authRouter from "./authRoutes.js "; // Routes xác thực: login, register, refresh token
-import addressRouter from "./addressRouter.js "; // Routes quản lý địa chỉ người dùng
+import authRouter from "./authRoutes.js"; // Routes xác thực: login, register, refresh token
+import addressRouter from "./addressRouter.js"; // Routes quản lý địa chỉ người dùng
 import userRouter from "./user.router.js"; // Routes thông tin người dùng (public)
 import wishlistRouter from "./wishlistRouter.js"; // Routes quản lý danh sách yêu thích
 import shoppingCartRouter from "./shoppingCartRoutes.js"; // Routes quản lý giỏ hàng
@@ -23,7 +23,7 @@ import adminBrandRoutes from "./adminBrandRoutes.js"; // Routes quản lý thư�
 import adminUserRoutes from "./adminUserRoutes.js"; // Routes quản lý người dùng
 import adminBannerRoutes from "./adminBannerRouters.js"; // Routes quản lý banner quảng cáo
 import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Routes quản lý biến thể sản phẩm
-import adminProductSpecificationRoutes from"./adminProductSpecificationRoutes.js"; // Routes quản lý thông số kỹ thuật
+import adminProductSpecificationRoutes from "./adminProductSpecificationRoutes.js"; // Routes quản lý thông số kỹ thuật
 import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã giảm giá (admin)
 import couponRoutes from "./couponRoutes.js"; // Routes mã giảm giá (user)
 

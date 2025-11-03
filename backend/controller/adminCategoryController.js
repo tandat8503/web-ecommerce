@@ -8,8 +8,15 @@ import { slugify } from "../utils/slugify.js";
 export const listCategories = async (req, res) => {
   const context = { path: "admin.categories.list", query: req.query };
   try {
+    console.log('START', context);
+    console.log('User:', req.user ? { id: req.user.id, role: req.user.role } : 'No user');
+    
     const { page = 1, limit = 10, q } = req.query;
+    
+    // Xây dựng điều kiện WHERE
     const where = q ? { name: { contains: q } } : undefined;
+
+    console.log('Query params:', { page, limit, q, where });
 
     const [items, total] = await Promise.all([
       prisma.category.findMany({
@@ -21,10 +28,13 @@ export const listCategories = async (req, res) => {
       prisma.category.count({ where }),
     ]);
 
+    console.log('END', { ...context, total, itemsCount: items.length });
     const payload = { items, total, page: Number(page), limit: Number(limit) };
     return res.json(payload);
   } catch (error) {
+    console.error('ERROR', { ...context, error: error.message, stack: error.stack });
     return res.status(500).json({
+      success: false,
       message: "Server error",
       error: process.env.NODE_ENV !== "production" ? error.message : undefined,
     });

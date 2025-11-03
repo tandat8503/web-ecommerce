@@ -53,29 +53,42 @@ export default function ChatWidget() {
       const newSessionId = aiUtils.generateSessionId();
       setSessionId(newSessionId);
 
-      // Check AI service availability
-      const isAvailable = await aiUtils.isServiceAvailable();
-      setIsConnected(isAvailable);
-      setConnectionStatus(isAvailable ? "connected" : "disconnected");
+      // Check AI service availability (suppress errors - service may not be running)
+      try {
+        const isAvailable = await aiUtils.isServiceAvailable();
+        setIsConnected(isAvailable);
+        setConnectionStatus(isAvailable ? "connected" : "disconnected");
 
-      if (isAvailable) {
-        console.log("✅ Professional AI Chatbot connected");
-        
-        // Initialize WebSocket for real-time features
-        const ws = new AIWebSocketClient();
-        await ws.connect(newSessionId);
-        
-        // Set up WebSocket event listeners
-        ws.addEventListener("message", handleWebSocketMessage);
-        ws.addEventListener("typing", handleTypingIndicator);
-        ws.addEventListener("error", handleWebSocketError);
-        
-        setWsClient(ws);
-      } else {
-        console.warn("⚠️ Professional AI Chatbot not available");
+        if (isAvailable) {
+          console.log("✅ Professional AI Chatbot connected");
+          
+          // Initialize WebSocket for real-time features
+          try {
+            const ws = new AIWebSocketClient();
+            await ws.connect(newSessionId);
+            
+            // Set up WebSocket event listeners
+            ws.addEventListener("message", handleWebSocketMessage);
+            ws.addEventListener("typing", handleTypingIndicator);
+            ws.addEventListener("error", handleWebSocketError);
+            
+            setWsClient(ws);
+          } catch (wsError) {
+            // WebSocket connection failed - use HTTP fallback
+            console.log("Using HTTP fallback for chat");
+          }
+        }
+        // Don't log warning - service not running is acceptable
+      } catch (availabilityError) {
+        // Service check failed - gracefully degrade
+        setIsConnected(false);
+        setConnectionStatus("disconnected");
       }
     } catch (error) {
-      console.error("❌ Failed to initialize chat:", error);
+      // Only log unexpected errors (not connection refused)
+      if (error.code !== 'ECONNREFUSED' && error.code !== 'ERR_NETWORK') {
+        console.error("❌ Failed to initialize chat:", error);
+      }
       setIsConnected(false);
       setConnectionStatus("error");
     }

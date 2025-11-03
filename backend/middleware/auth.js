@@ -1,9 +1,7 @@
 // middleware/auth.js
 import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../config/prisma.js'
 import { JWT_CONFIG } from '../config/jwt.js'
-
-const prisma = new PrismaClient()
 
 // Middleware xác thực JWT
 export const authenticateToken = async (req, res, next) => {
@@ -40,17 +38,31 @@ export const authenticateToken = async (req, res, next) => {
     }
     
     // Tìm user trong database (chỉ 1 bảng User duy nhất)
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isActive: true
+        }
+      })
+    } catch (dbError) {
+      console.error('Database error in auth middleware:', dbError)
+      // Nếu là lỗi database connection, throw để catch block xử lý
+      if (dbError.code === 'P1001' || dbError.message?.includes('connect')) {
+        throw dbError
       }
-    })
+      // Nếu là lỗi khác, return 401 như bình thường
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Token không hợp lệ hoặc user đã bị vô hiệu hóa' 
+      })
+    }
 
     if (!user || !user.isActive) {
       return res.status(401).json({ 
@@ -86,15 +98,33 @@ export const authenticateToken = async (req, res, next) => {
     }
 
     console.error('Auth middleware error:', error)
+    
+    // Xử lý lỗi database connection
+    if (error.code === 'P1001' || error.message?.includes('connect') || error.message?.includes('database')) {
+      console.error('Database connection error in auth middleware:', error.message)
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Lỗi kết nối database' 
+      })
+    }
+    
     return res.status(500).json({ 
       success: false, 
-      message: 'Lỗi server' 
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     })
   }
 }
 
 // Middleware kiểm tra quyền admin
 export const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Chưa đăng nhập' 
+    })
+  }
+  
   if (req.user.role !== 'ADMIN') {
     return res.status(403).json({ 
       success: false, 

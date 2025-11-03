@@ -612,6 +612,10 @@ export default function AdminProducts() {
         }}
         productId={selectedProduct?.id}
         productName={selectedProduct?.name}
+        onImageUpdated={() => {
+          // Refresh danh sách sản phẩm khi có thay đổi ảnh
+          fetchProducts();
+        }}
       />
     </>
   );

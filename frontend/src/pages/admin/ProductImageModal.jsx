@@ -34,14 +34,16 @@ import {
   updateProductImage,
   deleteProductImage,
   setPrimaryImage,
-  reorderImages
+  reorderImages,
+  updateProductPrimaryImage
 } from "@/api/adminProductImages";
 
 export default function ProductImageModal({ 
   open, 
   onCancel, 
   productId, 
-  productName 
+  productName,
+  onImageUpdated // Callback khi có thay đổi ảnh để refresh danh sách sản phẩm
 }) {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -89,13 +91,30 @@ export default function ProductImageModal({
     try {
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('isPrimary', images.length === 0 ? 'true' : 'false'); // Ảnh đầu tiên làm primary
+      const isFirstImage = images.length === 0;
+      formData.append('isPrimary', isFirstImage ? 'true' : 'false'); // Ảnh đầu tiên làm primary
       formData.append('sortOrder', images.length);
 
-      await createProductImage(productId, formData);
-      toast.success("Upload ảnh thành công");
+      const response = await createProductImage(productId, formData);
+      const newImage = response.data;
+      
+      // Nếu là ảnh đầu tiên, đồng bộ với product
+      if (isFirstImage && newImage) {
+        await updateProductPrimaryImage(productId, {
+          imageUrl: newImage.imageUrl,
+          imagePublicId: newImage.imagePublicId
+        });
+        
+        // Gọi callback để refresh danh sách sản phẩm
+        if (onImageUpdated) {
+          onImageUpdated();
+        }
+      }
+      
+      toast.success("Upload ảnh thành công" + (isFirstImage ? " và đã set làm ảnh chính" : ""));
       fetchImages();
       setFileList([]);
+      setHasChanges(true);
       return false; // Prevent default upload
     } catch (error) {
       toast.error("Lỗi khi upload ảnh");
@@ -108,9 +127,39 @@ export default function ProductImageModal({
 
   const handleDelete = async (imageId) => {
     try {
+      const imageToDelete = images.find(img => img.id === imageId);
+      const isPrimaryImage = imageToDelete?.isPrimary;
+      
       await deleteProductImage(imageId);
       toast.success("Xóa ảnh thành công");
-      fetchImages();
+      
+      // Nếu xóa ảnh chính, cần set ảnh chính mới
+      if (isPrimaryImage) {
+        await fetchImages(); // Load lại danh sách ảnh
+        
+        // Tìm ảnh đầu tiên để set làm primary
+        const updatedImages = await getProductImages(productId);
+        const remainingImages = updatedImages.data?.items || [];
+        
+        if (remainingImages.length > 0) {
+          // Set ảnh đầu tiên làm primary
+          await handleSetPrimary(remainingImages[0].id);
+        } else {
+          // Không còn ảnh nào, xóa ảnh khỏi product
+          await updateProductPrimaryImage(productId, {
+            imageUrl: null,
+            imagePublicId: null
+          });
+          
+          // Gọi callback để refresh danh sách sản phẩm
+          if (onImageUpdated) {
+            onImageUpdated();
+          }
+        }
+      } else {
+        fetchImages();
+      }
+      
       setHasChanges(true);
     } catch (error) {
       toast.error("Lỗi khi xóa ảnh");
@@ -120,10 +169,27 @@ export default function ProductImageModal({
 
   const handleSetPrimary = async (imageId) => {
     try {
+      // 1. Set ảnh chính trong product_images
       await setPrimaryImage(productId, imageId);
-      toast.success("Đã set ảnh chính");
+      
+      // 2. Lấy thông tin ảnh chính để đồng bộ với product
+      const primaryImage = images.find(img => img.id === imageId);
+      if (primaryImage) {
+        // 3. Đồng bộ ảnh chính với product.imageUrl
+        await updateProductPrimaryImage(productId, {
+          imageUrl: primaryImage.imageUrl,
+          imagePublicId: primaryImage.imagePublicId
+        });
+      }
+      
+      toast.success("Đã set ảnh chính và đồng bộ với sản phẩm");
       fetchImages();
       setHasChanges(true);
+      
+      // 4. Gọi callback để refresh danh sách sản phẩm
+      if (onImageUpdated) {
+        onImageUpdated();
+      }
     } catch (error) {
       toast.error("Lỗi khi set ảnh chính");
       console.error("Error setting primary image:", error);
@@ -141,6 +207,20 @@ export default function ProductImageModal({
       setImages(newImages);
       toast.success("Đã sắp xếp lại thứ tự ảnh");
       setHasChanges(true);
+      
+      // Nếu ảnh đầu tiên là primary, đảm bảo đồng bộ với product
+      const firstImage = newImages[0];
+      if (firstImage && firstImage.isPrimary) {
+        await updateProductPrimaryImage(productId, {
+          imageUrl: firstImage.imageUrl,
+          imagePublicId: firstImage.imagePublicId
+        });
+        
+        // Gọi callback để refresh danh sách sản phẩm
+        if (onImageUpdated) {
+          onImageUpdated();
+        }
+      }
     } catch (error) {
       toast.error("Lỗi khi sắp xếp ảnh");
       console.error("Error reordering images:", error);
@@ -151,10 +231,27 @@ export default function ProductImageModal({
   const handleSaveChanges = async () => {
     setSaving(true);
     try {
-      // Lưu tất cả thay đổi
-      await fetchImages(); // Refresh để lấy dữ liệu mới nhất
+      // Refresh để lấy dữ liệu mới nhất
+      const response = await getProductImages(productId);
+      const updatedImages = response.data.items || [];
+      setImages(updatedImages);
+      
+      // Đảm bảo đồng bộ ảnh chính với product
+      const primaryImage = updatedImages.find(img => img.isPrimary);
+      if (primaryImage) {
+        await updateProductPrimaryImage(productId, {
+          imageUrl: primaryImage.imageUrl,
+          imagePublicId: primaryImage.imagePublicId
+        });
+      }
+      
       setHasChanges(false);
       toast.success("✅ Đã lưu tất cả thay đổi thành công!");
+      
+      // Gọi callback để refresh danh sách sản phẩm
+      if (onImageUpdated) {
+        onImageUpdated();
+      }
     } catch (error) {
       toast.error("❌ Lỗi khi lưu thay đổi");
       console.error("Error saving changes:", error);

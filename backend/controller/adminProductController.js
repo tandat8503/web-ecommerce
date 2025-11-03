@@ -16,17 +16,20 @@ export const listProducts = async (req, res) => {
   const context = { path: 'admin.products.list', query: req.query };
   try {
     console.log('START', context);
+    console.log('User:', req.user ? { id: req.user.id, role: req.user.role } : 'No user');
     
     // Lấy các tham số từ query string với giá trị mặc định
     const { page = 1, limit = 10, q, categoryId, brandId, status } = req.query;
     
     // Xây dựng điều kiện WHERE động dựa trên các filter
     const and = []; // Mảng chứa các điều kiện AND
-    if (q) and.push({ name: { contains: q} }); // Tìm kiếm theo tên (không phân biệt hoa thường)
+    if (q) and.push({ name: { contains: q } }); // Tìm kiếm theo tên (MySQL không hỗ trợ mode insensitive)
     if (categoryId) and.push({ categoryId: Number(categoryId) }); // Lọc theo category ID
     if (brandId) and.push({ brandId: Number(brandId) }); // Lọc theo brand ID
     if (status) and.push({ status: status.toUpperCase() }); // Lọc theo trạng thái
     const where = and.length ? { AND: and } : undefined; // Nếu có điều kiện thì tạo WHERE clause
+
+    console.log('Query params:', { page, limit, q, categoryId, brandId, status, where });
 
     // Thực hiện 2 query song song để tối ưu performance
     const [items, total] = await Promise.all([
@@ -44,12 +47,15 @@ export const listProducts = async (req, res) => {
 
     // Tạo response payload với thông tin phân trang
     const payload = { items, total, page: Number(page), limit: Number(limit) };
-    console.log('END', { ...context, total: payload.total });
+    console.log('END', { ...context, total: payload.total, itemsCount: items.length });
     return res.json(payload);
   } catch (error) {
     // Xử lý lỗi và log
-    console.error('ERROR', { ...context, error: error.message });
-    const payload = { message: 'Server error' };
+    console.error('ERROR', { ...context, error: error.message, stack: error.stack });
+    const payload = { 
+      success: false,
+      message: 'Server error' 
+    };
     // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -381,15 +387,11 @@ export const updateProductPrimaryImage = async (req, res) => {
     const productId = Number(req.params.id);
     const { imageUrl, imagePublicId } = req.body;
 
-    // Validation dữ liệu đầu vào
-    if (!imageUrl) {
-      console.warn('MISSING_IMAGE_URL', { ...context });
-      return res.status(400).json({ message: 'imageUrl is required' });
-    }
-
-    if (!imagePublicId) {
+    // Cho phép null để xóa ảnh (khi không còn ảnh nào)
+    // Nếu có imageUrl thì phải có imagePublicId
+    if (imageUrl && !imagePublicId) {
       console.warn('MISSING_IMAGE_PUBLIC_ID', { ...context });
-      return res.status(400).json({ message: 'imagePublicId is required' });
+      return res.status(400).json({ message: 'imagePublicId is required when imageUrl is provided' });
     }
 
     // Kiểm tra product tồn tại
@@ -399,14 +401,25 @@ export const updateProductPrimaryImage = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    // Nếu xóa ảnh (imageUrl là null), xóa luôn ảnh cũ trên Cloudinary nếu có
+    if (!imageUrl && product.imagePublicId) {
+      try {
+        await cloudinary.uploader.destroy(product.imagePublicId, { invalidate: true });
+        console.log('Old image deleted from Cloudinary:', product.imagePublicId);
+      } catch (cloudinaryError) {
+        console.warn('Error deleting image from Cloudinary:', cloudinaryError);
+        // Không throw error, tiếp tục xóa trong DB
+      }
+    }
+
     console.log('Updating product primary image:', { productId, imageUrl, imagePublicId });
 
-    // Cập nhật ảnh chính
+    // Cập nhật ảnh chính (có thể là null để xóa ảnh)
     const updated = await prisma.product.update({
       where: { id: productId },
       data: {
-        imageUrl,
-        imagePublicId
+        imageUrl: imageUrl || null,
+        imagePublicId: imagePublicId || null
       }
     });
 

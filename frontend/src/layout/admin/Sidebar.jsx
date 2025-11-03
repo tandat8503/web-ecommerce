@@ -90,11 +90,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             label: <Link to="/admin/product-specifications">Quản lý thông số sản phẩm</Link>,
           },
           {
-            key: "/admin/product-images",
-            icon: <FaImage />,
-            label: <Link to="/admin/product-images">Quản lý hình ảnh</Link>,
-          },
-          {
             key: "/admin/banners",
             icon: <FaPhotoVideo />,
             label: <Link to="/admin/banners">Quản lý banner</Link>,

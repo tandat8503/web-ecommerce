@@ -21,7 +21,10 @@ const aiAxiosClient = axios.create({
 // Request interceptor for logging
 aiAxiosClient.interceptors.request.use(
   (config) => {
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    // Suppress logging for health checks to reduce console noise
+    if (config.url !== '/health') {
+      console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    }
     return config;
   },
   (error) => {
@@ -33,17 +36,27 @@ aiAxiosClient.interceptors.request.use(
 // Response interceptor for error handling
 aiAxiosClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    // Suppress logging for health checks
+    if (response.config.url !== '/health') {
+      console.log(`✅ API Response: ${response.status} ${response.config.url}`);
+    }
     return response;
   },
   (error) => {
-    console.error("❌ API Response Error:", error);
+    // Completely suppress connection errors for health checks
+    // These are expected when AI service is not running
+    if ((error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') && 
+        error.config?.url === '/health') {
+      // Silent - service not running is acceptable, don't log anything
+      return Promise.reject(error);
+    }
     
-    // Handle specific error cases
-    if (error.response?.status === 500) {
-      console.error("Server error - AI service may be down");
-    } else if (error.code === 'ECONNREFUSED') {
-      console.error("Connection refused - AI service not running");
+    // Only log actual errors (not expected connection failures)
+    if (error.response?.status >= 400 && error.response?.status !== 404) {
+      console.error("❌ API Response Error:", error.response?.status, error.config?.url);
+    } else if (error.code !== 'ECONNREFUSED' && error.code !== 'ERR_NETWORK') {
+      // Only log non-connection errors
+      console.error("❌ API Error:", error.message);
     }
     
     return Promise.reject(error);
@@ -64,7 +77,11 @@ export const aiChatbotAPI = {
       const response = await aiAxiosClient.get("/health");
       return response.data;
     } catch (error) {
-      console.error("Health check failed:", error);
+      // Suppress error logging for health check - service not running is acceptable
+      // Only log if it's not a connection error
+      if (error.code !== 'ECONNREFUSED' && error.code !== 'ERR_NETWORK') {
+        console.error("Health check failed:", error);
+      }
       throw error;
     }
   },
@@ -360,6 +377,8 @@ export const aiUtils = {
       await aiChatbotAPI.healthCheck();
       return true;
     } catch (error) {
+      // Service not available - this is expected and acceptable
+      // Don't log as error since it's optional functionality
       return false;
     }
   },
