@@ -10,12 +10,12 @@ import userRouter from "./user.router.js"; // Routes thông tin người dùng (
 import wishlistRouter from "./wishlistRouter.js"; // Routes quản lý danh sách yêu thích
 import shoppingCartRouter from "./shoppingCartRoutes.js"; // Routes quản lý giỏ hàng
 import orderRouter from "./orderRoutes.js"; // Routes quản lý đơn hàng
+import paymentRouter from "./paymentRoutes.js"; // Routes thanh toán MoMo
 
 
 
 // Admin routes (yêu cầu authentication và quyền admin)
 import adminOrderRoutes from "./adminOrderRoutes.js"; // Routes quản lý đơn hàng
-import adminCustomerRoutes from "./adminCustomerRoutes.js"; // Routes quản lý khách hàng
 import adminCategoryRoutes from "./adminCategoryRoutes.js"; // Routes quản lý danh mục sản phẩm
 import adminProductRoutes from "./adminProductRoutes.js"; // Routes quản lý sản phẩm (CRUD + lấy theo category)
 import adminProductImageRoutes from "./adminProductImageRoutes.js"; // Routes quản lý ảnh sản phẩm
@@ -23,7 +23,6 @@ import adminBrandRoutes from "./adminBrandRoutes.js"; // Routes quản lý thư�
 import adminUserRoutes from "./adminUserRoutes.js"; // Routes quản lý người dùng
 import adminBannerRoutes from "./adminBannerRouters.js"; // Routes quản lý banner quảng cáo
 import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Routes quản lý biến thể sản phẩm
-import adminProductSpecificationRoutes from "./adminProductSpecificationRoutes.js"; // Routes quản lý thông số kỹ thuật
 import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã giảm giá (admin)
 import couponRoutes from "./couponRoutes.js"; // Routes mã giảm giá (user)
 
@@ -41,6 +40,7 @@ const routes = (app) => {
   app.use("/api/wishlist", wishlistRouter); // Wishlist management endpoints
   app.use("/api/cart", shoppingCartRouter); // Shopping cart management endpoints
   app.use("/api/orders", orderRouter); // Order management endpoints
+  app.use("/api/payment", paymentRouter); // Payment endpoints (MoMo)
   app.use("/api/coupons", couponRoutes); // Coupon endpoints (user)
   app.use("/api/products", adminProductRoutes); // Product endpoints (public + admin)
   app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public + admin)
@@ -59,11 +59,9 @@ const routes = (app) => {
   app.use("/api/admin/product-images", adminProductImageRoutes); // Product image management
   app.use("/api/admin/brands", adminBrandRoutes); // Brand management
   app.use("/api/admin/orders", adminOrderRoutes); // Order management
-  app.use("/api/admin/customers", adminCustomerRoutes); // Customer management
   app.use("/api/admin/users", adminUserRoutes); // User management
   app.use("/api/admin/banners", adminBannerRoutes); // Banner management
   app.use("/api/admin/product-variants", adminProductVariantRoutes); // Product variant management
-  app.use("/api/admin/product-specifications", adminProductSpecificationRoutes); // Product specification management
   app.use("/api/admin/coupons", adminCouponRoutes); // Coupon management
 };
 

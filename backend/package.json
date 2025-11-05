@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/adapter-mariadb": "^6.15.0",
     "@prisma/client": "^6.16.2",
+    "axios": "^0.27.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cloudinary": "^1.41.3",

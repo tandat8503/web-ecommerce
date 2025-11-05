@@ -1,12 +1,9 @@
 // controller/authController.js
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
+import prisma from '../config/prisma.js' 
 import { JWT_CONFIG } from '../config/jwt.js'
 import { DEFAULT_AVATAR } from '../config/constants.js';
-
-
-const prisma = new PrismaClient()
 
 // Tạo access token
 const generateAccessToken = (userId) => {
@@ -271,39 +268,63 @@ export const googleLogin = async (req, res) => {
     let user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      // Nếu chưa có → tạo mới
+      // Nếu chưa có → tạo mới với ảnh từ Google
       user = await prisma.user.create({
         data: {
           email,
           firstName: given_name || "",
           lastName: family_name || "",
-          avatar: picture,
+          avatar: picture, // Lưu ảnh từ Google
           googleId,
           isActive: true,
           isVerified: true,
+          emailVerifiedAt: new Date(),
         },
       });
+    } else {
+      // Nếu user đã tồn tại, cập nhật ảnh từ Google nếu có
+      if (picture && picture !== user.avatar) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { 
+            avatar: picture,
+            googleId: googleId || user.googleId,
+          },
+        });
+      }
     }
 
     // Tạo JWT cho client
-   
-const jwtToken = jwt.sign(
-  {
-    userId: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    role: "USER",
-  },
-  JWT_CONFIG.secret,
-  { expiresIn: "1d" }
-);
+    const jwtToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role || "CUSTOMER",
+      },
+      JWT_CONFIG.secret,
+      { expiresIn: "1d" }
+    );
 
+    // Trả về thông tin user (bao gồm avatar từ Google)
+    const userInfo = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatar: user.avatar, // Ảnh từ Google
+      role: user.role,
+      isActive: user.isActive,
+    };
 
     res.status(200).json({
-      mess: "Đăng nhập Google thành công",
-      token: jwtToken,
-      user,
+      success: true,
+      message: "Đăng nhập Google thành công",
+      data: {
+        user: userInfo,
+        accessToken: jwtToken,
+      },
     });
   } catch (err) {
     console.error("Google Login Failed:", err);

@@ -1,4 +1,4 @@
-// controller/adminUserController.js
+
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
 
@@ -10,8 +10,11 @@ const userResponse = (user) => ({
   lastName: user.lastName,
   phone: user.phone,
   avatar: user.avatar,
+  role: user.role, // CUSTOMER hoặc ADMIN
   isActive: user.isActive,
   isVerified: user.isVerified,
+  emailVerifiedAt: user.emailVerifiedAt,
+  lastLoginAt: user.lastLoginAt,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });
@@ -40,6 +43,21 @@ export const getUsers = async (req, res) => {
         orderBy: { id: "asc" },
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          avatar: true,
+          role: true,
+          isActive: true,
+          isVerified: true,
+          emailVerifiedAt: true,
+          lastLoginAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       prisma.user.count({ where }),
     ]);
@@ -70,7 +88,24 @@ export const getUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(id) },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        isVerified: true,
+        emailVerifiedAt: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
 
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
@@ -89,13 +124,13 @@ export const getUserById = async (req, res) => {
 // ==============================
 export const createUser = async (req, res) => {
   try {
-    const { email, password, firstName, lastName, phone } = req.body;
+    const { email, password, firstName, lastName, phone, role, isActive, isVerified } = req.body;
 
     if (!email || !firstName || !lastName) {
       return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existing) {
       return res.status(400).json({ message: "Email đã tồn tại" });
     }
@@ -108,17 +143,27 @@ export const createUser = async (req, res) => {
       }
     }
 
+    // Validate role (CUSTOMER hoặc ADMIN)
+    let validRole = "CUSTOMER";
+    if (role === "ADMIN" || role === "CUSTOMER") {
+      validRole = role;
+    }
+
     // Nếu không nhập mật khẩu thì đặt mặc định là 123456
     const plainPassword = password || "123456";
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     const newUser = await prisma.user.create({
       data: {
-        email,
+        email: email.toLowerCase(),
         password: hashedPassword,
         firstName,
         lastName,
-        phone,
+        phone: phone || null,
+        role: validRole,
+        isActive: isActive !== undefined ? isActive : true,
+        isVerified: isVerified !== undefined ? isVerified : false,
+        emailVerifiedAt: isVerified === true ? new Date() : null,
       },
     });
 
@@ -129,6 +174,9 @@ export const createUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Create user error:", error);
+    if (error.code === "P2002") {
+      return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
+    }
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
@@ -140,22 +188,63 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { firstName, lastName, phone, isActive, isVerified } = req.body;
+    const { firstName, lastName, phone, role, isActive, isVerified } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
-    // Kiểm tra số điện thoại trùng lặp (nếu có và khác với số cũ)
-    if (phone && phone !== user.phone) {
-      const existingPhone = await prisma.user.findUnique({ where: { phone } });
-      if (existingPhone) {
-        return res.status(400).json({ message: "Số điện thoại đã được sử dụng" });
+    // Không cho thay đổi role của chính mình
+    if (req.user && req.user.id === parseInt(id) && role && role !== user.role) {
+      return res.status(400).json({ message: "Không thể thay đổi quyền của chính bạn" });
+    }
+
+    // Chuẩn bị data cập nhật
+    const updateData = {};
+
+    if (firstName) {
+      updateData.firstName = firstName;
+    }
+
+    if (lastName) {
+      updateData.lastName = lastName;
+    }
+
+    if (phone !== undefined) {
+      // Kiểm tra số điện thoại trùng lặp (nếu có và khác với số cũ)
+      if (phone && phone !== user.phone) {
+        const existingPhone = await prisma.user.findUnique({ where: { phone } });
+        if (existingPhone) {
+          return res.status(400).json({ message: "Số điện thoại đã được sử dụng" });
+        }
+      }
+      updateData.phone = phone || null;
+    }
+
+    // Cập nhật role (nếu có)
+    if (role === "ADMIN" || role === "CUSTOMER") {
+      updateData.role = role;
+    }
+
+    // Cập nhật isActive (nếu có)
+    if (isActive === true || isActive === false) {
+      // Không cho vô hiệu hóa chính mình
+      if (req.user && req.user.id === parseInt(id) && isActive === false) {
+        return res.status(400).json({ message: "Không thể vô hiệu hóa tài khoản của chính bạn" });
+      }
+      updateData.isActive = isActive;
+    }
+
+    // Cập nhật isVerified (nếu có)
+    if (isVerified === true || isVerified === false) {
+      updateData.isVerified = isVerified;
+      if (isVerified === true) {
+        updateData.emailVerifiedAt = new Date();
       }
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: parseInt(id) },
-      data: { firstName, lastName, phone, isActive, isVerified },
+      data: updateData,
     });
 
     res.json({
@@ -165,6 +254,9 @@ export const updateUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Update user error:", error);
+    if (error.code === "P2002") {
+      return res.status(400).json({ message: "Số điện thoại hoặc email đã tồn tại" });
+    }
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };

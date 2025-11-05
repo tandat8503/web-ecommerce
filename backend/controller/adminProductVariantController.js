@@ -1,50 +1,5 @@
 import prisma from "../config/prisma.js";
 
-/**
- * ===========================
- * HÀM TẠO SKU ,hàm này radom ra mã tự động
- * ===========================
- * - Cấu trúc: BRAND-PRODUCTID-COLOR-SIZE-0001
- * - Ví dụ: CAS-12-RED-M-0001
- */
-const generateMeaningfulSKU = async (productId, color, size) => {
-  // Lấy thông tin sản phẩm + brand
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    include: { brand: true },
-  });
-  if (!product) throw new Error("Sản phẩm không tồn tại để sinh SKU");
-
-  //  Tạo mã thương hiệu (brandCode) 3 ký tự
-  const brandCode = (product.brand?.name || product.name)
-    .toUpperCase()// Chuyển thành chữ hoa
-    .normalize("NFD")// Chuẩn hoá Unicode
-    .replace(/[\u0300-\u036f]/g, "") // bỏ dấu tiếng Việt
-    .replace(/[^A-Z0-9]/g, "") // bỏ ký tự đặc biệt
-    .slice(0, 3);// Lấy 3 ký tự đầu
-
-  //  Chuẩn hoá color & size
-  const colorCode = color
-    ? color.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "")
-    : "NOCOLOR";
-
-  const sizeCode = size
-    ? size.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "")
-    : "NOSIZE";
-
-  //  Đếm số biến thể hiện tại của sản phẩm để tạo số thứ tự
-  const count = await prisma.productVariant.count({
-    where: { productId },
-  });
-
-  const sequence = String(count + 1).padStart(4, "0"); // 0001, 0002,...
-
-  //  Gộp thành SKU cuối
-  return `${brandCode}-${productId}-${colorCode}-${sizeCode}-${sequence}`;
-};
-
-
-
 // ===========================
 //  TẠO BIẾN THỂ SẢN PHẨM
 // ===========================
@@ -52,7 +7,7 @@ export const createProductVariant = async (req, res) => {
   try {
     const { productId, name, price, stockQuantity, size, color, isActive } = req.body;
 
-    //  Kiểm tra product tồn tại
+    // Kiểm tra product tồn tại
     const product = await prisma.product.findUnique({
       where: { id: Number(productId) },
     });
@@ -60,7 +15,7 @@ export const createProductVariant = async (req, res) => {
       return res.status(404).json({ message: "Sản phẩm không tồn tại" });
     }
 
-    //  Kiểm tra trùng biến thể (theo product + size + color)
+    // Kiểm tra trùng biến thể (theo product + size + color)
     const existingVariant = await prisma.productVariant.findFirst({
       where: {
         productId: Number(productId),
@@ -72,21 +27,16 @@ export const createProductVariant = async (req, res) => {
       return res.status(400).json({ message: "Biến thể với màu & size này đã tồn tại" });
     }
 
-    //  Tạo SKU có ý nghĩa
-    const sku = await generateMeaningfulSKU(Number(productId), color, size);
-
-    //  Tạo mới biến thể
+    // Tạo mới biến thể (không có SKU)
     const variant = await prisma.productVariant.create({
       data: {
         productId: Number(productId),
-        sku,
         name,
         price: price ? parseFloat(price) : null,
         stockQuantity: stockQuantity ? Number(stockQuantity) : 0,
         size,
         color,
-        isActive: isActive !== undefined ? isActive : true, 
-
+        isActive: isActive !== undefined ? isActive : true,
       },
     });
 
@@ -115,14 +65,13 @@ export const getProductVariants = async (req, res) => {
     const where = {
       // Nếu có productId thì lọc theo productId
       ...(productId ? { productId: Number(productId) } : {}),
-      // Nếu có keyword thì tìm theo sku, name, color, size
+      // Nếu có keyword thì tìm theo name, color, size
       ...(keyword
         ? {
             OR: [
-              { sku: { contains: keyword, } },   // Tìm theo SKU
-              { name: { contains: keyword, } },  // Tìm theo tên
-              { color: { contains: keyword, } }, // Tìm theo màu
-              { size: { contains: keyword, } },  // Tìm theo size
+              { name: { contains: keyword } },   // Tìm theo tên
+              { color: { contains: keyword } },   // Tìm theo màu
+              { size: { contains: keyword } },   // Tìm theo size
             ],
           }
         : {}),

@@ -7,7 +7,6 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import prisma from './config/prisma.js'
-//import authRoutes from './routes/authRoutes.js'
 import Routes from './routes/index.js'
 
 const app = express()
@@ -45,7 +44,7 @@ app.use(cors({
 // --- Rate limiting ---
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  max: 200, // Giới hạn 100 requests
+  max: 200, // Giới hạn 200 requests
   message: 'Quá nhiều requests, vui lòng thử lại sau'
 })
 app.use(limiter)
@@ -85,11 +84,50 @@ app.get('/api/test-db', async (req, res) => {
 
 // --- Error handling ---
 app.use((err, req, res, next) => {
-  console.error('Error:', err)
-  console.error('Error stack:', err.stack)
-  res.status(500).json({
+  console.error('❌ Error:', err.message)
+  console.error('📍 Path:', req.path)
+  console.error('📋 Stack:', err.stack)
+
+  // Xử lý Prisma errors cụ thể
+  if (err.code === 'P1001') {
+    // Database connection error
+    console.error('Database connection error')
+    return res.status(503).json({
+      success: false,
+      message: 'Không thể kết nối đến database. Vui lòng thử lại sau.',
+    })
+  }
+
+  if (err.code === 'P2002') {
+    // Unique constraint violation
+    return res.status(409).json({
+      success: false,
+      message: 'Dữ liệu đã tồn tại',
+      error: err.meta?.target ? `Trường ${err.meta.target.join(', ')} đã tồn tại` : err.message
+    })
+  }
+
+  if (err.code === 'P2025') {
+    // Record not found
+    return res.status(404).json({
+      success: false,
+      message: 'Không tìm thấy dữ liệu',
+    })
+  }
+
+  // Xử lý timeout errors
+  if (err.code === 'ETIMEDOUT' || err.message?.includes('timeout')) {
+    console.error('thời gian chờ request vượt quá giới hạn')
+    return res.status(504).json({
+      success: false,
+      message: 'Request timeout. Vui lòng thử lại.',
+    })
+  }
+
+  // Default error response
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Internal server error',
+    message: err.message || 'Internal server error',
     error: process.env.NODE_ENV !== 'production' ? err.message : undefined,
     stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
   })
