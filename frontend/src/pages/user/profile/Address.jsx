@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { FaPlus, FaEdit, FaTrash, FaMapMarkerAlt, FaPhone, FaUser, FaHome, FaBriefcase, FaStar } from "react-icons/fa";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress } from "@/api/address";
 import { Card, CardHeader, CardTitle, CardAction, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

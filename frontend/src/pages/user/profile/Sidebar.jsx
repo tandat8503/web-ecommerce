@@ -1,6 +1,6 @@
 import { Card, Avatar, Typography, Tag, Button, Upload } from "antd";
 import { FaUser, FaKey, FaHistory, FaDownload, FaMapMarkerAlt } from "react-icons/fa";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
 
@@ -112,7 +112,7 @@ export default function Sidebar({
       <div className="space-y-2">
         <button 
           onClick={() => setActiveSection("profile")}
-          className={`block w-full p-3 rounded-lg text-left transition-colors ${
+          className={`block w-full p-3 rounded-lg text-left transition-colors cursor-pointer ${
             activeSection === "profile" 
               ? "bg-blue-50 text-blue-600 font-medium" 
               : "text-gray-600 hover:bg-gray-100"
@@ -123,7 +123,7 @@ export default function Sidebar({
         </button>
         <button 
           onClick={() => setActiveSection("password")}
-          className={`block w-full p-3 rounded-lg text-left transition-colors ${
+          className={`block w-full p-3 rounded-lg text-left transition-colors cursor-pointer ${
             activeSection === "password" 
               ? "bg-blue-50 text-blue-600 font-medium" 
               : "text-gray-600 hover:bg-gray-100"
@@ -134,7 +134,7 @@ export default function Sidebar({
         </button>
         <button 
           onClick={() => setActiveSection("history")}
-          className={`block w-full p-3 rounded-lg text-left transition-colors ${
+          className={`block w-full p-3 rounded-lg text-left transition-colors cursor-pointer ${
             activeSection === "history" 
               ? "bg-blue-50 text-blue-600 font-medium" 
               : "text-gray-600 hover:bg-gray-100"
@@ -145,7 +145,7 @@ export default function Sidebar({
         </button>
         <button 
           onClick={() => setActiveSection("address")}
-          className={`block w-full p-3 rounded-lg text-left transition-colors ${
+          className={`block w-full p-3 rounded-lg text-left transition-colors cursor-pointer ${
             activeSection === "address" 
               ? "bg-blue-50 text-blue-600 font-medium" 
               : "text-gray-600 hover:bg-gray-100"

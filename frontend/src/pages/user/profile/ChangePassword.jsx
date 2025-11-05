@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, Form, Input, Button, Typography } from "antd";
 import { FaKey } from "react-icons/fa";
 import { changePassword } from "@/api/userProfile";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
 

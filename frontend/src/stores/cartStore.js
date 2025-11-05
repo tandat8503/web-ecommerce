@@ -7,7 +7,7 @@ import {
   removeFromCart as removeFromCartAPI,
   clearCart as clearCartAPI
 } from '@/api/cart'
-import { toast } from 'react-toastify'
+import { toast } from '@/lib/utils'
 
 /**
  * 🛒 CART STORE - Quản lý giỏ hàng VIẾT T2

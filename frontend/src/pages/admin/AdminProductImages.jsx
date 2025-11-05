@@ -47,7 +47,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import {
   getProductImages,
   createProductImage,

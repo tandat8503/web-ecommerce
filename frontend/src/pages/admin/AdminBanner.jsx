@@ -4,7 +4,7 @@ import { FaPlus, FaEdit, FaTrash, FaEye, FaUpload } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { UploadOutlined } from "@ant-design/icons";
 

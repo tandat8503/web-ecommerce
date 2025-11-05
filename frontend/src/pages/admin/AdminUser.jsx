@@ -10,7 +10,9 @@ import {
   Card,
   Tag,
   Tooltip,
-  Badge
+  Badge,
+  Select,
+  Checkbox
 } from "antd";
 import {
   FaPlus,
@@ -22,7 +24,7 @@ import { Button } from "@/components/ui/button"; // shadcn/ui button
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import {
   getUsers,
   createUser,
@@ -91,9 +93,18 @@ export default function AdminUser() {
     try {
       setModalLoading(true);
       if (record) {
-        await updateUser(record.id, values);
+        // Khi edit, chỉ gửi các field có giá trị
+        const updateData = {};
+        if (values.firstName !== undefined) updateData.firstName = values.firstName;
+        if (values.lastName !== undefined) updateData.lastName = values.lastName;
+        if (values.phone !== undefined) updateData.phone = values.phone;
+        if (values.role !== undefined) updateData.role = values.role;
+        if (values.isVerified !== undefined) updateData.isVerified = values.isVerified;
+        
+        await updateUser(record.id, updateData);
         toast.success("Cập nhật user thành công");
       } else {
+        // Khi tạo mới, gửi tất cả values
         await createUser(values);
         toast.success("Tạo user thành công (mặc định mật khẩu 123456)");
       }
@@ -114,6 +125,10 @@ export default function AdminUser() {
           toast.error("Vui lòng điền đầy đủ thông tin bắt buộc.");
         } else if (errorMessage.includes("User không tồn tại")) {
           toast.error("Không tìm thấy người dùng này.");
+        } else if (errorMessage.includes("Không thể thay đổi quyền của chính bạn")) {
+          toast.error("Không thể thay đổi quyền của chính bạn.");
+        } else if (errorMessage.includes("Không thể vô hiệu hóa tài khoản của chính bạn")) {
+          toast.error("Không thể vô hiệu hóa tài khoản của chính bạn.");
         } else {
           toast.error(` ${errorMessage}`);
         }
@@ -169,8 +184,8 @@ export default function AdminUser() {
     {
       name: "email",
       label: "Email",
-      component: <Input placeholder="Nhập email" type="email" />,
-      rules: [
+      component: <Input placeholder="Nhập email" type="email" disabled={!!editingRecord} />,
+      rules: editingRecord ? [] : [
         { required: true, message: "Bắt buộc" },
         { type: "email", message: "Email không hợp lệ" }
       ],
@@ -199,51 +214,89 @@ export default function AdminUser() {
         }
       ],
     },
+    {
+      name: "role",
+      label: "Quyền",
+      component: (
+        <Select placeholder="Chọn quyền">
+          <Select.Option value="CUSTOMER">Khách hàng</Select.Option>
+          <Select.Option value="ADMIN">Quản trị viên</Select.Option>
+        </Select>
+      ),
+      initialValue: "CUSTOMER",
+    },
+    // Chỉ hiển thị isVerified khi edit
+    ...(editingRecord ? [{
+      name: "isVerified",
+      label: "Đã xác thực email",
+      component: <Checkbox>Đã xác thực email</Checkbox>,
+      valuePropName: "checked",
+    }] : []),
   ];
 
   // Table columns
   const columns = [
     { title: "ID", dataIndex: "id", width: 70 },
     {
-    title: "Email",
-    dataIndex: "email",
-    render: (text) => <strong>{text}</strong>,
-  },
+      title: "Email",
+      dataIndex: "email",
+      render: (text) => <strong>{text}</strong>,
+    },
     { title: "Họ", dataIndex: "firstName" },
     { title: "Tên", dataIndex: "lastName" },
     { title: "SĐT", dataIndex: "phone" },
     {
-  title: "Trạng thái",
-  dataIndex: "isActive",
-  render: (val, record) => {
-    const isLoading = loadingUserId === record.id;
+      title: "Quyền",
+      dataIndex: "role",
+      width: 120,
+      render: (role) => (
+        <Tag color={role === "ADMIN" ? "purple" : "blue"}>
+          {role === "ADMIN" ? "Quản trị viên" : "Khách hàng"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Xác thực",
+      dataIndex: "isVerified",
+      width: 100,
+      render: (isVerified) => (
+        <Tag color={isVerified ? "green" : "orange"}>
+          {isVerified ? "Đã xác thực" : "Chưa xác thực"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "isActive",
+      render: (val, record) => {
+        const isLoading = loadingUserId === record.id;
 
-    return (
-      <Popconfirm
-        title={`Bạn có chắc muốn ${val ? "vô hiệu hóa" : "kích hoạt"} user này?`}
-        okText="Xác nhận"
-        cancelText="Hủy"
-        onConfirm={() => handleToggleStatus(record.id, val)}
-      >
-        <span>
-        {isLoading ? (
-          <Tag color="blue" className="flex items-center gap-1 cursor-wait">
-            <div className="w-3 h-3 bg-gray-300 rounded animate-pulse"></div>
-            Đang cập nhật...
-          </Tag>
-        ) : (
-          <Tag
-            color={val ? "green" : "red"}
-            className="cursor-pointer"
+        return (
+          <Popconfirm
+            title={`Bạn có chắc muốn ${val ? "vô hiệu hóa" : "kích hoạt"} user này?`}
+            okText="Xác nhận"
+            cancelText="Hủy"
+            onConfirm={() => handleToggleStatus(record.id, val)}
           >
-            {val ? "Hoạt động" : "Vô hiệu hóa"}
-          </Tag>
-        )}
-        </span>
-      </Popconfirm>
-    );
-  },
-},
+            <span>
+              {isLoading ? (
+                <Tag color="blue" className="flex items-center gap-1 cursor-wait">
+                  <div className="w-3 h-3 bg-gray-300 rounded animate-pulse"></div>
+                  Đang cập nhật...
+                </Tag>
+              ) : (
+                <Tag
+                  color={val ? "green" : "red"}
+                  className="cursor-pointer"
+                >
+                  {val ? "Hoạt động" : "Vô hiệu hóa"}
+                </Tag>
+              )}
+            </span>
+          </Popconfirm>
+        );
+      },
+    },
 
     {
       title: "Thao tác",
@@ -345,7 +398,7 @@ export default function AdminUser() {
               </div>
             </div>
             {showSkeleton ? (
-              <TableSkeleton rows={pagination.limit} columns={6} />
+              <TableSkeleton rows={pagination.limit} columns={9} />
             ) : (
               <Table
                 rowKey="id"
@@ -389,6 +442,46 @@ export default function AdminUser() {
           { name: "lastName", label: "Tên" },
           { name: "phone", label: "SĐT" },
           {
+            name: "role",
+            label: "Quyền",
+            render: (role) => (
+              <Tag color={role === "ADMIN" ? "purple" : "blue"}>
+                {role === "ADMIN" ? "Quản trị viên" : "Khách hàng"}
+              </Tag>
+            ),
+          },
+          {
+            name: "isVerified",
+            label: "Xác thực email",
+            render: (v) => (
+              <Tag color={v ? "green" : "orange"}>
+                {v ? "Đã xác thực" : "Chưa xác thực"}
+              </Tag>
+            ),
+          },
+          {
+            name: "emailVerifiedAt",
+            label: "Ngày xác thực email",
+            render: (v) => {
+              if (!v) return <span className="text-gray-400">Chưa xác thực</span>;
+              const d = new Date(v);
+              const date = d.toLocaleDateString("vi-VN");
+              const time = d.toLocaleTimeString("vi-VN");
+              return `${time} ${date}`;
+            },
+          },
+          {
+            name: "lastLoginAt",
+            label: "Lần đăng nhập cuối",
+            render: (v) => {
+              if (!v) return <span className="text-gray-400">Chưa đăng nhập</span>;
+              const d = new Date(v);
+              const date = d.toLocaleDateString("vi-VN");
+              const time = d.toLocaleTimeString("vi-VN");
+              return `${time} ${date}`;
+            },
+          },
+          {
             name: "isActive",
             label: "Trạng thái",
             render: (v) => (
@@ -397,27 +490,26 @@ export default function AdminUser() {
               </Tag>
             ),
           },
-
-        {
-          name: "createdAt",
-          label: "Ngày tạo",
-          render: (v) => {
-            const d = new Date(v);
-            const date = d.toLocaleDateString("vi-VN");   // 6/10/2025
-            const time = d.toLocaleTimeString("vi-VN");   // 10:23:28
-            return `${time} ${date}`;
+          {
+            name: "createdAt",
+            label: "Ngày tạo",
+            render: (v) => {
+              const d = new Date(v);
+              const date = d.toLocaleDateString("vi-VN");
+              const time = d.toLocaleTimeString("vi-VN");
+              return `${time} ${date}`;
+            },
           },
-        },
-        {
-          name: "updatedAt",
-          label: "Ngày cập nhật",
-          render: (v) => {
-            const d = new Date(v);
-            const date = d.toLocaleDateString("vi-VN");
-            const time = d.toLocaleTimeString("vi-VN");
-            return `${time} ${date}`;
+          {
+            name: "updatedAt",
+            label: "Ngày cập nhật",
+            render: (v) => {
+              const d = new Date(v);
+              const date = d.toLocaleDateString("vi-VN");
+              const time = d.toLocaleTimeString("vi-VN");
+              return `${time} ${date}`;
+            },
           },
-        },
         ]}
       />
       </Row>

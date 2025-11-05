@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, Form, Input, Button, Typography } from "antd";
 import { FaUser, FaEnvelope, FaPhone } from "react-icons/fa";
 import {  updateProfile } from "@/api/userProfile";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
 

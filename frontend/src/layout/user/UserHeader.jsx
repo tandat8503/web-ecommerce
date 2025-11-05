@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { getPublicCategories } from "@/api/adminCategories";
 import useWishlistStore from "@/stores/wishlistStore";
 import useCartStore from "@/stores/cartStore";
@@ -185,7 +185,7 @@ export default function UserHeader() {
         <button
           onClick={handleLogout}
           disabled={loadingLogout}
-          className="flex items-center gap-2 w-full text-left text-red-500 hover:text-red-700"
+          className="flex items-center gap-2 w-full text-left text-red-500 hover:text-red-700 cursor-pointer"
         >
           <FaSignOutAlt />
           {loadingLogout ? "Đang đăng xuất..." : "Đăng xuất"}
@@ -314,7 +314,7 @@ export default function UserHeader() {
 
               {/* Icon giỏ hàng */}
               <Link to="/cart">
-                <CartIconButton className="text-white " />
+                <CartIconButton className="text-white cursor-pointer " />
               </Link>
             </div>
           </Col>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 
 export default function ProtectedRoute({ children, requireAdmin = false }) {
   const [loading, setLoading] = useState(true);

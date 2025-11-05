@@ -6,7 +6,7 @@ import {
   toggleWishlist as toggleWishlistAPI,
   clearWishlist as clearWishlistAPI
 } from '@/api/wishlist'
-import { toast } from 'react-toastify'
+import { toast } from '@/lib/utils'
 
 /**
  * 🎯 WISHLIST STORE - Quản lý danh sách yêu thích

@@ -17,8 +17,9 @@ import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { formatPrice } from "@/lib/utils";
 
 import {
   getProductVariants,
@@ -181,7 +182,6 @@ export default function AdminProductVariant() {
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "productId", label: "Sản phẩm" },
-    { name: "sku", label: "SKU" },
     { name: "name", label: "Tên" },
     { name: "price", label: "Giá" },
     { name: "color", label: "Màu" },
@@ -219,15 +219,24 @@ export default function AdminProductVariant() {
   // ✅ Columns table
   const columns = [
     { title: "ID", dataIndex: "id", width: 80 },
-    {
-      title: "SKU",
-      dataIndex: "sku",
-      render: (text) => <strong>{text}</strong>,
-    },
     { title: "Tên", dataIndex: "name" },
-    { title: "Giá", dataIndex: "price", render: (val) => `${val} đ` },
+    { title: "Giá", dataIndex: "price", render: (val) => formatPrice(val) },
     { title: "Màu", dataIndex: "color" },
     { title: "Size", dataIndex: "size" },
+    {
+      title: "Số lượng tồn",
+      dataIndex: "stockQuantity",
+      render: (qty) => {
+        const quantity = qty || 0;
+        // Xác định màu theo số lượng
+        let color = "green"; // Còn nhiều (>= 50)
+        if (quantity === 0) color = "red"; // Hết hàng
+        else if (quantity < 10) color = "orange"; // Sắp hết
+        else if (quantity < 50) color = "blue"; // Còn ít
+        
+        return <Tag color={color}>{quantity.toLocaleString("vi-VN")}</Tag>;
+      },
+    },
     {
       title: "Trạng thái",
       dataIndex: "isActive",
@@ -327,7 +336,7 @@ export default function AdminProductVariant() {
                     <FaPlus /> Thêm Biến thể
                   </Button>
                   <Input.Search
-                    placeholder="Tìm kiếm theo tên, SKU,màu, size..."
+                    placeholder="Tìm kiếm theo tên, màu, size..."
                     allowClear // nút xóa
                     onSearch={(val) => {
                       setKeyword(val);
@@ -339,7 +348,7 @@ export default function AdminProductVariant() {
               </div>
 
               {loading ? (
-                <TableSkeleton columnsCount={7} rowsCount={6} />
+                <TableSkeleton columnsCount={6} rowsCount={6} />
               ) : (
                 <Table
                   rowKey="id"

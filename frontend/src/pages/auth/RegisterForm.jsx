@@ -4,7 +4,7 @@ import { FaUser, FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaPhone, FaGif
 import { Link } from "react-router-dom";
 import { register } from "@/api/auth";
 import { getUserProfile } from "@/api/userProfile";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import LoginGoogle from "./LoginGoogle";
 
 const { Title, Text } = Typography;
@@ -374,7 +374,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
           <Divider className="my-6">
             <Text className="text-gray-400 text-xs font-medium px-4 bg-white">Hoặc đăng ký với</Text>
           </Divider>
-
+              {/* Google Login */}
           <LoginGoogle />
 
           <div className="text-center mt-6">

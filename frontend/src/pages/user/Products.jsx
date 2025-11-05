@@ -62,12 +62,13 @@ const Products = () => {
   
   // Effect 1: Load dữ liệu ban đầu khi component mount
   // Chỉ chạy 1 lần khi component được tạo
+  // Load categories và brands (không block việc load products)
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  // Effect 2: Load sản phẩm khi filters hoặc page thay đổi
-  // Chạy lại mỗi khi user thay đổi filter hoặc chuyển trang
+  // Effect 2: Load sản phẩm khi component mount hoặc filters/page thay đổi
+  // Load ngay lập tức khi component mount và load lại khi filters/page thay đổi
   useEffect(() => {
     loadProducts();
   }, [filters, pagination.page]);
@@ -79,29 +80,39 @@ const Products = () => {
   /**
    * Load dữ liệu ban đầu (categories và brands) cho dropdown filters
    * Chạy song song 2 API calls để tối ưu performance
+   * Nếu có lỗi thì chỉ log, không set error để không ảnh hưởng đến việc load products
    */
   const loadInitialData = async () => {
     try {
-      setLoading(true);
       // Gọi song song 2 API để lấy categories và brands
-      const [categoriesRes, brandsRes] = await Promise.all([
+      // Sử dụng Promise.allSettled để không bị dừng nếu 1 trong 2 API lỗi
+      const [categoriesRes, brandsRes] = await Promise.allSettled([
         adminCategoriesAPI.getCategories(),
         adminBrandsAPI.getBrands()
       ]);
       
-      // Xử lý dữ liệu categories theo cấu trúc API backend
-      // API trả về: { data: { items: [...] } } hoặc { data: [...] }
-      const categoriesData = categoriesRes.data?.items || categoriesRes.data || [];
-      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+      // Xử lý categories - nếu thành công thì set, nếu lỗi thì để mảng rỗng
+      if (categoriesRes.status === 'fulfilled') {
+        const categoriesData = categoriesRes.value.data?.items || categoriesRes.value.data || [];
+        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+      } else {
+        console.warn('Failed to load categories:', categoriesRes.reason);
+        setCategories([]);
+      }
       
-      // Xử lý dữ liệu brands theo cấu trúc API backend  
-      const brandsData = brandsRes.data?.items || brandsRes.data || [];
-      setBrands(Array.isArray(brandsData) ? brandsData : []);
+      // Xử lý brands - nếu thành công thì set, nếu lỗi thì để mảng rỗng
+      if (brandsRes.status === 'fulfilled') {
+        const brandsData = brandsRes.value.data?.items || brandsRes.value.data || [];
+        setBrands(Array.isArray(brandsData) ? brandsData : []);
+      } else {
+        console.warn('Failed to load brands:', brandsRes.reason);
+        setBrands([]);
+      }
     } catch (err) {
-      console.error('Error loading initial data:', err);
-      setError('Không thể tải dữ liệu ban đầu');
-    } finally {
-      setLoading(false);
+      // Chỉ log lỗi, không set error để không ảnh hưởng đến việc load products
+      console.warn('Error loading initial data:', err);
+      setCategories([]);
+      setBrands([]);
     }
   };
 
@@ -355,14 +366,7 @@ const Products = () => {
 
           {/* Products Grid */}
           <div className="flex-1">
-            {error ? (
-              <div className="text-center py-12">
-                <div className="text-red-500 text-lg mb-4">{error}</div>
-                <Button onClick={loadProducts} variant="outline">
-                  Thử lại
-                </Button>
-              </div>
-            ) : products.length === 0 ? (
+            {products.length === 0 ? (
               <div className="text-center py-12">
                 <div className="text-gray-500 text-lg mb-4">Không tìm thấy sản phẩm nào</div>
                 <Button onClick={clearFilters} variant="outline">

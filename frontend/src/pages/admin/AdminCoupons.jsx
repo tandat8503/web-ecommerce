@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { getCoupons, createCoupon, updateCoupon, deleteCoupon, getCouponById } from "@/api/adminCoupons";
 import { formatPrice } from "@/lib/utils";
 import dayjs from "dayjs";

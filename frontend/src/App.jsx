@@ -4,14 +4,6 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import InitUserData from "@/components/InitUserData";
 
-/**
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║                📝 FILE #5 - VIẾT THỨ 5 (APP ROOT)                         ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
- * 
-*/
- 
- 
 function App() {
   return (
     <>
@@ -22,16 +14,18 @@ function App() {
       <RouterProvider router={router} />
       
       {/* Toast notifications */}
+      {/* limit={1} - Chỉ hiển thị 1 toast tại một thời điểm, toast mới sẽ thay thế toast cũ */}
       <ToastContainer 
         position="top-right" 
-        autoClose={500}
+        autoClose={100}
         hideProgressBar={false}
-        newestOnTop={false}
+        newestOnTop={true}
         closeOnClick
         rtl={false}
         pauseOnFocusLoss
         draggable
         pauseOnHover
+        limit={1}
       />
     </>
   )

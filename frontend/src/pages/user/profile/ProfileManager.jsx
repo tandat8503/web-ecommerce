@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Row, Col, Typography, Modal } from "antd";
 import { getUserProfile, uploadAvatar } from "@/api/userProfile";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import Sidebar from "./Sidebar";
 import Profile from "./Profile";
 import ChangePassword from "./ChangePassword";
@@ -21,6 +21,21 @@ export default function ProfileManager() {
   // Lấy thông tin user từ API
   useEffect(() => {
     fetchUserProfile();
+  }, []);
+
+  // Lắng nghe event userUpdated để cập nhật user data khi đăng nhập Google
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      console.log("🔔 ProfileManager - Nhận được event userUpdated, reload user data");
+      // Gọi lại API để lấy user data mới nhất từ database (bao gồm avatar mới nhất)
+      fetchUserProfile();
+    };
+
+    window.addEventListener("userUpdated", handleUserUpdated);
+
+    return () => {
+      window.removeEventListener("userUpdated", handleUserUpdated);
+    };
   }, []);
 
   // Đọc query param section (?section=address) để mở thẳng tab tương ứng

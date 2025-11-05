@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from '@/lib/utils';
 
 /**
  * Custom hook cho CRUD operations trong admin pages

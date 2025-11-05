@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Form, Input, Button, Card, Typography, Divider, Checkbox, Space } from "antd";
 import {  FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaGift } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "@/api/auth";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
+import LoginGoogle from "./LoginGoogle";
 
 const { Title, Text } = Typography;
 
 export default function LoginForm({ onSwitchToRegister }) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const [formValues, setFormValues] = useState({});
@@ -68,9 +70,6 @@ export default function LoginForm({ onSwitchToRegister }) {
     }
   };
 
-  const handleGoogleLogin = () => {
-    toast.info("Tính năng đăng nhập Google đang được phát triển!");
-  };
 
   return (
     <div className="w-full">
@@ -196,13 +195,7 @@ export default function LoginForm({ onSwitchToRegister }) {
             <Text className="text-gray-400 text-xs font-medium px-4 bg-white">Hoặc đăng nhập với</Text>
           </Divider>
 
-          <Button
-            onClick={handleGoogleLogin}
-            className="w-full h-12 border-2 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-[1.02] shadow-md hover:shadow-lg"
-          >
-            <FaGoogle className="text-xl text-red-500" />
-            <span>Google</span>
-          </Button>
+          <LoginGoogle />
 
           <div className="text-center mt-6">
             <Text className="text-gray-600 text-base">

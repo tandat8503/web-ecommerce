@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, Table, Tag, Typography } from "antd";
 import { FaUser } from "react-icons/fa";
 import { getLoginHistory } from "@/api/userProfile";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
 

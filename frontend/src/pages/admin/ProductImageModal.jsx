@@ -27,7 +27,7 @@ import {
   EyeOutlined
 } from "@ant-design/icons";
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import {
   getProductImages,
   createProductImage,

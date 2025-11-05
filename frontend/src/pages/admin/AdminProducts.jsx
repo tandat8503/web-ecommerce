@@ -24,7 +24,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import ProductImageModal from "./ProductImageModal";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import {
   getProducts,
   createProduct,

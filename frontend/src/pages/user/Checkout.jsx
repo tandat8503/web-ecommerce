@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,7 @@ import useCartStore from "@/stores/cartStore";
 import { formatPrice } from "@/lib/utils";
 import { getAddresses } from "@/api/address";
 import { createOrder } from "@/api/orders";
+import { createMoMoPayment } from "@/api/payment";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -111,10 +112,99 @@ export default function Checkout() {
       };
       // Gọi API tạo đơn với payload tối giản BE yêu cầu
       const res = await createOrder(payload);
-      toast.success("Đặt hàng thành công");
+      
       // B7 - Refresh giỏ hàng để chỉ còn lại các item chưa đặt (BE đã xoá theo cartItemIds)
       await fetchCart();
+      
       const orderId = res.data?.order?.id;
+      
+      // Nếu thanh toán bằng MoMo, tạo payment URL và redirect
+      if (paymentMethod === "MOMO" && orderId) {
+        try {
+          toast.info("Đang tạo liên kết thanh toán MoMo...");
+          
+          // Đợi một chút để backend xử lý xong order và payment
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          console.log("🔄 Gọi API createMoMoPayment với orderId:", orderId);
+          const paymentRes = await createMoMoPayment(orderId);
+          
+          console.log("📦 Payment Response full:", paymentRes);
+          console.log("📦 Payment Response data:", paymentRes.data);
+          
+          // Kiểm tra nhiều format response có thể có
+          const paymentUrl = paymentRes.data?.data?.paymentUrl || 
+                            paymentRes.data?.paymentUrl ||
+                            paymentRes.data?.payUrl;
+          
+          const isSuccess = paymentRes.data?.success === true || paymentRes.data?.success === undefined;
+          
+          console.log("🔍 Payment URL found:", paymentUrl);
+          console.log("🔍 Is Success:", isSuccess);
+          console.log("🔍 Full response.data:", JSON.stringify(paymentRes.data, null, 2));
+          
+          if (paymentUrl && typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
+            // Redirect đến MoMo payment page
+            console.log("✅ Redirecting to MoMo:", paymentUrl);
+            
+            // Hiển thị toast và redirect ngay
+            toast.info("Đang chuyển đến trang thanh toán MoMo...", {
+              autoClose: 1000
+            });
+            
+            // Dùng window.location.replace để redirect (không giữ history)
+            // Hoặc window.location.href nếu muốn giữ history
+            setTimeout(() => {
+              window.location.replace(paymentUrl);
+            }, 500); // Đợi 500ms để user thấy toast message
+            
+            // Set submitting = false và return ngay
+            setSubmitting(false);
+            return;
+          } else {
+            console.error("❌ Payment URL không hợp lệ:", {
+              paymentUrl: paymentUrl,
+              type: typeof paymentUrl,
+              startsWithHttp: paymentUrl?.startsWith?.('http'),
+              success: paymentRes.data?.success,
+              fullResponse: paymentRes.data
+            });
+            throw new Error(paymentRes.data?.message || "Không thể tạo liên kết thanh toán");
+          }
+        } catch (paymentError) {
+          console.error("❌ Lỗi tạo payment URL:", paymentError);
+          console.error("📋 Error details:", {
+            message: paymentError.message,
+            status: paymentError.response?.status,
+            statusText: paymentError.response?.statusText,
+            data: paymentError.response?.data,
+            orderId: orderId
+          });
+          
+          const errorMessage = paymentError.response?.data?.message || 
+                              paymentError.response?.data?.error ||
+                              paymentError.message || 
+                              "Không thể tạo liên kết thanh toán MoMo";
+          
+          toast.error(errorMessage);
+          setSubmitting(false);
+          
+          // Vẫn redirect đến order success với orderId để user có thể xem đơn
+          if (orderId) {
+            setTimeout(() => {
+              navigate(`/order-success?orderId=${orderId}`);
+            }, 1500);
+          } else {
+            setTimeout(() => {
+              navigate(`/order-success`);
+            }, 1500);
+          }
+          return;
+        }
+      }
+      
+      // Nếu không phải MoMo hoặc không có payment URL, redirect đến order success
+      toast.success("Đặt hàng thành công");
       if (orderId) navigate(`/order-success?orderId=${orderId}`);
       else navigate(`/order-success`);
     } catch (e) {

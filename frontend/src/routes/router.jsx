@@ -8,7 +8,6 @@ import AdminCategories from "@/pages/admin/AdminCategories";
 import AdminBrands from "@/pages/admin/AdminBrands";
 import AdminProducts from "@/pages/admin/AdminProducts";
 import AdminProductVariant from "@/pages/admin/AdminProductVariant";
-import AdminProductSpecification from "@/pages/admin/AdminProductSpecification";
 import AdminCoupons from "@/pages/admin/AdminCoupons";
 import AdminOrders from "@/pages/admin/AdminOrders";
 
@@ -21,6 +20,7 @@ import Wishlist from "@/pages/user/Wishlist";
 import Cart from "@/pages/user/Cart";
 import Checkout from "@/pages/user/Checkout";
 import OrderSuccess from "@/pages/user/OrderSuccess";
+import PaymentResult from "@/pages/user/PaymentResult";
 import MyOrders from "@/pages/user/MyOrders";
 import OrderDetail from "@/pages/user/OrderDetail";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
@@ -44,6 +44,7 @@ const router = createBrowserRouter([
       { path: "cart", element: <Cart /> },
       { path: "checkout", element: <Checkout /> },
       { path: "order-success", element: <OrderSuccess /> },
+      { path: "payment/result", element: <PaymentResult /> },
       { path: "orders", element: <MyOrders /> },
       { path: "orders/:id", element: <OrderDetail /> },
       { path: "profile-manager", element: <ProfileManager /> },
@@ -73,7 +74,6 @@ const router = createBrowserRouter([
       { path: "brands", element: <AdminBrands /> },
       { path: "products", element: <AdminProducts /> },
       { path: "product-variants", element: <AdminProductVariant /> },
-      { path: "product-specifications", element: <AdminProductSpecification /> },
       { path: "coupons", element: <AdminCoupons /> },
       { path: "orders", element: <AdminOrders /> },
     ],
