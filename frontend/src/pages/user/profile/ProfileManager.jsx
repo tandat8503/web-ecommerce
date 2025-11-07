@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { Row, Col, Typography, Modal } from "antd";
+import { Row, Col, Typography } from "antd";
 import { getUserProfile, uploadAvatar } from "@/api/userProfile";
 import { toast } from "@/lib/utils";
 import Sidebar from "./Sidebar";
 import Profile from "./Profile";
 import ChangePassword from "./ChangePassword";
 import LoginHistory from "./LoginHistory";
-import Address from "./Address";
+import Address from "./address/Address";
 
 const { Text } = Typography;
 

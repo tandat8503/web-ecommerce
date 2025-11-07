@@ -1,21 +1,15 @@
-import { useState, useEffect } from "react";
 import { Row, Col, Input, Dropdown, Avatar, Spin } from "antd";
 import {
-  FaShoppingCart,
   FaBars,
   FaHeart,
-  FaSignOutAlt,
-  FaShoppingBag,
   FaUser,
+  FaShoppingBag,
+  FaSignOutAlt,
 } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
-import { logout } from "@/api/auth";
-import { toast } from "@/lib/utils";
-import { getPublicCategories } from "@/api/adminCategories";
-import useWishlistStore from "@/stores/wishlistStore";
-import useCartStore from "@/stores/cartStore";
+import { Link } from "react-router-dom";
 import { CartIconButton } from "@/components/user/CartButton";
+import { useUserHeader } from "./useUserHeader";
 
 /* --------------------------
   Component con: Dropdown hiển thị tên danh mục
@@ -56,10 +50,16 @@ const CategoryDropdown = ({ categories, loading }) => {
   Component chính: Header người dùng
 --------------------------- */
 export default function UserHeader() {
-  const [user, setUser] = useState(null);
-  const [loadingLogout, setLoadingLogout] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [loadingCategories, setLoadingCategories] = useState(false);
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    user,
+    loadingLogout,
+    categories,
+    loadingCategories,
+    wishlistCount,
+    handleLogout
+  } = useUserHeader();
+
 
   const navigate = useNavigate();
   
@@ -144,6 +144,11 @@ export default function UserHeader() {
   };
 
   // Danh sách menu user
+  // Tạo danh sách menu user dựa trên role
+  // - Admin: Hiển thị link "Quản trị"
+  // - User: Hiển thị link "Đơn mua"
+  // - Tất cả: Hiển thị "Hồ sơ cá nhân" và "Đăng xuất"
+
   const userMenuItems = [
     {
       key: "profile-manager",
