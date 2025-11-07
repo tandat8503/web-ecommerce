@@ -10,7 +10,7 @@ const includeBasic = {
   brand: { select: { id: true, name: true } } // Chỉ lấy id, name của brand
 };
 
-// Function lấy danh sách sản phẩm với phân trang và tìm kiếm
+// Function lấy danh sách sản phẩm với phân trang và tìm kiếm FullText
 export const listProducts = async (req, res) => {
   // Tạo context object để log và debug
   const context = { path: 'admin.products.list', query: req.query };
@@ -20,33 +20,131 @@ export const listProducts = async (req, res) => {
     
     // Lấy các tham số từ query string với giá trị mặc định
     const { page = 1, limit = 10, q, categoryId, brandId, status } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
     
-    // Xây dựng điều kiện WHERE động dựa trên các filter
-    const and = []; // Mảng chứa các điều kiện AND
-    if (q) and.push({ name: { contains: q } }); // Tìm kiếm theo tên (MySQL không hỗ trợ mode insensitive)
-    if (categoryId) and.push({ categoryId: Number(categoryId) }); // Lọc theo category ID
-    if (brandId) and.push({ brandId: Number(brandId) }); // Lọc theo brand ID
-    if (status) and.push({ status: status.toUpperCase() }); // Lọc theo trạng thái
-    const where = and.length ? { AND: and } : undefined; // Nếu có điều kiện thì tạo WHERE clause
+    // Detect public/admin route
+    const isPublicRoute = !req.user;
+    
+    console.log('Query params:', { page, limit, q, categoryId, brandId, status, isPublicRoute });
 
-    console.log('Query params:', { page, limit, q, categoryId, brandId, status, where });
+    let items, total;
 
-    // Thực hiện 2 query song song để tối ưu performance
-    const [items, total] = await Promise.all([
-      // Query 1: Lấy danh sách sản phẩm với phân trang
-      prisma.product.findMany({
-        where, // Điều kiện lọc
-        orderBy: { createdAt: 'desc' }, // Sắp xếp theo thời gian tạo (mới nhất trước)
-        skip: (Number(page) - 1) * Number(limit), // Bỏ qua các bản ghi của trang trước
-        take: Number(limit), // Lấy đúng số lượng bản ghi của trang hiện tại
-        include: includeBasic // Include thông tin category và brand
-      }),
-      // Query 2: Đếm tổng số sản phẩm thỏa mãn điều kiện
-      prisma.product.count({ where })
-    ]);
+    // Nếu có search query (q), sử dụng FullText search
+    if (q && q.trim()) {
+      // Sanitize search term: loại bỏ các ký tự đặc biệt có thể gây lỗi SQL
+      const searchTerm = q.trim()
+        .replace(/[+\-><()~*\"@]/g, ' ') // Loại bỏ ký tự đặc biệt của FullText
+        .replace(/\s+/g, ' ') // Chuẩn hóa khoảng trắng
+        .trim();
+      
+      if (!searchTerm) {
+        // Nếu sau khi sanitize không còn gì, fallback về query thông thường
+        const and = [];
+        if (categoryId) and.push({ categoryId: Number(categoryId) });
+        if (brandId) and.push({ brandId: Number(brandId) });
+        if (status) and.push({ status: status.toUpperCase() });
+        if (isPublicRoute) and.push({ status: 'ACTIVE' });
+        const where = and.length ? { AND: and } : undefined;
+        [items, total] = await Promise.all([
+          prisma.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limitNum, include: includeBasic }),
+          prisma.product.count({ where })
+        ]);
+      } else {
+        // Tạo search pattern cho FullText BOOLEAN MODE
+        // Sử dụng + để yêu cầu tất cả từ phải xuất hiện, * để tìm từ bắt đầu bằng
+        const searchWords = searchTerm.split(' ').filter(w => w.length > 0);
+        const searchPattern = searchWords.map(word => `+${word}*`).join(' ');
+        
+        // Sanitize search pattern để tránh SQL injection
+        const safeSearchPattern = searchPattern.replace(/'/g, "''");
+        
+        // Xây dựng điều kiện WHERE
+        const whereConditions = [];
+        whereConditions.push(`MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE)`);
+        
+        if (categoryId) whereConditions.push(`p.category_id = ${Number(categoryId)}`);
+        if (brandId) whereConditions.push(`p.brand_id = ${Number(brandId)}`);
+        if (status) whereConditions.push(`p.status = '${status.toUpperCase().replace(/'/g, "''")}'`);
+        if (isPublicRoute) whereConditions.push(`p.status = 'ACTIVE'`);
+        
+        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        
+        // Query để lấy items với FullText search và relevance score
+        const itemsQuery = `
+          SELECT p.*, 
+                 MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE) as relevance
+          FROM products p
+          ${whereClause}
+          ORDER BY relevance DESC, p.created_at DESC
+          LIMIT ${limitNum} OFFSET ${skip}
+        `;
+        
+        // Query để đếm total
+        const countQuery = `
+          SELECT COUNT(*) as total
+          FROM products p
+          ${whereClause}
+        `;
+        
+        // Thực hiện queries
+        const [itemsResult, countResult] = await Promise.all([
+          prisma.$queryRawUnsafe(itemsQuery),
+          prisma.$queryRawUnsafe(countQuery)
+        ]);
+        
+        items = itemsResult;
+        total = Number(countResult[0]?.total || 0);
+        
+        // Include category và brand cho mỗi item
+        items = await Promise.all(items.map(async (item) => {
+          const [category, brand] = await Promise.all([
+            prisma.category.findUnique({ 
+              where: { id: item.category_id },
+              select: { id: true, name: true, slug: true }
+            }),
+            prisma.brand.findUnique({ 
+              where: { id: item.brand_id },
+              select: { id: true, name: true }
+            })
+          ]);
+          return {
+            ...item,
+            category,
+            brand
+          };
+        }));
+      }
+    } else {
+      // Không có search query, sử dụng Prisma query thông thường
+      const and = [];
+      if (categoryId) and.push({ categoryId: Number(categoryId) });
+      if (brandId) and.push({ brandId: Number(brandId) });
+      if (status) and.push({ status: status.toUpperCase() });
+      
+      // Public route chỉ lấy ACTIVE products
+      if (isPublicRoute) {
+        and.push({ status: 'ACTIVE' });
+      }
+      
+      const where = and.length ? { AND: and } : undefined;
+
+      // Thực hiện 2 query song song để tối ưu performance
+      [items, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limitNum,
+          include: includeBasic
+        }),
+        prisma.product.count({ where })
+      ]);
+    }
 
     // Tạo response payload với thông tin phân trang
-    const payload = { items, total, page: Number(page), limit: Number(limit) };
+    const payload = { items, total, page: pageNum, limit: limitNum };
     console.log('END', { ...context, total: payload.total, itemsCount: items.length });
     return res.json(payload);
   } catch (error) {

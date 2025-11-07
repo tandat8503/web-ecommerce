@@ -309,17 +309,29 @@ const Products = () => {
                   </Button>
                 </div>
 
-                {/* Search */}
+                {/* Search - FullText Search */}
                 <form onSubmit={handleSearch} className="mb-6">
                   <div className="relative">
                     <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
-                      placeholder="Tìm kiếm sản phẩm..."
+                      placeholder="Tìm kiếm sản phẩm (FullText search)..."
                       value={filters.q}
                       onChange={(e) => handleFilterChange('q', e.target.value)}
                       className="pl-10"
+                      onKeyDown={(e) => {
+                        // Auto search khi nhấn Enter
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearch(e);
+                        }
+                      }}
                     />
                   </div>
+                  {filters.q && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      🔍 Tìm kiếm thông minh: tìm trong tên và mô tả sản phẩm
+                    </p>
+                  )}
                 </form>
 
                 {/* Category Filter */}

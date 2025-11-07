@@ -758,12 +758,17 @@ export default function AdminProducts() {
                     <FaPlus /> Thêm sản phẩm
                   </Button>
                   <Search
-                    placeholder="Tìm kiếm sản phẩm..."
+                    placeholder="Tìm kiếm sản phẩm (FullText search)..."
                     allowClear
                     size="large"
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
+                    onSearch={(value) => {
+                      setSearchValue(value);
+                      setKeyword(value);
+                    }}
                     style={{ width: 300 }}
+                    enterButton
                   />
                 </div>
                 <div>Tổng: {pagination.total} sản phẩm</div>
