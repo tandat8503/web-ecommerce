@@ -171,12 +171,20 @@ model Product {
   metaTitle       String?       @map("meta_title")
   metaDescription String?       @map("meta_description")
   viewCount       Int           @default(0) @map("view_count")
-
+ 
+  // Thông số kỹ thuật cơ bản
+  warranty        String?       @map("warranty") // Bảo hành (VD: "24 tháng", "12 tháng")
   
-  specName        String?       @map("spec_name")
-  specValue       String?       @map("spec_value")
-  specUnit        String?       @map("spec_unit")
-  displayName     String?       @map("display_name")
+  // Kích thước - dùng các field riêng để đơn giản, dễ hiểu cho sinh viên
+  // Cho bàn/tủ: dùng length, width, height
+  // Cho ghế: dùng seatHeight, backHeight, width, depth
+  length          Decimal?      @map("length") @db.Decimal(10, 2) // Chiều dài (cm) - cho bàn/tủ
+  width           Decimal?      @map("width") @db.Decimal(10, 2) // Chiều rộng (cm) - dùng chung
+  height          Decimal?      @map("height") @db.Decimal(10, 2) // Chiều cao (cm) - cho bàn/tủ
+  seatHeight      Decimal?      @map("seat_height") @db.Decimal(10, 2) // Chiều cao ghế ngồi (cm) - cho ghế
+  backHeight      Decimal?      @map("back_height") @db.Decimal(10, 2) // Chiều cao tựa lưng (cm) - cho ghế
+  depth           Decimal?      @map("depth") @db.Decimal(10, 2) // Chiều sâu (cm) - cho ghế/tủ
+  dimensionUnit   String?       @default("cm") @map("dimension_unit") // Đơn vị kích thước (mặc định: "cm") 
   
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")

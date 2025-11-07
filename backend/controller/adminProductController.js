@@ -156,7 +156,8 @@ export const createProduct = async (req, res) => {
     console.log('START', context);
     const {
       name, slug: slugInput, sku: skuInput, price, salePrice, costPrice, stock, minStockLevel,
-      description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured
+      description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured,
+      warranty, length, width, height, seatHeight, backHeight, depth, dimensionUnit
     } = req.body;
 
     // Validation cơ bản
@@ -214,6 +215,14 @@ export const createProduct = async (req, res) => {
       brandId: Number(brandId),
       status: isActive === 'true' || isActive === true ? 'ACTIVE' : 'INACTIVE',
       isFeatured: isFeatured === 'true' || isFeatured === true ? true : false,
+      warranty: warranty ? warranty.trim() : null,
+      length: length ? Number(length) : null,
+      width: width ? Number(width) : null,
+      height: height ? Number(height) : null,
+      seatHeight: seatHeight ? Number(seatHeight) : null,
+      backHeight: backHeight ? Number(backHeight) : null,
+      depth: depth ? Number(depth) : null,
+      dimensionUnit: dimensionUnit ? dimensionUnit.trim() : 'cm',
     };
 
     // Xử lý trạng thái trực tiếp nếu có
@@ -334,6 +343,34 @@ export const updateProduct = async (req, res) => {
     // Xử lý trạng thái trực tiếp nếu có
     if (data.status && ['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK'].includes(data.status.toUpperCase())) {
       data.status = data.status.toUpperCase();
+    }
+
+    // Xử lý warranty
+    if (data.warranty !== undefined) {
+      data.warranty = data.warranty ? data.warranty.trim() : null;
+    }
+
+    // Xử lý các field kích thước
+    if (data.length !== undefined) {
+      data.length = data.length ? Number(data.length) : null;
+    }
+    if (data.width !== undefined) {
+      data.width = data.width ? Number(data.width) : null;
+    }
+    if (data.height !== undefined) {
+      data.height = data.height ? Number(data.height) : null;
+    }
+    if (data.seatHeight !== undefined) {
+      data.seatHeight = data.seatHeight ? Number(data.seatHeight) : null;
+    }
+    if (data.backHeight !== undefined) {
+      data.backHeight = data.backHeight ? Number(data.backHeight) : null;
+    }
+    if (data.depth !== undefined) {
+      data.depth = data.depth ? Number(data.depth) : null;
+    }
+    if (data.dimensionUnit !== undefined) {
+      data.dimensionUnit = data.dimensionUnit ? data.dimensionUnit.trim() : 'cm';
     }
 
     const updated = await prisma.product.update({

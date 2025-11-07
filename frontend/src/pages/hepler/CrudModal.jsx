@@ -80,19 +80,30 @@ export default function CrudModal({
     >
       <Spin spinning={confirmLoading}>
         <Form form={form} layout="vertical">
-          {fields?.map((field) => (
-            <Form.Item
-              key={field.name}
-              name={field.name}
-              label={field.label}
-              rules={field.rules || []}
-              valuePropName={field.valuePropName} // hỗ trợ upload
-              getValueFromEvent={field.getValueFromEvent}
-              initialValue={field.initialValue}
-            >
-              {field.component}
-            </Form.Item>
-          ))}
+          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.categoryId !== currentValues.categoryId}>
+            {() => {
+              const categoryId = form.getFieldValue('categoryId');
+              return fields?.map((field) => {
+                // Nếu field có shouldRender function, kiểm tra điều kiện
+                if (field.shouldRender && !field.shouldRender(categoryId)) {
+                  return null;
+                }
+                return (
+                  <Form.Item
+                    key={field.name}
+                    name={field.name}
+                    label={field.label}
+                    rules={field.rules || []}
+                    valuePropName={field.valuePropName} // hỗ trợ upload
+                    getValueFromEvent={field.getValueFromEvent}
+                    initialValue={field.initialValue}
+                  >
+                    {field.component}
+                  </Form.Item>
+                );
+              });
+            }}
+          </Form.Item>
         </Form>
       </Spin>
     </Modal>

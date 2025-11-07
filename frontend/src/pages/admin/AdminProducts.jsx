@@ -13,10 +13,12 @@ import {
   Badge,
   Select,
   InputNumber,
+  Form,
   // Upload, // ĐÃ COMMENT - Không dùng upload ảnh
   Button as AntButton,
   Switch,
 } from "antd";
+
 import { FaPlus, FaEdit, FaTrash, FaEye, FaImages } from "react-icons/fa";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -132,6 +134,45 @@ export default function AdminProducts() {
       if (values.metaDescription) formData.append('metaDescription', values.metaDescription);
       if (values.categoryId) formData.append('categoryId', values.categoryId);
       if (values.brandId) formData.append('brandId', values.brandId);
+      if (values.warranty) formData.append('warranty', values.warranty);
+      
+      // Helper function để convert về cm
+      const convertToCm = (value, unit) => {
+        if (!value) return null;
+        if (unit === 'inch') {
+          return (Number(value) * 2.54).toFixed(2);
+        }
+        return Number(value).toFixed(2);
+      };
+
+      // Xử lý các field kích thước với unit riêng
+      if (values.length !== undefined && values.length !== null) {
+        const lengthInCm = convertToCm(values.length, values.lengthUnit || 'cm');
+        formData.append('length', lengthInCm);
+      }
+      if (values.width !== undefined && values.width !== null) {
+        const widthInCm = convertToCm(values.width, values.widthUnit || 'cm');
+        formData.append('width', widthInCm);
+      }
+      if (values.height !== undefined && values.height !== null) {
+        const heightInCm = convertToCm(values.height, values.heightUnit || 'cm');
+        formData.append('height', heightInCm);
+      }
+      if (values.seatHeight !== undefined && values.seatHeight !== null) {
+        const seatHeightInCm = convertToCm(values.seatHeight, values.seatHeightUnit || 'cm');
+        formData.append('seatHeight', seatHeightInCm);
+      }
+      if (values.backHeight !== undefined && values.backHeight !== null) {
+        const backHeightInCm = convertToCm(values.backHeight, values.backHeightUnit || 'cm');
+        formData.append('backHeight', backHeightInCm);
+      }
+      if (values.depth !== undefined && values.depth !== null) {
+        const depthInCm = convertToCm(values.depth, values.depthUnit || 'cm');
+        formData.append('depth', depthInCm);
+      }
+      
+      // Set dimensionUnit mặc định là cm (vì đã convert tất cả về cm)
+      formData.append('dimensionUnit', 'cm');
       
       // Xử lý trạng thái - gửi status field thay vì isActive
       if (values.isActive !== undefined) {
@@ -350,6 +391,26 @@ export default function AdminProducts() {
     },
   ];
 
+  // Helper function để kiểm tra category có phải là Ghế không
+  const isChairCategory = (categoryId) => {
+    if (!categoryId) return false;
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return false;
+    const categoryName = category.name?.toLowerCase() || '';
+    return categoryName.includes('ghế') || categoryName.includes('ghe') || categoryName.includes('chair');
+  };
+
+  // Helper function để kiểm tra category có phải là Bàn/Tủ không
+  const isTableOrCabinetCategory = (categoryId) => {
+    if (!categoryId) return false;
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return false;
+    const categoryName = category.name?.toLowerCase() || '';
+    return categoryName.includes('bàn') || categoryName.includes('ban') || 
+           categoryName.includes('tủ') || categoryName.includes('tu') ||
+           categoryName.includes('table') || categoryName.includes('cabinet');
+  };
+
   // Modal fields
   const fields = [
     {
@@ -450,6 +511,151 @@ export default function AdminProducts() {
       component: <Switch checkedChildren="⭐ Nổi bật" unCheckedChildren="Bình thường" />,
       valuePropName: "checked",
     },
+    {
+      name: "warranty",
+      label: "Bảo hành",
+      component: <Input placeholder="VD: 24 tháng, 12 tháng..." />,
+    },
+    // ===== KÍCH THƯỚC CHO BÀN/TỦ =====
+    {
+      name: "length",
+      label: "Chiều dài (cho bàn/tủ)",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="length" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 120"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="lengthUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId),
+    },
+    {
+      name: "width",
+      label: "Chiều rộng",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="width" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 60"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="widthUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId) || isChairCategory(categoryId),
+    },
+    {
+      name: "height",
+      label: "Chiều cao (cho bàn/tủ)",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="height" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 75"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="heightUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId),
+    },
+    // ===== KÍCH THƯỚC CHO GHẾ =====
+    {
+      name: "seatHeight",
+      label: "Chiều cao ghế ngồi (cho ghế)",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="seatHeight" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 45"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="seatHeightUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isChairCategory(categoryId),
+    },
+    {
+      name: "backHeight",
+      label: "Chiều cao tựa lưng (cho ghế)",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="backHeight" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 110"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="backHeightUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isChairCategory(categoryId),
+    },
+    {
+      name: "depth",
+      label: "Chiều sâu (cho ghế/tủ)",
+      component: (
+        <Input.Group compact>
+          <Form.Item name="depth" noStyle>
+            <InputNumber
+              style={{ width: '75%' }}
+              placeholder="VD: 55"
+              min={0}
+              step={0.01}
+            />
+          </Form.Item>
+          <Form.Item name="depthUnit" noStyle initialValue="cm">
+            <Select style={{ width: '25%' }}>
+              <Option value="cm">cm</Option>
+              <Option value="inch">inch</Option>
+            </Select>
+          </Form.Item>
+        </Input.Group>
+      ),
+      shouldRender: (categoryId) => isChairCategory(categoryId) || isTableOrCabinetCategory(categoryId),
+    },
   ];
 
   // Detail fields
@@ -465,6 +671,22 @@ export default function AdminProducts() {
     { name: "minStockLevel", label: "Mức tồn kho tối thiểu", render: (v) => v || 5 },
     { name: "metaTitle", label: "Tiêu đề SEO", render: (v) => v || "-" },
     { name: "metaDescription", label: "Mô tả SEO", render: (v) => v || "-" },
+    { name: "warranty", label: "Bảo hành", render: (v) => v || "-" },
+    { 
+      name: "dimensions", 
+      label: "Kích thước", 
+      render: (_, record) => {
+        const unit = record.dimensionUnit || "cm";
+        const parts = [];
+        if (record.length) parts.push(`Dài: ${Number(record.length).toFixed(2)} ${unit}`);
+        if (record.width) parts.push(`Rộng: ${Number(record.width).toFixed(2)} ${unit}`);
+        if (record.height) parts.push(`Cao: ${Number(record.height).toFixed(2)} ${unit}`);
+        if (record.seatHeight) parts.push(`Cao ghế: ${Number(record.seatHeight).toFixed(2)} ${unit}`);
+        if (record.backHeight) parts.push(`Cao tựa: ${Number(record.backHeight).toFixed(2)} ${unit}`);
+        if (record.depth) parts.push(`Sâu: ${Number(record.depth).toFixed(2)} ${unit}`);
+        return parts.length > 0 ? parts.join(", ") : "-";
+      }
+    },
     { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },
     { name: "brand", label: "Thương hiệu", render: (v) => v?.name || "-" },
     {

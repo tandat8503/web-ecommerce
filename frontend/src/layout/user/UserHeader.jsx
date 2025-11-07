@@ -120,24 +120,26 @@ export default function UserHeader() {
   const handleLogout = async () => {
     try {
       setLoadingLogout(true);
-      await logout();
-      
-      // Xóa localStorage
+      // Gọi API logout (không cần await - nếu token hết hạn cũng không sao)
+      logout().catch(() => {
+        // Bỏ qua lỗi nếu token đã hết hạn - vẫn logout thành công ở frontend
+      });
+    } catch (error) {
+      // Bỏ qua lỗi
+    } finally {
+      // ✨ QUAN TRỌNG: Luôn clear localStorage và state, bất kể API có thành công hay không
+      // Điều này đảm bảo logout luôn thành công ngay cả khi token đã hết hạn
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       setUser(null);
       
-      // ✨ QUAN TRỌNG: Reset Zustand wishlist và cart state khi logout
-      // Để badge số lượng wishlist và cart biến mất ngay lập tức
+      // Reset Zustand wishlist và cart state khi logout
       resetWishlist();
       resetCart();
       
-      toast.success(" Đăng xuất thành công!");
-      navigate("/");
-    } catch (error) {
-      toast.error("❌ Có lỗi xảy ra khi đăng xuất", { autoClose: 3000 });
-    } finally {
       setLoadingLogout(false);
+      toast.success("Đăng xuất thành công!");
+      navigate("/");
     }
   };
 
