@@ -1,102 +1,30 @@
-import { useEffect, useState } from "react";
 import { Table, Popconfirm, Tag, Tooltip, Space, Row, Col, Card, Badge, Image, Input, Switch, Upload, Button as AntButton } from "antd";
-import { FaPlus, FaEdit, FaTrash, FaEye, FaUpload } from "react-icons/fa";
+import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { UploadOutlined } from "@ant-design/icons";
-
-import {
-  getBanners,
-  getBannerById,
-  createBanner,
-  updateBanner,
-  deleteBanner,
-} from "@/api/banner.js";
+import { useAdminBanner } from "./useAdminBanner";
 
 export default function AdminBanner() {
-  const [banners, setBanners] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  const fetchBanners = async () => {
-    setLoading(true);
-    try {
-      const [res] = await Promise.all([getBanners(), sleep(800)]);
-      setBanners(res.data.data);
-    } catch (err) {
-        console.error(err);
-      toast.error("Lỗi tải banner");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchBanners();
-  }, []);
-
-  const handleSubmit = async (values, record) => {
-    setConfirmLoading(true);
-    try {
-      const formData = new FormData();
-      
-      // Xử lý từng field riêng biệt
-      if (values.title) formData.append('title', values.title);
-      if (values.isActive !== undefined) {
-        formData.append('isActive', values.isActive ? 'true' : 'false');
-      }
-      
-      // Thêm file ảnh nếu có
-      if (values.image && values.image[0]?.originFileObj) {
-        formData.append('image', values.image[0].originFileObj);
-      }
-
-      if (record) {
-        await updateBanner(record.id, formData);
-        toast.success("Cập nhật banner thành công");
-      } else {
-        await createBanner(formData);
-        toast.success("Tạo banner thành công");
-      }
-      setModalOpen(false);
-      setEditingRecord(null);
-      fetchBanners();
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi khi lưu banner");
-    }
-    setConfirmLoading(false);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteBanner(id);
-      toast.success("Xóa thành công");
-      fetchBanners();
-    } catch (err) {
-        console.error(err);
-      toast.error("Lỗi khi xóa banner");
-    }
-  };
-
-  const handleView = async (id) => {
-    try {
-      const res = await getBannerById(id);
-      setDetailData(res.data.data);
-      setDetailOpen(true);
-    } catch (err) {
-      console.error(err);
-      toast.error("Không tải được chi tiết banner");
-    }
-  };
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    banners,
+    loading,
+    modalOpen,
+    detailOpen,
+    editingRecord,
+    detailData,
+    confirmLoading,
+    handleSubmit,
+    handleDelete,
+    handleView,
+    openCreateModal,
+    openEditModal,
+    closeModal,
+    closeDetailModal,
+  } = useAdminBanner();
 
   // ✅ Chuẩn hóa fields để form CRUD đẹp
   const formFields = [
@@ -202,10 +130,7 @@ export default function AdminBanner() {
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white"
               size="sm"
-              onClick={() => {
-                setEditingRecord(record);
-                setModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             >
               <FaEdit />
             </Button>
@@ -262,13 +187,7 @@ export default function AdminBanner() {
         >    
                 <Card className="shadow rounded-2xl">
               <div className="flex justify-between mb-4">
-                <Button
-                  variant="default"
-                  onClick={() => {
-                    setEditingRecord(null);
-                    setModalOpen(true);
-                  }}
-                >
+                <Button variant="default" onClick={openCreateModal}>
                   <FaPlus /> Thêm Banner
                 </Button>
               </div>
@@ -292,20 +211,19 @@ export default function AdminBanner() {
       {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closeModal}
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         title={editingRecord ? "Cập nhật Banner" : "Thêm Banner"}
         confirmLoading={confirmLoading}
         fields={formFields}
-        okText={editingRecord ? "Cập nhật" : "Thêm"}   
-
+        okText={editingRecord ? "Cập nhật" : "Thêm"}
       />
 
       {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
+        onCancel={closeDetailModal}
         title="Chi tiết Banner"
         data={detailData}
         fields={detailFields}
@@ -313,3 +231,4 @@ export default function AdminBanner() {
     </>
   );
 }
+

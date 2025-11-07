@@ -1,9 +1,7 @@
-import { useEffect, useState } from "react";
 import {
   Table,
   Input,
   Space,
-  message,
   Row,
   Col,
   Card,
@@ -17,147 +15,38 @@ import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "@/lib/utils";
-import { getOrders, getOrderById, updateOrder, updateOrderNotes } from "@/api/adminOrders";
 import { formatPrice } from "@/lib/utils";
+import { useAdminOrders } from "./useAdminOrders";
 
 const { Option } = Select;
 
 export default function AdminOrders() {
-  const [showSkeleton, setShowSkeleton] = useState(false);//  skeleton loading
-  const [modalLoading, setModalLoading] = useState(false);//  modal loading
-  const [orders, setOrders] = useState([]);//  danh sách đơn hàng
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });//  phân trang
-  const [statusFilter, setStatusFilter] = useState("");//  trạng thái lọc
-  const [keyword, setKeyword] = useState("");//  từ khóa tìm kiếm
-  const [modalOpen, setModalOpen] = useState(false);//  modal cập nhật trạng thái đang mở
-  const [detailOpen, setDetailOpen] = useState(false);//  modal chi tiết đang mở
-  const [editingRecord, setEditingRecord] = useState(null);//  đơn hàng đang cập nhật
-  const [detailData, setDetailData] = useState(null);//  chi tiết đơn hàng
-  const [updatingOrderId, setUpdatingOrderId] = useState(null);//  trạng thái đang cập nhật đơn hàng
-
-  // Debounce search
-  const [searchValue, setSearchValue] = useState("");//  từ khóa tìm kiếm
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 }));//  reset về trang 1
-      setKeyword(searchValue);//  set từ khóa tìm kiếm
-    }, 500);//  delay 500ms
-    return () => clearTimeout(timer);
-  }, [searchValue]);
-
-  // Load danh sách đơn hàng
-  const fetchOrders = async () => {
-    try {
-      setShowSkeleton(true);
-      
-      const [res] = await Promise.all([
-        getOrders({
-          page: pagination.page,//  trang hiện tại
-          limit: pagination.limit,//  số lượng đơn hàng trên mỗi trang
-          status: statusFilter || undefined,//  trạng thái lọc
-          q: keyword || undefined,//  từ khóa tìm kiếm
-        }),
-        new Promise((resolve) => setTimeout(resolve, 600)),//  delay 600ms
-      ]);
-
-      setOrders(res.data.items || []);//  set danh sách đơn hàng
-      setPagination((prev) => ({
-        ...prev,//  set phân trang
-        total: res.data.total || 0,//  set tổng số đơn hàng
-      }));
-    } catch (err) {
-      console.log(err);
-      toast.error("Không thể tải danh sách đơn hàng");
-    } finally {
-      setShowSkeleton(false);
-    }
-  };
-//  fetch danh sách đơn hàng khi trang, số lượng đơn hàng trên mỗi trang, trạng thái lọc, từ khóa tìm kiếm thay đổi
-  useEffect(() => {
-    fetchOrders();
-  }, [pagination.page, pagination.limit, statusFilter, keyword]); 
-
-  // Hàm lấy màu badge theo trạng thái
-  const getStatusBadgeColor = (status) => {
-    switch (String(status)) {
-      case "PENDING":
-        return "orange";
-      case "CONFIRMED":
-        return "blue";
-      case "PROCESSING":
-        return "cyan";
-      case "DELIVERED":
-        return "green";
-      case "CANCELLED":
-        return "red";
-      default:
-        return "default";
-    }
-  };
-
-  // Hàm lấy label trạng thái
-  const getStatusLabel = (status) => {
-    const labels = {
-      PENDING: "Chờ xác nhận",
-      CONFIRMED: "Đã xác nhận",
-      PROCESSING: "Đang giao",
-      DELIVERED: "Đã giao",
-      CANCELLED: "Đã hủy",
-    };
-    return labels[status] || status;
-  };
-
-  // Submit form cập nhật ghi chú admin (từ modal)
-  const handleSubmit = async (values, record) => {
-    try {
-      setModalLoading(true);
-      // Cập nhật chỉ ghi chú, không thay đổi status
-      await updateOrderNotes(record.id, values.notes || "");
-      toast.success("Cập nhật ghi chú thành công");
-      setModalOpen(false);
-      fetchOrders();
-    } catch (err) {
-      console.log(err);
-      const errorMsg = err.response?.data?.message || "Có lỗi khi cập nhật ghi chú";
-      toast.error(errorMsg);
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  // Cập nhật trạng thái trực tiếp từ dropdown
-  const handleStatusChange = async (orderId, newStatus) => {
-    try {
-      setUpdatingOrderId(orderId);
-      await updateOrder(orderId, {
-        status: newStatus,
-        notes: "",
-      });
-      toast.success("Cập nhật trạng thái đơn hàng thành công");
-      fetchOrders();
-    } catch (err) {
-      console.log(err);
-      const errorMsg = err.response?.data?.message || "Có lỗi khi cập nhật đơn hàng";
-      toast.error(errorMsg);
-      // Refresh để lấy lại trạng thái cũ
-      fetchOrders();
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
-
-  // Xem chi tiết đơn hàng
-  const handleViewDetail = async (id) => {
-    try {
-      const res = await getOrderById(id);
-      setDetailData(res.data);
-      setDetailOpen(true);
-    } catch (err) {
-      console.log(err);
-      toast.error("Không thể tải chi tiết đơn hàng");
-    }
-  };
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    orders,
+    showSkeleton,
+    modalLoading,
+    pagination,
+    searchValue,
+    statusFilter,
+    modalOpen,
+    detailOpen,
+    editingRecord,
+    detailData,
+    updatingOrderId,
+    handleSubmit,
+    handleStatusChange,
+    handleViewDetail,
+    openUpdateModal,
+    closeModal,
+    closeDetailModal,
+    handleSearchChange,
+    handleStatusFilterChange,
+    handlePaginationChange,
+    getStatusBadgeColor,
+    getStatusLabel,
+    getNotesInitialValue,
+  } = useAdminOrders();
 
   // Cấu hình form fields cho CrudModal (chỉ cập nhật ghi chú admin)
   const getStatusUpdateFields = (order) => {
@@ -166,16 +55,12 @@ export default function AdminOrders() {
       {
         name: "notes",
         label: "Ghi chú admin",
-        component: <Input.TextArea rows={4} placeholder="Nhập ghi chú (tùy chọn)" />,
-        initialValue: order.adminNote || "",
+        component: (
+          <Input.TextArea rows={4} placeholder="Nhập ghi chú (tùy chọn)" />
+        ),
+        initialValue: getNotesInitialValue(order),
       },
     ];
-  };
-
-  // Hàm mở modal cập nhật trạng thái và ghi chú
-  const handleOpenUpdateModal = (record) => {
-    setEditingRecord(record);//  set đơn hàng đang cập nhật
-    setModalOpen(true);//  mở modal cập nhật trạng thái và ghi chú
   };
 
   // Table columns
@@ -271,7 +156,7 @@ export default function AdminOrders() {
                 <Button
                   className="bg-blue-500 hover:bg-blue-600 text-white"
                   size="sm"
-                  onClick={() => handleOpenUpdateModal(record)}
+                  onClick={() => openUpdateModal(record)}
                 >
                   <FaEdit />
                 </Button>
@@ -283,7 +168,9 @@ export default function AdminOrders() {
               disabled
               style={{ width: 150 }}
             >
-              <Option value={record.status}>{getStatusLabel(record.status)}</Option>
+              <Option value={record.status}>
+                {getStatusLabel(record.status)}
+              </Option>
             </Select>
           )}
         </Space>
@@ -453,6 +340,15 @@ export default function AdminOrders() {
 
   return (
     <>
+      <style>
+        {`
+          @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+        `}
+      </style>
       <Row gutter={[16, 16]}>
         <Col span={24}>
           <Badge.Ribbon
@@ -477,7 +373,7 @@ export default function AdminOrders() {
                 <Input.Search
                   placeholder="Tìm theo mã đơn, tên khách hàng"
                   value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   allowClear
                   style={{ width: 300 }}
                 />
@@ -486,10 +382,7 @@ export default function AdminOrders() {
                   allowClear
                   style={{ width: 200 }}
                   value={statusFilter || undefined}
-                  onChange={(value) => {
-                    setStatusFilter(value || "");
-                    setPagination((prev) => ({ ...prev, page: 1 }));
-                  }}
+                  onChange={handleStatusFilterChange}
                 >
                   <Option value="PENDING">Chờ xác nhận</Option>
                   <Option value="CONFIRMED">Đã xác nhận</Option>
@@ -512,8 +405,7 @@ export default function AdminOrders() {
                     total: pagination.total,
                     showSizeChanger: true,
                     showTotal: (total) => `Tổng ${total} đơn hàng`,
-                    onChange: (page, pageSize) =>
-                      setPagination({ ...pagination, page, limit: pageSize }),
+                    onChange: handlePaginationChange,
                   }}
                 />
               )}
@@ -525,10 +417,7 @@ export default function AdminOrders() {
       {/* Modal cập nhật trạng thái */}
       <CrudModal
         open={modalOpen}
-        onCancel={() => {
-          setModalOpen(false);
-          setEditingRecord(null);
-        }}
+        onCancel={closeModal}
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         fields={getStatusUpdateFields(editingRecord)}
@@ -541,10 +430,7 @@ export default function AdminOrders() {
       {/* Modal chi tiết */}
       <DetailModal
         open={detailOpen}
-        onCancel={() => {
-          setDetailOpen(false);
-          setDetailData(null);
-        }}
+        onCancel={closeDetailModal}
         title="Chi tiết đơn hàng"
         data={detailData}
         fields={detailFields}

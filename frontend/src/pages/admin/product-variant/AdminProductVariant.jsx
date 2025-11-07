@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Table,
   Popconfirm,
@@ -17,112 +16,32 @@ import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { formatPrice } from "@/lib/utils";
-
-import {
-  getProductVariants,
-  getProductVariantById,
-  createProductVariant,
-  updateProductVariant,
-  deleteProductVariant,
-} from "@/api/adminproductVariant";
-import { getProducts } from "@/api/adminProducts";
+import { useAdminProductVariant } from "./useAdminProductVariant";
 
 export default function AdminProductVariant() {
-  const [variants, setVariants] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
-
-  //tìm kiếm và phân trang
-  const [pagination, setPagination] = useState({ page: 1, limit: 5, total: 0 });
-  const [keyword, setKeyword] = useState("");
-
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  // Load danh sách biến thể với phân trang và tìm kiếm
-  const fetchVariants = async (
-    page = pagination.page,
-    limit = pagination.limit,
-    keyword = ""
-  ) => {
-    setLoading(true);
-    try {
-      const [res] = await Promise.all([
-        getProductVariants({ page, limit, keyword }),
-        sleep(800),
-      ]);
-      setVariants(res.data.data.variants); //  lấy đúng mảng
-      setPagination(res.data.data.pagination); // phân trang
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi tải biến thể");
-    }
-    setLoading(false);
-  };
-
-  // Load danh sách sản phẩm cho dropdown
-  const fetchProducts = async () => {
-    try {
-      const res = await getProducts();
-      setProducts(res.data.items); // set state
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi tải danh sách sản phẩm");
-    }
-  };
-
-  useEffect(() => {
-    fetchVariants();
-    fetchProducts(); //gọi API sản phẩm khi load page
-  }, []);
-
-  const handleSubmit = async (values, record) => {
-    setConfirmLoading(true);
-    try {
-      if (record) {
-        await updateProductVariant(record.id, values);
-        toast.success("Cập nhật biến thể thành công");
-      } else {
-        await createProductVariant(values);
-        toast.success("Tạo biến thể thành công");
-      }
-      setModalOpen(false);
-      fetchVariants();
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi khi lưu biến thể");
-    }
-    setConfirmLoading(false);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteProductVariant(id);
-      toast.success("Xóa thành công");
-      fetchVariants();
-    } catch (err) {
-      console.error(err);
-      toast.error("Lỗi khi xóa biến thể");
-    }
-  };
-
-  const handleView = async (id) => {
-    try {
-      const res = await getProductVariantById(id);
-      setDetailData(res.data.data);
-      setDetailOpen(true);
-    } catch (err) {
-      console.error(err);
-      toast.error("Không tải được chi tiết biến thể");
-    }
-  };
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    variants,
+    products,
+    loading,
+    modalOpen,
+    detailOpen,
+    editingRecord,
+    detailData,
+    confirmLoading,
+    pagination,
+    handleSubmit,
+    handleDelete,
+    handleView,
+    openCreateModal,
+    openEditModal,
+    closeModal,
+    closeDetailModal,
+    handleSearch,
+    handlePaginationChange,
+  } = useAdminProductVariant();
 
   // ✅ Fields cho CrudModal
   const formFields = [
@@ -140,7 +59,6 @@ export default function AdminProductVariant() {
       ),
       rules: [{ required: true, message: "Vui lòng chọn sản phẩm" }],
     },
-
     {
       name: "name",
       label: "Tên biến thể",
@@ -167,7 +85,6 @@ export default function AdminProductVariant() {
       label: "Size",
       component: <Input placeholder="VD: S, M, L" />,
     },
-
     {
       name: "isActive",
       label: "Trạng thái",
@@ -199,8 +116,8 @@ export default function AdminProductVariant() {
       label: "Ngày tạo",
       render: (v) => {
         const d = new Date(v);
-        const date = d.toLocaleDateString("vi-VN"); // 6/10/2025
-        const time = d.toLocaleTimeString("vi-VN"); // 10:23:28
+        const date = d.toLocaleDateString("vi-VN");
+        const time = d.toLocaleTimeString("vi-VN");
         return `${time} ${date}`;
       },
     },
@@ -233,7 +150,7 @@ export default function AdminProductVariant() {
         if (quantity === 0) color = "red"; // Hết hàng
         else if (quantity < 10) color = "orange"; // Sắp hết
         else if (quantity < 50) color = "blue"; // Còn ít
-        
+
         return <Tag color={color}>{quantity.toLocaleString("vi-VN")}</Tag>;
       },
     },
@@ -246,7 +163,6 @@ export default function AdminProductVariant() {
         </Tag>
       ),
     },
-
     {
       title: "Hành động",
       render: (_, record) => (
@@ -264,10 +180,7 @@ export default function AdminProductVariant() {
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white"
               size="sm"
-              onClick={() => {
-                setEditingRecord(record);
-                setModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             >
               <FaEdit />
             </Button>
@@ -326,22 +239,13 @@ export default function AdminProductVariant() {
             <Card className="shadow rounded-2xl">
               <div className="flex justify-between mb-4">
                 <div className="flex gap-4">
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      setEditingRecord(null);
-                      setModalOpen(true);
-                    }}
-                  >
+                  <Button variant="default" onClick={openCreateModal}>
                     <FaPlus /> Thêm Biến thể
                   </Button>
                   <Input.Search
                     placeholder="Tìm kiếm theo tên, màu, size..."
-                    allowClear // nút xóa
-                    onSearch={(val) => {
-                      setKeyword(val);
-                      fetchVariants(1, pagination.limit, val); // reset về page 1 khi tìm
-                    }}
+                    allowClear
+                    onSearch={handleSearch}
                     style={{ width: 300 }}
                   />
                 </div>
@@ -354,15 +258,12 @@ export default function AdminProductVariant() {
                   rowKey="id"
                   columns={columns}
                   dataSource={variants}
-                  //phân trang
                   pagination={{
                     current: pagination.page,
                     pageSize: pagination.limit,
                     total: pagination.total,
                     showSizeChanger: true,
-                    onChange: (page, pageSize) => {
-                      fetchVariants(page, pageSize, keyword);
-                    },
+                    onChange: handlePaginationChange,
                   }}
                   style={{ marginTop: 16 }}
                 />
@@ -375,7 +276,7 @@ export default function AdminProductVariant() {
       {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closeModal}
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         title={editingRecord ? "Cập nhật Biến thể" : "Thêm Biến thể"}
@@ -387,7 +288,7 @@ export default function AdminProductVariant() {
       {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
+        onCancel={closeDetailModal}
         title="Chi tiết Biến thể"
         data={detailData}
         fields={detailFields}
@@ -395,3 +296,4 @@ export default function AdminProductVariant() {
     </>
   );
 }
+

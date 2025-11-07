@@ -2,14 +2,14 @@ import { createBrowserRouter} from "react-router-dom";
 //Admin
 import AdminLayout from "@/layout/admin/AdminLayout";
 import Dashboard from "@/pages/admin/Dashboard";
-import AdminUser from "@/pages/admin/AdminUser";
-import AdminBanner from "@/pages/admin/AdminBanner";
+import AdminUser from "@/pages/admin/user/AdminUser";
+import AdminBanner from "@/pages/admin/banner/AdminBanner";
 import AdminCategories from "@/pages/admin/AdminCategories";
-import AdminBrands from "@/pages/admin/AdminBrands";
+import AdminBrands from "@/pages/admin/brand/AdminBrands";
 import AdminProducts from "@/pages/admin/AdminProducts";
-import AdminProductVariant from "@/pages/admin/AdminProductVariant";
-import AdminCoupons from "@/pages/admin/AdminCoupons";
-import AdminOrders from "@/pages/admin/AdminOrders";
+import AdminProductVariant from "@/pages/admin/product-variant/AdminProductVariant";
+import AdminCoupons from "@/pages/admin/coupon/AdminCoupons";
+import AdminOrders from "@/pages/admin/order/AdminOrders";
 
 //User
 import UserLayout from "@/layout/user/UserLayout";
