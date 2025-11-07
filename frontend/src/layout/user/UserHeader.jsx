@@ -60,95 +60,10 @@ export default function UserHeader() {
     handleLogout
   } = useUserHeader();
 
-
-  const navigate = useNavigate();
-  
-  // ========== ZUSTAND - Lấy số lượng wishlist và cart từ Zustand stores ==========
-  const { getWishlistCount, resetWishlist } = useWishlistStore();
-  const { getCartCount, resetCart } = useCartStore();
-  
-  // ✅ Subscribe vào store để trigger re-render khi state thay đổi
-  const wishlistCount = useWishlistStore((state) => state.items.length);
-  const cartCount = useCartStore((state) => state.totalQuantity);
-
-  // Lấy danh mục public
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoadingCategories(true);
-        const res = await getPublicCategories();
-        setCategories(res.data.items || []);
-      } catch (error) {
-        console.error("Lỗi tải danh mục:", error);
-      } finally {
-        setLoadingCategories(false);
-      }
-    };
-    fetchCategories();
-  }, []);
-
-  // Lấy thông tin user từ localStorage
-  useEffect(() => {
-    const loadUserData = () => {
-      const userData = localStorage.getItem("user");
-      if (userData) {
-        try {
-          setUser(JSON.parse(userData));
-        } catch (error) {
-          localStorage.removeItem("user");
-          localStorage.removeItem("token");
-        }
-      }
-    };
-
-    loadUserData();
-    
-    // Lắng nghe event userUpdated từ LoginForm/RegisterForm
-    const handleUserUpdated = () => {
-      loadUserData();
-    };
-    
-    window.addEventListener("userUpdated", handleUserUpdated);
-    
-    // Cleanup khi component unmount
-    return () => {
-      window.removeEventListener("userUpdated", handleUserUpdated);
-    };
-  }, []);
-
-  // Đăng xuất
-  const handleLogout = async () => {
-    try {
-      setLoadingLogout(true);
-      // Gọi API logout (không cần await - nếu token hết hạn cũng không sao)
-      logout().catch(() => {
-        // Bỏ qua lỗi nếu token đã hết hạn - vẫn logout thành công ở frontend
-      });
-    } catch (error) {
-      // Bỏ qua lỗi
-    } finally {
-      // ✨ QUAN TRỌNG: Luôn clear localStorage và state, bất kể API có thành công hay không
-      // Điều này đảm bảo logout luôn thành công ngay cả khi token đã hết hạn
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      setUser(null);
-      
-      // Reset Zustand wishlist và cart state khi logout
-      resetWishlist();
-      resetCart();
-      
-      setLoadingLogout(false);
-      toast.success("Đăng xuất thành công!");
-      navigate("/");
-    }
-  };
-
-  // Danh sách menu user
   // Tạo danh sách menu user dựa trên role
   // - Admin: Hiển thị link "Quản trị"
   // - User: Hiển thị link "Đơn mua"
   // - Tất cả: Hiển thị "Hồ sơ cá nhân" và "Đăng xuất"
-
   const userMenuItems = [
     {
       key: "profile-manager",
