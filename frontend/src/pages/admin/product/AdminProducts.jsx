@@ -24,6 +24,7 @@ import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import ProductImageModal from "../ProductImageModal";
 import { useAdminProducts } from "./useAdminProducts";
+import { formatPrice } from "@/lib/utils";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -98,10 +99,10 @@ export default function AdminProducts() {
       dataIndex: "price", 
       render: (p, record) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>${p?.toLocaleString() || 0}</div>
+          <div style={{ fontWeight: 'bold' }}>{formatPrice(p)}</div>
           {record.salePrice && (
             <div style={{ color: '#ff4d4f', fontSize: '12px' }}>
-              Sale: ${record.salePrice.toLocaleString()}
+              Sale: {formatPrice(record.salePrice)}
             </div>
           )}
         </div>
@@ -448,9 +449,9 @@ export default function AdminProducts() {
     { name: "name", label: "Tên sản phẩm" },
     { name: "sku", label: "SKU" },
     { name: "description", label: "Mô tả" },
-    { name: "price", label: "Giá", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
-    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
-    { name: "costPrice", label: "Giá nhập", render: (v) => v ? `$${v.toLocaleString()}` : "-" },
+    { name: "price", label: "Giá", render: (v) => v ? formatPrice(v) : "-" },
+    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? formatPrice(v) : "-" },
+    { name: "costPrice", label: "Giá nhập", render: (v) => v ? formatPrice(v) : "-" },
     { name: "stockQuantity", label: "Tồn kho", render: (v) => v || 0 },
     { name: "minStockLevel", label: "Mức tồn kho tối thiểu", render: (v) => v || 5 },
     { name: "metaTitle", label: "Tiêu đề SEO", render: (v) => v || "-" },
@@ -573,7 +574,7 @@ export default function AdminProducts() {
                       `${range[0]}-${range[1]} của ${total} sản phẩm`,
                     onChange: handlePaginationChange,
                   }}
-                  scroll={{ x: 1000 }}
+                  
                 />
               )}
             </Card>
