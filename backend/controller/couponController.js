@@ -1,5 +1,6 @@
 // Import các thư viện cần thiết
 import prisma from '../config/prisma.js'; // Prisma client để kết nối database
+import logger from '../utils/logger.js';
 
 // ===========================
 // USER COUPON CONTROLLER
@@ -9,10 +10,9 @@ import prisma from '../config/prisma.js'; // Prisma client để kết nối dat
  * Kiểm tra mã giảm giá có hợp lệ không
  */
 export const validateCoupon = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'user.coupon.validate', body: req.body };
+  const context = { path: 'user.coupon.validate' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { couponCode: req.body.couponCode });
     
     const userId = req.user.id; // Lấy ID user từ token
     const { couponCode, subtotal } = req.body;
@@ -95,7 +95,9 @@ export const validateCoupon = async (req, res) => {
     // Tính số tiền cuối cùng sau khi giảm giá
     const finalAmount = subtotal - discountAmount;
 
-    console.log('END', { ...context, couponId: coupon.id, discountAmount: discountAmount });
+    logger.success('Coupon validated', { couponId: coupon.id, discountAmount });
+    logger.end(context.path, { couponId: coupon.id });
+    
     res.status(200).json({
       valid: true,
       message: "Mã giảm giá hợp lệ",
@@ -118,7 +120,11 @@ export const validateCoupon = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Validate coupon error:', error);
+    logger.error('Failed to validate coupon', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -130,10 +136,9 @@ export const validateCoupon = async (req, res) => {
  * Lấy danh sách mã giảm giá có thể sử dụng
  */
 export const getAvailableCoupons = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'user.coupon.available', query: req.query };
+  const context = { path: 'user.coupon.available' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { subtotal: req.query.subtotal });
     
     const userId = req.user.id; // Lấy ID user từ token
     const { subtotal = 0 } = req.query; // Giá trị đơn hàng hiện tại
@@ -190,7 +195,9 @@ export const getAvailableCoupons = async (req, res) => {
       };
     });
 
-    console.log('END', { ...context, totalCount: couponsWithDiscount.length });
+    logger.success('Available coupons fetched', { count: couponsWithDiscount.length });
+    logger.end(context.path, { count: couponsWithDiscount.length });
+    
     res.status(200).json({
       message: "Lấy danh sách mã giảm giá thành công",
       coupons: couponsWithDiscount,
@@ -198,7 +205,11 @@ export const getAvailableCoupons = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get available coupons error:', error);
+    logger.error('Failed to fetch available coupons', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -210,10 +221,9 @@ export const getAvailableCoupons = async (req, res) => {
  * Lấy lịch sử sử dụng mã giảm giá của user
  */
 export const getUserCouponHistory = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'user.coupon.history', query: req.query };
+  const context = { path: 'user.coupon.history' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { userId: req.user.id });
     
     const userId = req.user.id; // Lấy ID user từ token
     const { page = 1, limit = 10 } = req.query;
@@ -266,11 +276,17 @@ export const getUserCouponHistory = async (req, res) => {
       }
     };
 
-    console.log('END', { ...context, totalCount: payload.pagination.totalCount });
+    logger.success('User coupon history fetched', { totalCount: payload.pagination.totalCount });
+    logger.end(context.path, { totalCount: payload.pagination.totalCount });
+    
     res.status(200).json(payload);
 
   } catch (error) {
-    console.error('Get user coupon history error:', error);
+    logger.error('Failed to fetch user coupon history', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined

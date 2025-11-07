@@ -49,16 +49,110 @@ export const createProductSchema = Joi.object({
       .messages({
         'string.pattern.base': 'SKU chỉ được chứa chữ hoa, số và dấu gạch'
       }),
-    price: Joi.number().min(0).precision(2).optional(),
-    salePrice: Joi.number().min(0).precision(2).optional(),
-    costPrice: Joi.number().min(0).precision(2).optional(),
-    stock: Joi.number().integer().min(0).optional(),
-    minStockLevel: Joi.number().integer().min(0).optional(),
+    price: Joi.alternatives().try(
+      Joi.number().min(0).precision(2),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).custom((value, helpers) => {
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional(),
+    salePrice: Joi.alternatives().try(
+      Joi.number().min(0).precision(2),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    costPrice: Joi.alternatives().try(
+      Joi.number().min(0).precision(2),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    stock: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
+        const num = parseInt(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional(),
+    minStockLevel: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
+        const num = parseInt(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional(),
     description: Joi.string().allow('', null),
     metaTitle: Joi.string().max(200).allow('', null),
     metaDescription: Joi.string().max(500).allow('', null),
-    categoryId: Joi.number().integer().optional(),
-    brandId: Joi.number().integer().optional(),
+    categoryId: Joi.alternatives().try(
+      Joi.number().integer(),
+      Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
+        const num = parseInt(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional(),
+    brandId: Joi.alternatives().try(
+      Joi.number().integer(),
+      Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
+        const num = parseInt(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional(),
+    warranty: Joi.string().allow('', null).optional(),
+    length: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    width: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    height: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    seatHeight: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    backHeight: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    depth: Joi.alternatives().try(
+      Joi.number(),
+      Joi.string().pattern(/^\d+(\.\d{1,2})?$/).allow('', null).custom((value, helpers) => {
+        if (!value || value === '') return null;
+        const num = parseFloat(value);
+        return isNaN(num) ? helpers.error('number.base') : num;
+      })
+    ).optional().allow(null, ''),
+    dimensionUnit: Joi.string().valid('cm', 'inch').optional(),
     isActive: Joi.alternatives().try(
       Joi.boolean(),
       Joi.string().valid('true', 'false').custom((value, helpers) => {

@@ -1,11 +1,15 @@
 import prisma from '../config/prisma.js';
+import logger from '../utils/logger.js';
 
 export const listBrands = async (req, res) => {
-  const context = { path: 'admin.brands.list', query: req.query };
+  const context = { path: 'admin.brands.list' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { query: req.query });
+    
     const { page = 1, limit = 10, q } = req.query;
     const where = q ? { name: { contains: q, mode: 'insensitive' } } : undefined;
+
+    logger.debug('Query params', { page, limit, q });
 
     const [items, total] = await Promise.all([
       prisma.brand.findMany({
@@ -18,36 +22,56 @@ export const listBrands = async (req, res) => {
     ]);
 
     const payload = { items, total, page: Number(page), limit: Number(limit) };
-    console.log('END', { ...context, total: payload.total });
+    logger.success('Brands fetched', { total });
+    logger.end(context.path, { total });
     return res.json(payload);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    logger.error('Failed to fetch brands', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
 export const getBrand = async (req, res) => {
-  const context = { path: 'admin.brands.get', params: req.params };
+  const context = { path: 'admin.brands.get' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const brand = await prisma.brand.findUnique({ where: { id } });
+    
     if (!brand) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Brand not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
-    console.log('END', context);
+    
+    logger.success('Brand fetched', { id });
+    logger.end(context.path, { id });
     return res.json(brand);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    logger.error('Failed to fetch brand', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
 export const createBrand = async (req, res) => {
-  const context = { path: 'admin.brands.create', body: req.body };
+  const context = { path: 'admin.brands.create' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { name: req.body.name });
+    
     const { name, country, isActive } = req.body;
 
     const created = await prisma.brand.create({
@@ -57,22 +81,33 @@ export const createBrand = async (req, res) => {
         isActive: isActive ?? true 
       }
     });
-    console.log('END', { ...context, id: created.id });
+    
+    logger.success('Brand created', { id: created.id, name: created.name });
+    logger.end(context.path, { id: created.id });
     return res.status(201).json(created);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    logger.error('Failed to create brand', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
 export const updateBrand = async (req, res) => {
-  const context = { path: 'admin.brands.update', params: req.params, body: req.body };
+  const context = { path: 'admin.brands.update' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const found = await prisma.brand.findUnique({ where: { id } });
+    
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Brand not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
@@ -86,37 +121,56 @@ export const updateBrand = async (req, res) => {
         isActive: isActive ?? found.isActive
       }
     });
-    console.log('END', { ...context, id: updated.id });
+    
+    logger.success('Brand updated', { id, name: updated.name });
+    logger.end(context.path, { id });
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    logger.error('Failed to update brand', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
 export const deleteBrand = async (req, res) => {
-  const context = { path: 'admin.brands.delete', params: req.params };
+  const context = { path: 'admin.brands.delete' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const found = await prisma.brand.findUnique({ where: { id } });
+    
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Brand not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
     const productCount = await prisma.product.count({ where: { brandId: id } });
     if (productCount > 0) {
-      console.warn('HAS_PRODUCTS', { ...context, productCount });
+      logger.warn('Cannot delete brand with products', { id, productCount });
       return res.status(400).json({ message: 'Cannot delete: brand has products' });
     }
 
     await prisma.brand.delete({ where: { id } });
-    console.log('END', context);
+    
+    logger.success('Brand deleted', { id, name: found.name });
+    logger.end(context.path, { id });
     return res.json({ success: true });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    logger.error('Failed to delete brand', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
-

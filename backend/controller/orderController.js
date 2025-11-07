@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import logger from '../utils/logger.js';
 
 /**
  * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
@@ -39,7 +40,7 @@ const generateOrderNumber = async (userId) => {
 //định dạng thành <maKH><YYYYMMDD><SEQ3> vd: 00120251030001
     return `${userCode}${dateCode}${seq}`;
   } catch (e) {
-    console.error("Lỗi khi tạo mã đơn hàng:", e);
+    logger.error('Failed to generate order number', { error: e.message, stack: e.stack });
     const userCode = String(userId).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
     return `${userCode}${new Date().toISOString().slice(0,10).replace(/-/g,'')}${Date.now().toString().slice(-3)}`;
     

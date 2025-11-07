@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
+import logger from '../utils/logger.js';
 
 // ============================
 // TẠO BANNER
@@ -53,7 +54,7 @@ export const getActiveBanners = async (req, res) => {
     });
     res.json({ code: 200, data: banners });
   } catch (error) {
-    console.error(error);
+    logger.error('Failed to fetch active banners', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi server", error });
   }
 };

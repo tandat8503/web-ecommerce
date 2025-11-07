@@ -8,6 +8,7 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import prisma from './config/prisma.js'
 import Routes from './routes/index.js'
+import { ensureFullTextIndex } from './utils/fulltextSearch.js'
 
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -154,6 +155,9 @@ const startServer = async () => {
     // Kiểm tra kết nối database trước khi start server
     await prisma.$connect()
     console.log('✅ Database connected successfully')
+    
+    // Đảm bảo FullText index đã được tạo
+    await ensureFullTextIndex()
     
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`)

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import momoService from '../services/payment/momoMockService.js';
+import logger from '../utils/logger.js';
 
 // ============================================
 // TẠO PAYMENT URL
@@ -47,7 +48,7 @@ export const createMoMoPayment = async (req, res) => {
     
     // Nếu chưa có payment, tạo mới
     if (!payment) {
-      console.log('📝 Tạo payment record mới cho order:', order.id);
+      logger.debug('Creating new payment record', { orderId: order.id });
       payment = await prisma.payment.create({
         data: {
           orderId: order.id,
@@ -57,14 +58,14 @@ export const createMoMoPayment = async (req, res) => {
           transactionId: `MOMO_${order.orderNumber}_${Date.now()}` // Tạm thời, sẽ update sau
         }
       });
-      console.log('✅ Đã tạo payment:', payment.id);
+      logger.success('Payment record created', { paymentId: payment.id });
     }
 
     // Nếu đã có payment URL và chưa hết hạn, trả về URL cũ
     if (payment?.paymentUrl && payment?.expiresAt) {
       const now = new Date();
       if (now < new Date(payment.expiresAt)) {
-        console.log('♻️ Sử dụng payment URL cũ chưa hết hạn');
+        logger.debug('Reusing existing payment URL');
         return res.json({
           success: true,
           data: {
@@ -82,7 +83,7 @@ export const createMoMoPayment = async (req, res) => {
       .map(item => item.product.name)
       .join(', ') || `Đơn hàng ${order.orderNumber}`;
 
-    console.log('🔄 Gọi MoMo API để tạo payment URL...');
+    logger.debug('Calling MoMo API', { orderNumber: order.orderNumber });
     
     // Gọi MoMo API để tạo payment URL
     const paymentData = await momoService.createPayment(
@@ -91,7 +92,7 @@ export const createMoMoPayment = async (req, res) => {
       orderInfo
     );
 
-    console.log('✅ MoMo API response:', {
+    logger.success('MoMo payment created', {
       hasPaymentUrl: !!paymentData.paymentUrl,
       momoOrderId: paymentData.momoOrderId
     });
@@ -108,10 +109,7 @@ export const createMoMoPayment = async (req, res) => {
       }
     });
 
-    console.log('✅ Đã lưu payment URL vào database');
-
-    // Trả về payment URL - Frontend sẽ redirect đến URL này để hiển thị giao diện quét QR của MoMo
-    console.log('✅ Trả về paymentUrl cho frontend:', paymentData.paymentUrl);
+    logger.success('Payment URL saved to database', { paymentId: payment.id });
     return res.json({
       success: true,
       message: 'Tạo payment URL thành công',
@@ -125,8 +123,10 @@ export const createMoMoPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Lỗi tạo payment:', error);
-    console.error('📋 Error stack:', error.stack);
+    logger.error('Failed to create MoMo payment', {
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({
       success: false,
       message: error.message || 'Không thể tạo payment URL',
@@ -204,7 +204,7 @@ export const handleMoMoCallback = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Lỗi callback:', error);
+    logger.error('MoMo callback error', { error: error.message, stack: error.stack });
     return res.status(500).json({ resultCode: 1000, message: 'Server error' });
   }
 };

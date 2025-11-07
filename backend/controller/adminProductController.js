@@ -2,6 +2,8 @@
 import prisma from '../config/prisma.js'; // Prisma client để kết nối database
 import { slugify, generateSKU } from '../utils/slugify.js'; // Utility function để tạo slug và SKU
 import cloudinary from '../config/cloudinary.js'; // Cloudinary client để upload ảnh
+import { searchProductsWithFullText } from '../utils/fulltextSearch.js'; // FullText search utility
+import logger from '../utils/logger.js'; // Logger utility
 
 // Cấu hình include cơ bản cho các query sản phẩm
 // Chỉ lấy thông tin cần thiết của category và brand để tối ưu performance
@@ -13,10 +15,12 @@ const includeBasic = {
 // Function lấy danh sách sản phẩm với phân trang và tìm kiếm FullText
 export const listProducts = async (req, res) => {
   // Tạo context object để log và debug
-  const context = { path: 'admin.products.list', query: req.query };
+  const context = { path: 'admin.products.list' };
   try {
-    console.log('START', context);
-    console.log('User:', req.user ? { id: req.user.id, role: req.user.role } : 'No user');
+    logger.start(context.path, {
+      query: req.query,
+      user: req.user ? { id: req.user.id, role: req.user.role } : 'No user'
+    });
     
     // Lấy các tham số từ query string với giá trị mặc định
     const { page = 1, limit = 10, q, categoryId, brandId, status } = req.query;
@@ -27,95 +31,25 @@ export const listProducts = async (req, res) => {
     // Detect public/admin route
     const isPublicRoute = !req.user;
     
-    console.log('Query params:', { page, limit, q, categoryId, brandId, status, isPublicRoute });
+    logger.debug('Query params', { page, limit, q, categoryId, brandId, status, isPublicRoute });
 
     let items, total;
 
     // Nếu có search query (q), sử dụng FullText search
     if (q && q.trim()) {
-      // Sanitize search term: loại bỏ các ký tự đặc biệt có thể gây lỗi SQL
-      const searchTerm = q.trim()
-        .replace(/[+\-><()~*\"@]/g, ' ') // Loại bỏ ký tự đặc biệt của FullText
-        .replace(/\s+/g, ' ') // Chuẩn hóa khoảng trắng
-        .trim();
+      // Sử dụng FullText search utility
+      const result = await searchProductsWithFullText({
+        searchTerm: q,
+        categoryId: categoryId ? Number(categoryId) : undefined,
+        brandId: brandId ? Number(brandId) : undefined,
+        status: status ? status.toUpperCase() : undefined,
+        isPublicRoute,
+        skip,
+        limit: limitNum
+      });
       
-      if (!searchTerm) {
-        // Nếu sau khi sanitize không còn gì, fallback về query thông thường
-        const and = [];
-        if (categoryId) and.push({ categoryId: Number(categoryId) });
-        if (brandId) and.push({ brandId: Number(brandId) });
-        if (status) and.push({ status: status.toUpperCase() });
-        if (isPublicRoute) and.push({ status: 'ACTIVE' });
-        const where = and.length ? { AND: and } : undefined;
-        [items, total] = await Promise.all([
-          prisma.product.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: limitNum, include: includeBasic }),
-          prisma.product.count({ where })
-        ]);
-      } else {
-        // Tạo search pattern cho FullText BOOLEAN MODE
-        // Sử dụng + để yêu cầu tất cả từ phải xuất hiện, * để tìm từ bắt đầu bằng
-        const searchWords = searchTerm.split(' ').filter(w => w.length > 0);
-        const searchPattern = searchWords.map(word => `+${word}*`).join(' ');
-        
-        // Sanitize search pattern để tránh SQL injection
-        const safeSearchPattern = searchPattern.replace(/'/g, "''");
-        
-        // Xây dựng điều kiện WHERE
-        const whereConditions = [];
-        whereConditions.push(`MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE)`);
-        
-        if (categoryId) whereConditions.push(`p.category_id = ${Number(categoryId)}`);
-        if (brandId) whereConditions.push(`p.brand_id = ${Number(brandId)}`);
-        if (status) whereConditions.push(`p.status = '${status.toUpperCase().replace(/'/g, "''")}'`);
-        if (isPublicRoute) whereConditions.push(`p.status = 'ACTIVE'`);
-        
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-        
-        // Query để lấy items với FullText search và relevance score
-        const itemsQuery = `
-          SELECT p.*, 
-                 MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE) as relevance
-          FROM products p
-          ${whereClause}
-          ORDER BY relevance DESC, p.created_at DESC
-          LIMIT ${limitNum} OFFSET ${skip}
-        `;
-        
-        // Query để đếm total
-        const countQuery = `
-          SELECT COUNT(*) as total
-          FROM products p
-          ${whereClause}
-        `;
-        
-        // Thực hiện queries
-        const [itemsResult, countResult] = await Promise.all([
-          prisma.$queryRawUnsafe(itemsQuery),
-          prisma.$queryRawUnsafe(countQuery)
-        ]);
-        
-        items = itemsResult;
-        total = Number(countResult[0]?.total || 0);
-        
-        // Include category và brand cho mỗi item
-        items = await Promise.all(items.map(async (item) => {
-          const [category, brand] = await Promise.all([
-            prisma.category.findUnique({ 
-              where: { id: item.category_id },
-              select: { id: true, name: true, slug: true }
-            }),
-            prisma.brand.findUnique({ 
-              where: { id: item.brand_id },
-              select: { id: true, name: true }
-            })
-          ]);
-          return {
-            ...item,
-            category,
-            brand
-          };
-        }));
-      }
+      items = result.items;
+      total = result.total;
     } else {
       // Không có search query, sử dụng Prisma query thông thường
       const and = [];
@@ -145,11 +79,16 @@ export const listProducts = async (req, res) => {
 
     // Tạo response payload với thông tin phân trang
     const payload = { items, total, page: pageNum, limit: limitNum };
-    console.log('END', { ...context, total: payload.total, itemsCount: items.length });
+    logger.success('Products fetched', { total: payload.total, itemsCount: items.length });
+    logger.end(context.path, { total: payload.total, itemsCount: items.length });
     return res.json(payload);
   } catch (error) {
     // Xử lý lỗi và log
-    console.error('ERROR', { ...context, error: error.message, stack: error.stack });
+    logger.error('Failed to fetch products', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { 
       success: false,
       message: 'Server error' 
@@ -203,13 +142,15 @@ export const getProduct = async (req, res) => {
   
   // Tạo context với path tự động
   const context = { 
-    path: isPublicRoute ? 'public.products.get' : 'admin.products.get', 
-    params: req.params 
+    path: isPublicRoute ? 'public.products.get' : 'admin.products.get'
   };
   
   try {
     // Log phân biệt public vs admin
-    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
+    logger.start(context.path, { 
+      id: req.params.id,
+      isPublicRoute 
+    });
     
     // Lấy ID từ URL params
     const id = Number(req.params.id);
@@ -220,7 +161,7 @@ export const getProduct = async (req, res) => {
     // 🚨 QUAN TRỌNG: Public chỉ xem sản phẩm ACTIVE
     if (isPublicRoute) {
       where.status = 'ACTIVE';
-      console.log('📌 PUBLIC API: Force status = ACTIVE');
+      logger.debug('Public API: Force status = ACTIVE', { id });
     }
     // Admin xem tất cả (không thêm điều kiện status)
     
@@ -232,16 +173,21 @@ export const getProduct = async (req, res) => {
     
     // Kiểm tra sản phẩm có tồn tại không
     if (!product) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product not found', { id, isPublicRoute });
       return res.status(404).json({ message: 'Not found' });
     }
     
     // Log kết quả
-    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', { ...context, id });
+    logger.success('Product fetched', { id, isPublicRoute });
+    logger.end(context.path, { id });
     return res.json(product);
   } catch (error) {
     // Xử lý lỗi
-    console.error('❌ ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch product', { 
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -249,9 +195,10 @@ export const getProduct = async (req, res) => {
 };
 
 export const createProduct = async (req, res) => {
-  const context = { path: 'admin.products.create', body: req.body };
+  const context = { path: 'admin.products.create' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { name: req.body.name });
+    
     const {
       name, slug: slugInput, sku: skuInput, price, salePrice, costPrice, stock, minStockLevel,
       description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured,
@@ -260,7 +207,7 @@ export const createProduct = async (req, res) => {
 
     // Validation cơ bản
     if (!name || !price || !categoryId || !brandId) {
-      console.warn('MISSING_REQUIRED_FIELDS', { ...context });
+      logger.warn('Missing required fields', { name, price, categoryId, brandId });
       return res.status(400).json({ message: 'Missing required fields: name, price, categoryId, brandId' });
     }
 
@@ -269,7 +216,7 @@ export const createProduct = async (req, res) => {
     const imagePublicId = req.file ? req.file.filename : null;
     
     if (req.file) {
-      console.log('Image uploaded to Cloudinary:', { imageUrl, imagePublicId });
+      logger.debug('Image uploaded', { imageUrl, imagePublicId });
     }
 
     const [cat, br] = await Promise.all([
@@ -288,11 +235,11 @@ export const createProduct = async (req, res) => {
       prisma.product.findUnique({ where: { sku } })
     ]);
     if (dupSlug) {
-      console.warn('CONFLICT_SLUG', { ...context, slug });
+      logger.warn('Slug conflict', { slug });
       return res.status(409).json({ message: 'Slug already exists' });
     }
     if (dupSku) {
-      console.warn('CONFLICT_SKU', { ...context, sku });
+      logger.warn('SKU conflict', { sku });
       return res.status(409).json({ message: 'SKU already exists' });
     }
 
@@ -334,17 +281,22 @@ export const createProduct = async (req, res) => {
       productData.imagePublicId = imagePublicId;
     }
 
-    console.log('Creating product with data:', productData);
+    logger.debug('Creating product', { name: productData.name, sku: productData.sku });
 
     const created = await prisma.product.create({
       data: productData,
       include: includeBasic
     });
 
-    console.log('END', { ...context, id: created.id });
+    logger.success('Product created', { id: created.id, name: created.name });
+    logger.end(context.path, { id: created.id });
     return res.status(201).json(created);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to create product', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -352,13 +304,14 @@ export const createProduct = async (req, res) => {
 };
 
 export const updateProduct = async (req, res) => {
-  const context = { path: 'admin.products.update', params: req.params, body: req.body };
+  const context = { path: 'admin.products.update' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const found = await prisma.product.findUnique({ where: { id } });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
@@ -369,11 +322,11 @@ export const updateProduct = async (req, res) => {
       // Xóa ảnh cũ nếu có
       if (found.imagePublicId) {
         await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-        console.log('Old image deleted from Cloudinary:', found.imagePublicId);
+        logger.debug('Old image deleted', { publicId: found.imagePublicId });
       }
       data.imageUrl = req.file.path;
       data.imagePublicId = req.file.filename;
-      console.log('New image uploaded to Cloudinary:', { imageUrl: data.imageUrl, imagePublicId: data.imagePublicId });
+      logger.debug('New image uploaded', { imageUrl: data.imageUrl });
     }
 
     if (data.name && !data.slug) data.slug = slugify(data.name);
@@ -381,7 +334,7 @@ export const updateProduct = async (req, res) => {
     if (data.slug && data.slug !== found.slug) {
       const dup = await prisma.product.findUnique({ where: { slug: data.slug } });
       if (dup) {
-        console.warn('CONFLICT_SLUG', { ...context, slug: data.slug });
+        logger.warn('Slug conflict', { slug: data.slug });
         return res.status(409).json({ message: 'Slug already exists' });
       }
     }
@@ -389,7 +342,7 @@ export const updateProduct = async (req, res) => {
     if (data.sku && data.sku !== found.sku) {
       const dupSku = await prisma.product.findUnique({ where: { sku: data.sku } });
       if (dupSku) {
-        console.warn('CONFLICT_SKU', { ...context, sku: data.sku });
+        logger.warn('SKU conflict', { sku: data.sku });
         return res.status(409).json({ message: 'SKU already exists' });
       }
     }
@@ -477,10 +430,15 @@ export const updateProduct = async (req, res) => {
       include: includeBasic
     });
 
-    console.log('END', { ...context, id });
+    logger.success('Product updated', { id, name: updated.name });
+    logger.end(context.path, { id });
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to update product', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -488,26 +446,34 @@ export const updateProduct = async (req, res) => {
 };
 
 export const deleteProduct = async (req, res) => {
-  const context = { path: 'admin.products.delete', params: req.params };
+  const context = { path: 'admin.products.delete' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const found = await prisma.product.findUnique({ where: { id } });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
     // Xóa ảnh Cloudinary nếu có
     if (found.imagePublicId) {
       await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+      logger.debug('Image deleted', { publicId: found.imagePublicId });
     }
 
     await prisma.product.delete({ where: { id } });
-    console.log('END', { ...context, id });
+    
+    logger.success('Product deleted', { id, name: found.name });
+    logger.end(context.path, { id });
     return res.json({ success: true });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to delete product', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -516,23 +482,24 @@ export const deleteProduct = async (req, res) => {
 
 // Cập nhật ảnh chính của product
 export const updateProductPrimaryImage = async (req, res) => {
-  const context = { path: 'admin.products.updatePrimaryImage', params: req.params, body: req.body };
+  const context = { path: 'admin.products.updatePrimaryImage' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { productId: req.params.id });
+    
     const productId = Number(req.params.id);
     const { imageUrl, imagePublicId } = req.body;
 
     // Cho phép null để xóa ảnh (khi không còn ảnh nào)
     // Nếu có imageUrl thì phải có imagePublicId
     if (imageUrl && !imagePublicId) {
-      console.warn('MISSING_IMAGE_PUBLIC_ID', { ...context });
+      logger.warn('Missing imagePublicId', { productId });
       return res.status(400).json({ message: 'imagePublicId is required when imageUrl is provided' });
     }
 
     // Kiểm tra product tồn tại
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
-      console.warn('PRODUCT_NOT_FOUND', { ...context, productId });
+      logger.warn('Product not found', { productId });
       return res.status(404).json({ message: 'Product not found' });
     }
 
@@ -540,14 +507,14 @@ export const updateProductPrimaryImage = async (req, res) => {
     if (!imageUrl && product.imagePublicId) {
       try {
         await cloudinary.uploader.destroy(product.imagePublicId, { invalidate: true });
-        console.log('Old image deleted from Cloudinary:', product.imagePublicId);
+        logger.debug('Old image deleted', { publicId: product.imagePublicId });
       } catch (cloudinaryError) {
-        console.warn('Error deleting image from Cloudinary:', cloudinaryError);
+        logger.warn('Error deleting image from Cloudinary', { error: cloudinaryError.message });
         // Không throw error, tiếp tục xóa trong DB
       }
     }
 
-    console.log('Updating product primary image:', { productId, imageUrl, imagePublicId });
+    logger.debug('Updating product primary image', { productId, imageUrl });
 
     // Cập nhật ảnh chính (có thể là null để xóa ảnh)
     const updated = await prisma.product.update({
@@ -558,10 +525,15 @@ export const updateProductPrimaryImage = async (req, res) => {
       }
     });
 
-    console.log('END', { ...context, productId, imageUrl, updated: { id: updated.id, imageUrl: updated.imageUrl } });
+    logger.success('Product primary image updated', { productId, imageUrl: updated.imageUrl });
+    logger.end(context.path, { productId });
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to update product primary image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -572,9 +544,9 @@ export const updateProductPrimaryImage = async (req, res) => {
 // Function lấy sản phẩm theo category với phân trang và sắp xếp (API mới được thêm)
 export const getProductsByCategory = async (req, res) => {
   // Tạo context object để log và debug
-  const context = { path: 'admin.products.getByCategory', query: req.query };
+  const context = { path: 'admin.products.getByCategory' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { categoryId: req.params.categoryId, query: req.query });
     
     // Lấy categoryId từ URL params (ví dụ: /api/admin/products/category/1)
     const { categoryId } = req.params;
@@ -583,7 +555,7 @@ export const getProductsByCategory = async (req, res) => {
 
     // Validation: Kiểm tra categoryId có được cung cấp không
     if (!categoryId) {
-      console.warn('MISSING_CATEGORY_ID', { ...context });
+      logger.warn('Missing categoryId');
       return res.status(400).json({ message: 'categoryId is required' });
     }
 
@@ -593,7 +565,7 @@ export const getProductsByCategory = async (req, res) => {
       select: { id: true, name: true, slug: true } // Chỉ lấy các field cần thiết để tối ưu performance
     });
     if (!category) {
-      console.warn('CATEGORY_NOT_FOUND', { ...context, categoryId });
+      logger.warn('Category not found', { categoryId });
       return res.status(404).json({ message: 'Category not found' });
     }
 
@@ -626,7 +598,7 @@ export const getProductsByCategory = async (req, res) => {
       })
     ]);
 
-    console.log('FOUND_PRODUCTS', { ...context, categoryId, count: products.length, total });
+    logger.success('Products by category fetched', { categoryId, count: products.length, total });
 
     // Trả về dữ liệu theo format chuẩn cho UI
     const payload = {
@@ -643,11 +615,15 @@ export const getProductsByCategory = async (req, res) => {
       }
     };
     
-    console.log('END', { ...context, categoryId, total: products.length });
+    logger.end(context.path, { categoryId, total: products.length });
     return res.json(payload);
   } catch (error) {
     // Xử lý lỗi và log
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch products by category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     const payload = { success: false, message: 'Server error' };
     // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;

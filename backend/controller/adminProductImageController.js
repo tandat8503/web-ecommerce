@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import cloudinary from '../config/cloudinary.js';
+import logger from '../utils/logger.js';
 
 // ============================
 // ✅ LẤY DANH SÁCH ẢNH SẢN PHẨM
@@ -10,12 +11,12 @@ export const getProductImages = async (req, res) => {
   const isPublicRoute = !req.user;
   
   const context = { 
-    path: isPublicRoute ? 'public.productImages.list' : 'admin.productImages.list', 
-    params: req.params 
+    path: isPublicRoute ? 'public.productImages.list' : 'admin.productImages.list'
   };
   
   try {
-    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
+    logger.start(context.path, { productId: req.params.productId, isPublicRoute });
+    
     const productId = Number(req.params.productId);
     
     // 🔑 BƯỚC 2: Public và Admin đều xem tất cả ảnh (không filter)
@@ -25,10 +26,15 @@ export const getProductImages = async (req, res) => {
       orderBy: { sortOrder: 'asc' }
     });
 
-    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', { ...context, count: images.length });
+    logger.success('Product images fetched', { productId, count: images.length, isPublicRoute });
+    logger.end(context.path, { productId, count: images.length });
     return res.json({ items: images, total: images.length });
   } catch (error) {
-    console.error('❌ ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch product images', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -45,25 +51,30 @@ export const getProductImage = async (req, res) => {
   const isPublicRoute = !req.user;
   
   const context = { 
-    path: isPublicRoute ? 'public.productImages.get' : 'admin.productImages.get', 
-    params: req.params 
+    path: isPublicRoute ? 'public.productImages.get' : 'admin.productImages.get'
   };
   
   try {
-    console.log(isPublicRoute ? '🌐 START PUBLIC API' : '🔒 START ADMIN API', context);
+    logger.start(context.path, { id: req.params.id, isPublicRoute });
+    
     const id = Number(req.params.id);
     
     // 🔑 BƯỚC 2: Public và Admin đều xem tất cả ảnh (không filter)
     const image = await prisma.productImage.findUnique({ where: { id } });
     if (!image) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product image not found', { id, isPublicRoute });
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    console.log(isPublicRoute ? '✅ END PUBLIC API' : '✅ END ADMIN API', context);
+    logger.success('Product image fetched', { id, isPublicRoute });
+    logger.end(context.path, { id });
     return res.json(image);
   } catch (error) {
-    console.error('❌ ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch product image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -75,21 +86,22 @@ export const getProductImage = async (req, res) => {
 // TẠO ẢNH SẢN PHẨM
 // ============================
 export const createProductImage = async (req, res) => {
-  const context = { path: 'admin.productImages.create', params: req.params, body: req.body };
+  const context = { path: 'admin.productImages.create' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { productId: req.params.productId });
+    
     const productId = Number(req.params.productId);
     const { isPrimary, sortOrder } = req.body;
 
     // Kiểm tra sản phẩm tồn tại
     const product = await prisma.product.findUnique({ where: { id: productId } });
     if (!product) {
-      console.warn('PRODUCT_NOT_FOUND', { ...context, productId });
+      logger.warn('Product not found', { productId });
       return res.status(404).json({ message: 'Product not found' });
     }
 
     if (!req.file) {
-      console.warn('NO_FILE', context);
+      logger.warn('No file uploaded');
       return res.status(400).json({ message: 'Image file is required' });
     }
 
@@ -111,11 +123,16 @@ export const createProductImage = async (req, res) => {
       }
     });
 
-    console.log('Image uploaded to Cloudinary:', { imageUrl: image.imageUrl, imagePublicId: image.imagePublicId });
-    console.log('END', { ...context, id: image.id });
+    logger.debug('Image uploaded', { imageUrl: image.imageUrl, imagePublicId: image.imagePublicId });
+    logger.success('Product image created', { id: image.id, productId });
+    logger.end(context.path, { id: image.id });
     return res.status(201).json(image);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to create product image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -127,14 +144,15 @@ export const createProductImage = async (req, res) => {
 // CẬP NHẬT ẢNH SẢN PHẨM
 // ============================
 export const updateProductImage = async (req, res) => {
-  const context = { path: 'admin.productImages.update', params: req.params, body: req.body };
+  const context = { path: 'admin.productImages.update' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     
     const found = await prisma.productImage.findUnique({ where: { id } });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product image not found', { id });
       return res.status(404).json({ message: 'Image not found' });
     }
 
@@ -164,11 +182,11 @@ export const updateProductImage = async (req, res) => {
       // Xóa ảnh cũ
       if (found.imagePublicId) {
         await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-        console.log('Old image deleted from Cloudinary:', found.imagePublicId);
+        logger.debug('Old image deleted', { publicId: found.imagePublicId });
       }
       updateData.imageUrl = req.file.path;
       updateData.imagePublicId = req.file.filename;
-      console.log('New image uploaded to Cloudinary:', { imageUrl: updateData.imageUrl, imagePublicId: updateData.imagePublicId });
+      logger.debug('New image uploaded', { imageUrl: updateData.imageUrl });
     }
 
     const updated = await prisma.productImage.update({
@@ -176,10 +194,15 @@ export const updateProductImage = async (req, res) => {
       data: updateData
     });
 
-    console.log('END', { ...context, id: updated.id });
+    logger.success('Product image updated', { id: updated.id });
+    logger.end(context.path, { id: updated.id });
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to update product image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -191,29 +214,35 @@ export const updateProductImage = async (req, res) => {
 // XÓA ẢNH SẢN PHẨM
 // ============================
 export const deleteProductImage = async (req, res) => {
-  const context = { path: 'admin.productImages.delete', params: req.params };
+  const context = { path: 'admin.productImages.delete' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     
     const found = await prisma.productImage.findUnique({ where: { id } });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product image not found', { id });
       return res.status(404).json({ message: 'Image not found' });
     }
 
     // Xóa ảnh khỏi Cloudinary
     if (found.imagePublicId) {
       await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-      console.log('Image deleted from Cloudinary:', found.imagePublicId);
+      logger.debug('Image deleted from Cloudinary', { publicId: found.imagePublicId });
     }
 
     await prisma.productImage.delete({ where: { id } });
 
-    console.log('END', context);
+    logger.success('Product image deleted', { id });
+    logger.end(context.path, { id });
     return res.json({ success: true });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to delete product image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -225,14 +254,15 @@ export const deleteProductImage = async (req, res) => {
 // SET ẢNH CHÍNH
 // ============================
 export const setPrimaryImage = async (req, res) => {
-  const context = { path: 'admin.productImages.setPrimary', params: req.params, body: req.body };
+  const context = { path: 'admin.productImages.setPrimary' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { productId: req.params.productId, imageId: req.body.imageId });
+    
     const productId = Number(req.params.productId);
     const { imageId } = req.body;
     
     if (!imageId) {
-      console.warn('MISSING_IMAGE_ID', context);
+      logger.warn('Missing imageId');
       return res.status(400).json({ message: 'imageId is required' });
     }
     
@@ -243,7 +273,7 @@ export const setPrimaryImage = async (req, res) => {
       } 
     });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Product image not found', { imageId, productId });
       return res.status(404).json({ message: 'Image not found' });
     }
 
@@ -262,10 +292,15 @@ export const setPrimaryImage = async (req, res) => {
       data: { isPrimary: true }
     });
 
-    console.log('END', { ...context, imageId: updated.id, productId });
+    logger.success('Primary image set', { imageId: updated.id, productId });
+    logger.end(context.path, { imageId: updated.id, productId });
     return res.json(updated);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to set primary image', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
@@ -277,13 +312,15 @@ export const setPrimaryImage = async (req, res) => {
 // SẮP XẾP LẠI THỨ TỰ ẢNH
 // ============================
 export const reorderImages = async (req, res) => {
-  const context = { path: 'admin.productImages.reorder', params: req.params, body: req.body };
+  const context = { path: 'admin.productImages.reorder' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { productId: req.params.productId, count: req.body.imageOrders?.length });
+    
     const productId = Number(req.params.productId);
     const { imageOrders } = req.body; // [{ id: 1, sortOrder: 0 }, { id: 2, sortOrder: 1 }]
 
     if (!Array.isArray(imageOrders)) {
+      logger.warn('Invalid imageOrders format');
       return res.status(400).json({ message: 'imageOrders must be an array' });
     }
 
@@ -297,10 +334,15 @@ export const reorderImages = async (req, res) => {
 
     await Promise.all(updatePromises);
 
-    console.log('END', { ...context, updatedCount: imageOrders.length });
+    logger.success('Images reordered', { productId, updatedCount: imageOrders.length });
+    logger.end(context.path, { productId, updatedCount: imageOrders.length });
     return res.json({ success: true, updatedCount: imageOrders.length });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to reorder images', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ 
       message: 'Server error', 
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined 

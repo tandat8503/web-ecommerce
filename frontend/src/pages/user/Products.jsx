@@ -48,10 +48,13 @@ const Products = () => {
   
   // State cho bộ lọc và tìm kiếm
   const [filters, setFilters] = useState({
-    q: searchParams.get('q') || '',                    // Từ khóa tìm kiếm
+    q: searchParams.get('q') || '',                    // Từ khóa tìm kiếm (đã submit)
     categoryId: searchParams.get('categoryId') || '',  // ID danh mục được chọn
     brandId: searchParams.get('brandId') || ''         // ID thương hiệu được chọn
   });
+  
+  // State riêng cho input search (chưa submit)
+  const [searchInputValue, setSearchInputValue] = useState(searchParams.get('q') || '');
   
   // State cho UI (hiện tại chưa sử dụng)
   const [showFilters, setShowFilters] = useState(false);
@@ -78,6 +81,8 @@ const Products = () => {
       if (urlQ !== prev.q || urlCategoryId !== prev.categoryId || urlBrandId !== prev.brandId) {
         // Reset về trang 1 khi filter thay đổi từ URL
         setPagination(prevPagination => ({ ...prevPagination, page: 1 }));
+        // Sync searchInputValue với URL q param
+        setSearchInputValue(urlQ);
         return {
           q: urlQ,
           categoryId: urlCategoryId,
@@ -90,9 +95,11 @@ const Products = () => {
 
   // Effect 3: Load sản phẩm khi component mount hoặc filters/page thay đổi
   // Load ngay lập tức khi component mount và load lại khi filters/page thay đổi
+  // Sử dụng các giá trị riêng lẻ của filters để tránh re-render không cần thiết
   useEffect(() => {
     loadProducts();
-  }, [filters, pagination.page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.q, filters.categoryId, filters.brandId, pagination.page]);
 
   // =======================
   // API FUNCTIONS
@@ -175,20 +182,12 @@ const Products = () => {
             const productsData = response.data.items || [];
             const totalItems = response.data.total || 0;
             
-            // Debug: Log dữ liệu sản phẩm để kiểm tra
-            console.log('Products data:', productsData);
-            if (productsData.length > 0) {
-              console.log('First product:', productsData[0]);
-              console.log('Product ID:', productsData[0].id);
-              console.log('Product slug:', productsData[0].slug);
-            }
-            
             // Cập nhật state sản phẩm và phân trang
             setProducts(Array.isArray(productsData) ? productsData : []);
             setPagination(prev => ({
               ...prev,
               total: totalItems,
-              totalPages: Math.ceil(totalItems / pagination.limit)
+              totalPages: Math.ceil(totalItems / prev.limit)
             }));
           }
     } catch (err) {
@@ -237,18 +236,44 @@ const Products = () => {
   };
 
   /**
-   * Xử lý khi user submit form search
+   * Xử lý khi user submit form search hoặc nhấn Enter
    * - Ngăn form reload trang
+   * - Cập nhật filters.q với giá trị từ input
+   * - Reset về trang 1
+   * - Cập nhật URL parameters
    * - Gọi lại API với từ khóa tìm kiếm mới
    */
   const handleSearch = (e) => {
     e.preventDefault();
-    loadProducts();
+    
+    // Lấy giá trị từ input (có thể là rỗng nếu user xóa hết)
+    const searchValue = searchInputValue.trim();
+    
+    // Cập nhật filters.q với giá trị mới
+    setFilters(prev => ({
+      ...prev,
+      q: searchValue
+    }));
+    
+    // Reset về trang 1 khi search
+    setPagination(prev => ({ ...prev, page: 1 }));
+    
+    // Cập nhật URL params
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (searchValue) {
+      newSearchParams.set('q', searchValue);
+    } else {
+      newSearchParams.delete('q');
+    }
+    setSearchParams(newSearchParams);
+    
+    // loadProducts() sẽ được gọi tự động bởi useEffect khi filters thay đổi
   };
 
   /**
    * Xóa tất cả filters và reset về trạng thái ban đầu
    * - Reset filters về rỗng
+   * - Reset search input về rỗng
    * - Reset về trang 1
    * - Xóa URL parameters
    */
@@ -258,6 +283,7 @@ const Products = () => {
       categoryId: '',
       brandId: ''
     });
+    setSearchInputValue('');
     setPagination(prev => ({ ...prev, page: 1 }));
     setSearchParams({});
   };
@@ -336,11 +362,14 @@ const Products = () => {
                     <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       placeholder="Tìm kiếm sản phẩm (FullText search)..."
-                      value={filters.q}
-                      onChange={(e) => handleFilterChange('q', e.target.value)}
+                      value={searchInputValue}
+                      onChange={(e) => {
+                        // Chỉ cập nhật input value, không trigger search
+                        setSearchInputValue(e.target.value);
+                      }}
                       className="pl-10"
                       onKeyDown={(e) => {
-                        // Auto search khi nhấn Enter
+                        // Tìm kiếm khi nhấn Enter
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           handleSearch(e);

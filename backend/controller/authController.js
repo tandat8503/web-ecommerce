@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken'
 import prisma from '../config/prisma.js' 
 import { JWT_CONFIG } from '../config/jwt.js'
 import { DEFAULT_AVATAR } from '../config/constants.js';
+import { OAuth2Client } from "google-auth-library";
+import logger from '../utils/logger.js';
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Tạo access token
 const generateAccessToken = (userId) => {
@@ -18,11 +22,13 @@ const generateAccessToken = (userId) => {
 export const login = async (req, res) => {
   const context = { path: 'auth.login' };
   try {
-    console.log('START', { ...context, body: { email: req.body?.email } });
+    logger.start(context.path, { email: req.body?.email });
+    
     const { email, password } = req.body
 
     // Validation
     if (!email || !password) {
+      logger.warn('Missing credentials');
       return res.status(400).json({
         success: false,
         message: 'Email và password là bắt buộc'
@@ -35,7 +41,7 @@ export const login = async (req, res) => {
     })
 
     if (!user) {
-      console.warn('NOT_FOUND_USER', context)
+      logger.warn('User not found', { email });
       return res.status(401).json({
         success: false,
         message: 'Email hoặc password không đúng'
@@ -47,7 +53,7 @@ export const login = async (req, res) => {
 
     // Kiểm tra user có active không
     if (!user.isActive) {
-      console.warn('USER_INACTIVE', { ...context, userId: user.id })
+      logger.warn('User inactive', { userId: user.id });
       return res.status(401).json({
         success: false,
         message: 'Tài khoản đã bị vô hiệu hóa'
@@ -57,7 +63,7 @@ export const login = async (req, res) => {
     // So sánh password
     const isPasswordValid = await bcrypt.compare(password, user.password)
     if (!isPasswordValid) {
-      console.warn('INVALID_PASSWORD', { ...context, userId: user.id })
+      logger.warn('Invalid password', { userId: user.id });
       return res.status(401).json({
         success: false,
         message: 'Email hoặc password không đúng'
@@ -89,7 +95,9 @@ export const login = async (req, res) => {
       userType: userType
     }
 
-    console.log('END', { ...context, userId: user.id, userType })
+    logger.success('Login successful', { userId: user.id, userType });
+    logger.end(context.path, { userId: user.id, userType });
+    
     res.json({
       success: true,
       message: 'Đăng nhập thành công',
@@ -100,7 +108,11 @@ export const login = async (req, res) => {
     })
 
   } catch (error) {
-    console.error('ERROR', { path: 'auth.login', error: error.message })
+    logger.error('Login failed', { 
+      path: context.path, 
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       success: false,
       message: 'Lỗi server',
@@ -119,11 +131,13 @@ export const login = async (req, res) => {
 export const register = async (req, res) => {
   const context = { path: 'auth.register' };
   try {
-    console.log('START', { ...context, body: { email: req.body?.email } })
+    logger.start(context.path, { email: req.body?.email });
+    
     const { email, password, firstName, lastName, phone } = req.body
 
     // Validation cơ bản
     if (!email || !password || !firstName || !lastName ) {
+      logger.warn('Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Email, password, firstName và lastName là bắt buộc'
@@ -133,6 +147,7 @@ export const register = async (req, res) => {
     // Kiểm tra email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) {
+      logger.warn('Invalid email format', { email });
       return res.status(400).json({
         success: false,
         message: 'Email không đúng định dạng'
@@ -141,6 +156,7 @@ export const register = async (req, res) => {
 
     // Kiểm tra password độ dài
     if (password.length < 6) {
+      logger.warn('Password too short');
       return res.status(400).json({
         success: false,
         message: 'Password phải có ít nhất 6 ký tự'
@@ -153,24 +169,27 @@ export const register = async (req, res) => {
     })
 
     if (existingUser) {
+      logger.warn('Email already exists', { email });
       return res.status(409).json({
         success: false,
         message: 'Email đã được sử dụng'
       })
     }
-// Kiểm tra số điện thoại đã tồn tại chưa (nếu có cung cấp)
-        if (phone) {
-          const existingPhone = await prisma.user.findUnique({
-            where: { phone: phone }
-          })
 
-          if (existingPhone) {
-            return res.status(409).json({
-              success: false,
-              message: 'Số điện thoại đã được sử dụng'
-            })
-          }
-        }
+    // Kiểm tra số điện thoại đã tồn tại chưa (nếu có cung cấp)
+    if (phone) {
+      const existingPhone = await prisma.user.findUnique({
+        where: { phone: phone }
+      })
+
+      if (existingPhone) {
+        logger.warn('Phone already exists', { phone });
+        return res.status(409).json({
+          success: false,
+          message: 'Số điện thoại đã được sử dụng'
+        })
+      }
+    }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -202,7 +221,9 @@ export const register = async (req, res) => {
     // Tạo access token
     const accessToken = generateAccessToken(newUser.id)
 
-    console.log('END', { ...context, userId: newUser.id })
+    logger.success('User registered', { userId: newUser.id, email: newUser.email });
+    logger.end(context.path, { userId: newUser.id });
+    
     res.status(201).json({
       success: true,
       message: 'Đăng ký thành công',
@@ -213,7 +234,11 @@ export const register = async (req, res) => {
     })
 
   } catch (error) {
-    console.error('ERROR', { path: 'auth.register', error: error.message })
+    logger.error('Registration failed', { 
+      path: context.path, 
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       success: false,
       message: 'Lỗi server'
@@ -223,38 +248,41 @@ export const register = async (req, res) => {
 
 // Đăng xuất
 export const logout = async (req, res) => {
-  const context = { path: 'auth.logout', userId: req.user?.id };
+  const context = { path: 'auth.logout' };
   try {
-    console.log('START', context)
+    logger.start(context.path, { userId: req.user?.id });
+    
+    logger.success('Logout successful', { userId: req.user?.id });
+    logger.end(context.path);
+    
     res.json({
       success: true,
       message: 'Đăng xuất thành công'
     })
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message })
+    logger.error('Logout failed', { 
+      path: context.path, 
+      error: error.message 
+    });
     res.status(500).json({
       success: false,
       message: 'Lỗi server'
     })
-  } finally {
-    console.log('END', context)
   }
 }
 
-
-
-
 // Đăng nhập bằng Google
-import { OAuth2Client } from "google-auth-library";
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
 export const googleLogin = async (req, res) => {
-  const { token } = req.body;
-  if (!token) {
-    return res.status(400).json({ mess: 'Thiếu token từ frontend' });
-  }
-
+  const context = { path: 'auth.google' };
   try {
+    logger.start(context.path);
+    
+    const { token } = req.body;
+    if (!token) {
+      logger.warn('Missing Google token');
+      return res.status(400).json({ mess: 'Thiếu token từ frontend' });
+    }
+
     // Xác thực token với Google
     const ticket = await client.verifyIdToken({
       idToken: token,
@@ -263,6 +291,8 @@ export const googleLogin = async (req, res) => {
 
     const payload = ticket.getPayload();
     const { email, given_name, family_name, picture, sub: googleId } = payload;
+
+    logger.debug('Google token verified', { email });
 
     // Kiểm tra user đã tồn tại chưa
     let user = await prisma.user.findUnique({ where: { email } });
@@ -281,6 +311,7 @@ export const googleLogin = async (req, res) => {
           emailVerifiedAt: new Date(),
         },
       });
+      logger.success('New user created via Google', { userId: user.id, email });
     } else {
       // Nếu user đã tồn tại, cập nhật ảnh từ Google nếu có
       if (picture && picture !== user.avatar) {
@@ -291,6 +322,7 @@ export const googleLogin = async (req, res) => {
             googleId: googleId || user.googleId,
           },
         });
+        logger.debug('User avatar updated from Google', { userId: user.id });
       }
     }
 
@@ -318,6 +350,9 @@ export const googleLogin = async (req, res) => {
       isActive: user.isActive,
     };
 
+    logger.success('Google login successful', { userId: user.id });
+    logger.end(context.path, { userId: user.id });
+
     res.status(200).json({
       success: true,
       message: "Đăng nhập Google thành công",
@@ -327,8 +362,11 @@ export const googleLogin = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Google Login Failed:", err);
+    logger.error("Google login failed", { 
+      path: context.path,
+      error: err.message,
+      stack: err.stack
+    });
     res.status(401).json({ mess: "Xác thực Google thất bại", error: err.message });
   }
 };
-

@@ -1,22 +1,25 @@
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
 import { slugify } from "../utils/slugify.js";
+import logger from "../utils/logger.js";
 
 // ============================
 // DANH SÁCH CATEGORY
 // ============================
 export const listCategories = async (req, res) => {
-  const context = { path: "admin.categories.list", query: req.query };
+  const context = { path: "admin.categories.list" };
   try {
-    console.log('START', context);
-    console.log('User:', req.user ? { id: req.user.id, role: req.user.role } : 'No user');
+    logger.start(context.path, { 
+      query: req.query,
+      user: req.user ? { id: req.user.id, role: req.user.role } : 'No user'
+    });
     
     const { page = 1, limit = 10, q } = req.query;
     
     // Xây dựng điều kiện WHERE
     const where = q ? { name: { contains: q } } : undefined;
 
-    console.log('Query params:', { page, limit, q, where });
+    logger.debug('Query params', { page, limit, q, where });
 
     const [items, total] = await Promise.all([
       prisma.category.findMany({
@@ -28,11 +31,17 @@ export const listCategories = async (req, res) => {
       prisma.category.count({ where }),
     ]);
 
-    console.log('END', { ...context, total, itemsCount: items.length });
+    logger.success('Categories fetched', { total, itemsCount: items.length });
+    logger.end(context.path, { total, itemsCount: items.length });
+    
     const payload = { items, total, page: Number(page), limit: Number(limit) };
     return res.json(payload);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message, stack: error.stack });
+    logger.error('Failed to fetch categories', { 
+      path: context.path,
+      error: error.message, 
+      stack: error.stack 
+    });
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -45,12 +54,27 @@ export const listCategories = async (req, res) => {
 // LẤY CATEGORY THEO ID
 // ============================
 export const getCategory = async (req, res) => {
+  const context = { path: 'admin.categories.get' };
   try {
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const category = await prisma.category.findUnique({ where: { id } });
-    if (!category) return res.status(404).json({ message: "Not found" });
+    
+    if (!category) {
+      logger.warn('Category not found', { id });
+      return res.status(404).json({ message: "Not found" });
+    }
+    
+    logger.success('Category fetched', { id });
+    logger.end(context.path, { id });
     return res.json(category);
   } catch (error) {
+    logger.error('Failed to fetch category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({
       message: "Server error",
       error: process.env.NODE_ENV !== "production" ? error.message : undefined,
@@ -62,13 +86,24 @@ export const getCategory = async (req, res) => {
 // TẠO CATEGORY
 // ============================
 export const createCategory = async (req, res) => {
+  const context = { path: 'admin.categories.create' };
   try {
-    const { name, description, isActive } = req.body;
+    logger.start(context.path, { name: req.body.name });
+    
+    const { name, isActive } = req.body;
+    
+    // Validation
+    if (!name || !name.trim()) {
+      logger.warn('Missing required field: name');
+      return res.status(400).json({ message: "Name is required" });
+    }
+    
     const slug = (req.body.slug?.trim()) || slugify(name);
 
     // Check slug trùng
     const exists = await prisma.category.findUnique({ where: { slug } });
     if (exists) {
+      logger.warn('Slug conflict', { slug, existingId: exists.id });
       return res.status(409).json({ message: "Slug already exists" });
     }
 
@@ -77,22 +112,28 @@ export const createCategory = async (req, res) => {
     if (req.file) {
       imageUrl = req.file.path;
       imagePublicId = req.file.filename;
-      console.log('Image uploaded to Cloudinary:', { imageUrl, imagePublicId });
+      logger.debug('Image uploaded', { imageUrl, imagePublicId });
     }
 
     const created = await prisma.category.create({
       data: {
-        name,
+        name: name.trim(),
         slug,
-        description: description || null,
         imageUrl,
         imagePublicId,
-        isActive: isActive === "true",
+        isActive: isActive === "true" || isActive === true,
       },
     });
 
+    logger.success('Category created', { id: created.id, name: created.name });
+    logger.end(context.path, { id: created.id });
     return res.status(201).json(created);
   } catch (error) {
+    logger.error('Failed to create category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({
       message: "Server error",
       error: process.env.NODE_ENV !== "production" ? error.message : undefined,
@@ -104,12 +145,18 @@ export const createCategory = async (req, res) => {
 // CẬP NHẬT CATEGORY
 // ============================
 export const updateCategory = async (req, res) => {
+  const context = { path: 'admin.categories.update' };
   try {
+    logger.start(context.path, { id: req.params.id, name: req.body.name });
+    
     const id = Number(req.params.id);
     const found = await prisma.category.findUnique({ where: { id } });
-    if (!found) return res.status(404).json({ message: "Not found" });
+    if (!found) {
+      logger.warn('Category not found', { id });
+      return res.status(404).json({ message: "Not found" });
+    }
 
-    let { name, slug, description, isActive } = req.body;
+    let { name, slug, isActive } = req.body;
 
     if (!slug && name) slug = slugify(name);
 
@@ -117,6 +164,7 @@ export const updateCategory = async (req, res) => {
     if (slug && slug !== found.slug) {
       const duplicate = await prisma.category.findUnique({ where: { slug } });
       if (duplicate) {
+        logger.warn('Slug conflict', { slug, existingId: duplicate.id });
         return res.status(409).json({ message: "Slug already exists" });
       }
     }
@@ -128,9 +176,8 @@ export const updateCategory = async (req, res) => {
         : (isActive === "true" || isActive === true);
 
     let updateData = {
-      name: name ?? found.name,
+      name: name ? name.trim() : found.name,
       slug: slug ?? found.slug,
-      description: description === undefined ? found.description : description,
       isActive: parsedIsActive,
     };
 
@@ -138,11 +185,11 @@ export const updateCategory = async (req, res) => {
     if (req.file) {
       if (found.imagePublicId) {
         await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-        console.log('Old image deleted from Cloudinary:', found.imagePublicId);
+        logger.debug('Old image deleted', { publicId: found.imagePublicId });
       }
       updateData.imageUrl = req.file.path;
       updateData.imagePublicId = req.file.filename;
-      console.log('New image uploaded to Cloudinary:', { imageUrl: updateData.imageUrl, imagePublicId: updateData.imagePublicId });
+      logger.debug('New image uploaded', { imageUrl: updateData.imageUrl });
     }
 
     const updated = await prisma.category.update({
@@ -150,8 +197,15 @@ export const updateCategory = async (req, res) => {
       data: updateData,
     });
 
+    logger.success('Category updated', { id, name: updated.name });
+    logger.end(context.path, { id });
     return res.json(updated);
   } catch (error) {
+    logger.error('Failed to update category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({
       message: "Server error",
       error: process.env.NODE_ENV !== "production" ? error.message : undefined,
@@ -159,30 +213,44 @@ export const updateCategory = async (req, res) => {
   }
 };
 
-
 // ============================
 // XOÁ CATEGORY
 // ============================
 export const deleteCategory = async (req, res) => {
+  const context = { path: 'admin.categories.delete' };
   try {
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const found = await prisma.category.findUnique({ where: { id } });
-    if (!found) return res.status(404).json({ message: "Not found" });
+    if (!found) {
+      logger.warn('Category not found', { id });
+      return res.status(404).json({ message: "Not found" });
+    }
 
     const productCount = await prisma.product.count({ where: { categoryId: id } });
     if (productCount > 0) {
+      logger.warn('Cannot delete category with products', { id, productCount });
       return res.status(400).json({ message: "Cannot delete: category has products" });
     }
 
     // Xoá ảnh Cloudinary nếu có
     if (found.imagePublicId) {
       await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-      console.log('Image deleted from Cloudinary:', found.imagePublicId);
+      logger.debug('Image deleted', { publicId: found.imagePublicId });
     }
 
     await prisma.category.delete({ where: { id } });
+    
+    logger.success('Category deleted', { id, name: found.name });
+    logger.end(context.path, { id });
     return res.json({ success: true });
   } catch (error) {
+    logger.error('Failed to delete category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({
       message: "Server error",
       error: process.env.NODE_ENV !== "production" ? error.message : undefined,

@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import logger from "../utils/logger.js";
 
 // ===========================
 // SHOPPING CART CONTROLLER
@@ -109,24 +110,24 @@ export const addToCart = async (req, res) => {
 
     // Bước 2: Kiểm tra variant và tồn kho
     let availableStock = product.stockQuantity; // Mặc định dùng tồn kho của product
-    console.log('Product stock:', product.stockQuantity);
+    logger.debug('Product stock checked', { productId, stock: product.stockQuantity });
     
     if (variantId) {
-      console.log('Checking variant:', variantId);
+      logger.debug('Checking variant', { variantId });
       if (!product.variants || product.variants.length === 0) {
-        console.log('ERROR: Variant not found');
+        logger.warn('Variant not found', { variantId });
         return res.status(400).json({ message: "Biến thể sản phẩm không tồn tại hoặc đã ngừng bán" });
       }
       availableStock = product.variants[0].stockQuantity; // Dùng tồn kho của variant
-      console.log('Variant stock:', availableStock);
+      logger.debug('Variant stock', { variantId, stock: availableStock });
     } else {
-      console.log('No variant - using product stock:', availableStock);
+      logger.debug('Using product stock', { stock: availableStock });
     }
 
     // Bước 3: Kiểm tra tồn kho có đủ không
-    console.log('Available stock:', availableStock, 'Requested quantity:', quantity);
+    logger.debug('Stock availability check', { availableStock, requestedQuantity: quantity });
     if (availableStock < quantity) {
-      console.log('ERROR: Not enough stock');
+      logger.warn('Not enough stock', { availableStock, requestedQuantity: quantity });
       return res.status(400).json({ 
         message: `Chỉ còn ${availableStock} sản phẩm trong kho`,
         availableStock 

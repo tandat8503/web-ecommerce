@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import logger from '../utils/logger.js';
 
 // ===========================
 //  TẠO BIẾN THỂ SẢN PHẨM
@@ -40,9 +41,10 @@ export const createProductVariant = async (req, res) => {
       },
     });
 
+    logger.success('Product variant created', { variantId: variant.id, productId: variant.productId });
     res.status(201).json({ message: "Tạo biến thể thành công", data: variant });
   } catch (error) {
-    console.error("❌ Lỗi createProductVariant:", error);
+    logger.error('Failed to create product variant', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi khi tạo biến thể", error: error.message });
   }
 };
@@ -80,7 +82,7 @@ export const getProductVariants = async (req, res) => {
     // 🔑 BƯỚC 2: Public chỉ xem biến thể ACTIVE
     if (isPublicRoute) {
       where.isActive = true;
-      console.log('🌐 PUBLIC API: Chỉ lấy variants isActive = true');
+      logger.debug('Public API: filtering active variants only');
     }
     // Admin xem tất cả (không filter isActive)
 
@@ -99,9 +101,9 @@ export const getProductVariants = async (req, res) => {
     ]);
 
     // Log phân biệt public vs admin
-    console.log(
-      isPublicRoute ? '✅ PUBLIC API' : '✅ ADMIN API', 
-      `- Found ${items.length}/${total} variants`
+    logger.success(
+      `${isPublicRoute ? 'Public' : 'Admin'} variants fetched`, 
+      { count: items.length, total }
     );
 
     // Trả response cho client
@@ -119,8 +121,7 @@ export const getProductVariants = async (req, res) => {
       },
     });
   } catch (error) {
-    // Nếu có lỗi thì log ra console + trả về lỗi 500
-    console.error("❌ Lỗi getProductVariants:", error);
+    logger.error('Failed to fetch product variants', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
@@ -154,11 +155,11 @@ export const getProductVariantById = async (req, res) => {
       });
 
       if (!variant) {
-        console.warn('🌐 PUBLIC API: Variant not found or not active');
+        logger.warn('Public API: Variant not found or not active', { id });
         return res.status(404).json({ message: "Không tìm thấy biến thể" });
       }
 
-      console.log('✅ PUBLIC API: Found variant', { id: variant.id, isActive: variant.isActive });
+      logger.success('Public API: Variant fetched', { id: variant.id, isActive: variant.isActive });
       return res.json({ data: variant });
     }
 
@@ -169,14 +170,14 @@ export const getProductVariantById = async (req, res) => {
     });
 
     if (!variant) {
-      console.warn('🔒 ADMIN API: Variant not found');
+      logger.warn('Admin API: Variant not found', { id });
       return res.status(404).json({ message: "Không tìm thấy biến thể" });
     }
 
-    console.log('✅ ADMIN API: Found variant', { id: variant.id, isActive: variant.isActive });
+    logger.success('Admin API: Variant fetched', { id: variant.id, isActive: variant.isActive });
     res.json({ data: variant });
   } catch (error) {
-    console.error("❌ Lỗi getProductVariantById:", error);
+    logger.error('Failed to fetch variant by ID', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi khi lấy chi tiết biến thể" });
   }
 };
@@ -227,9 +228,10 @@ export const updateProductVariant = async (req, res) => {
       },
     });
 
+    logger.success('Product variant updated', { variantId: updated.id });
     res.json({ message: "Cập nhật biến thể thành công", data: updated });
   } catch (error) {
-    console.error("❌ Lỗi updateProductVariant:", error);
+    logger.error('Failed to update product variant', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi khi cập nhật biến thể" });
   }
 };
@@ -256,9 +258,10 @@ export const deleteProductVariant = async (req, res) => {
       where: { id: Number(id) },
     });
 
+    logger.success('Product variant deleted', { variantId: id });
     res.json({ message: "Xóa biến thể thành công" });
   } catch (error) {
-    console.error(" Lỗi deleteProductVariant:", error);
+    logger.error('Failed to delete product variant', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi khi xóa biến thể" });
   }
 };

@@ -1,6 +1,7 @@
 
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
+import logger from '../utils/logger.js';
 
 // Chuẩn hoá dữ liệu user trả về
 const userResponse = (user) => ({
@@ -76,7 +77,7 @@ export const getUsers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get users error:", error);
+    logger.error('Failed to fetch users', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
@@ -173,7 +174,7 @@ export const createUser = async (req, res) => {
       data: userResponse(newUser),
     });
   } catch (error) {
-    console.error("Create user error:", error);
+    logger.error('Failed to create user', { error: error.message, stack: error.stack });
     if (error.code === "P2002") {
       return res.status(400).json({ message: "Email hoặc số điện thoại đã tồn tại" });
     }
@@ -253,7 +254,7 @@ export const updateUser = async (req, res) => {
       data: userResponse(updatedUser),
     });
   } catch (error) {
-    console.error("Update user error:", error);
+    logger.error('Failed to update user', { error: error.message, stack: error.stack });
     if (error.code === "P2002") {
       return res.status(400).json({ message: "Số điện thoại hoặc email đã tồn tại" });
     }
@@ -275,7 +276,7 @@ export const deleteUser = async (req, res) => {
 
     res.json({ code: 200, message: "Xóa user thành công" });
   } catch (error) {
-    console.error("Delete user error:", error);
+    logger.error('Failed to delete user', { error: error.message, stack: error.stack });
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };

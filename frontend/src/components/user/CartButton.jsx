@@ -116,10 +116,6 @@ export default function CartButton({
 export function CartIconButton({ className = "" }) {
   const { loading } = useCartStore();//kết nối với store để lấy hàm loading
   const cartCount = useCartStore((state) => state.totalQuantity);//số lượng sản phẩm trong giỏ hàng
-  
-  // Debug logs
-  console.log('🛒 CartIconButton - cartCount:', cartCount);
-  console.log('🛒 CartIconButton - cartCount > 0:', cartCount > 0);
 
   return (
     <div className="relative">

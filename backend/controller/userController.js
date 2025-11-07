@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js"; // nếu dùng Cloudinary
 import { DEFAULT_AVATAR } from "../config/constants.js";
+import logger from '../utils/logger.js';
 
 
 
@@ -162,7 +163,7 @@ export const updateUserProfile = async (req, res) => {
       data: { user: userResponse(updatedUser) },
     });
   } catch (error) {
-    console.error("Update profile error:", error);
+    logger.error('Failed to update profile', { error: error.message, stack: error.stack });
     res.status(500).json({ code: 500, message: "Lỗi server", error: error.message });
   }
 };
@@ -211,7 +212,7 @@ export const getLoginHistory = async (req, res) => {
       data: history,
     });
   } catch (error) {
-    console.error("Get login history error:", error);
+    logger.error('Failed to fetch login history', { error: error.message, stack: error.stack });
     res.status(500).json({ code: 500, message: "Lỗi server", error: error.message });
   }
 };

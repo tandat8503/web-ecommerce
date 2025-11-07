@@ -1,4 +1,6 @@
 import prisma from '../config/prisma.js';
+import logger from '../utils/logger.js';
+
 //hàm lấy danh sách trạng thái có thể chọn tiếp theo (không cho chọn ngược)
 // Logic: Mỗi trạng thái chỉ có thể chuyển sang các trạng thái phía sau, không thể quay lại
 const getAvailableStatuses = (currentStatus) => {
@@ -43,9 +45,10 @@ const restoreStockForOrder = async (tx, orderItems) => {
 
 //hàm lấy danh sách đơn hàng cho admin
 export const listOrders = async (req, res) => {
-  const context = { path: 'admin.orders.list', query: req.query };
+  const context = { path: 'admin.orders.list' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { query: req.query });
+    
     const { page = 1, limit = 10, status, q } = req.query;
     
     const conditions = [];//điều kiện lọc đơn hàng
@@ -95,18 +98,25 @@ export const listOrders = async (req, res) => {
       page: Number(page), //trang hiện tại
       limit: Number(limit) //số lượng đơn hàng trên mỗi trang
     };
-    console.log('END', { ...context, total: payload.total });
+    
+    logger.success('Orders fetched', { total: payload.total, count: formattedItems.length });
+    logger.end(context.path, { total: payload.total });
     return res.json(payload);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch orders', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
 //hàm lấy chi tiết đơn hàng cho admin
 export const getOrder = async (req, res) => {
-  const context = { path: 'admin.orders.get', params: req.params };
+  const context = { path: 'admin.orders.get' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     
     const order = await prisma.order.findUnique({
@@ -125,7 +135,7 @@ export const getOrder = async (req, res) => {
     });
 
     if (!order) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
@@ -139,10 +149,15 @@ export const getOrder = async (req, res) => {
       }))
     };
 
-    console.log('END', context);
+    logger.success('Order fetched', { id });
+    logger.end(context.path, { id });
     return res.json(formattedOrder);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch order', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
@@ -150,9 +165,10 @@ export const getOrder = async (req, res) => {
 //hàm cập nhật trạng thái đơn hàng (admin)
 // Logic: Chỉ cho phép chuyển trạng thái tiến lên, không cho phép quay lại trạng thái cũ
 export const updateOrder = async (req, res) => {
-  const context = { path: 'admin.orders.update', params: req.params, body: req.body };
+  const context = { path: 'admin.orders.update' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id, status: req.body.status });
+    
     const id = Number(req.params.id);
     const { status } = req.body;
 
@@ -182,7 +198,7 @@ export const updateOrder = async (req, res) => {
     });
 
     if (!currentOrder) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'đơn hàng không tồn tại' });
     }
 
@@ -229,7 +245,13 @@ export const updateOrder = async (req, res) => {
       return order;
     });
 
-    console.log('END', { ...context, id: updated.id, oldStatus: currentOrder.status, newStatus: updated.status });
+    logger.success('Order status updated', { 
+      id: updated.id, 
+      oldStatus: currentOrder.status, 
+      newStatus: updated.status 
+    });
+    logger.end(context.path, { id: updated.id, status: updated.status });
+    
     return res.json({
       id: updated.id,
       orderNumber: updated.orderNumber,
@@ -238,7 +260,11 @@ export const updateOrder = async (req, res) => {
       message: `Order status updated from ${currentOrder.status} to ${updated.status}`
     });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to update order', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
@@ -246,15 +272,16 @@ export const updateOrder = async (req, res) => {
 
 //hàm cập nhật ghi chú đơn hàng (admin)
 export const updateOrderNotes = async (req, res) => {
-  const context = { path: 'admin.orders.updateNotes', params: req.params, body: req.body };
+  const context = { path: 'admin.orders.updateNotes' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
+    
     const id = Number(req.params.id);
     const { notes } = req.body;
 
     const found = await prisma.order.findUnique({ where: { id } });
     if (!found) {
-      console.warn('NOT_FOUND', context);
+      logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
@@ -263,22 +290,29 @@ export const updateOrderNotes = async (req, res) => {
       data: { adminNote: notes || null }
     });
 
-    console.log('END', { ...context, id: updated.id });
+    logger.success('Order notes updated', { id: updated.id });
+    logger.end(context.path, { id: updated.id });
+    
     return res.json({
       id: updated.id,
       orderNumber: updated.orderNumber,
       adminNote: updated.adminNote
     });
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to update order notes', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };
 
 export const getOrderStats = async (req, res) => {
-  const context = { path: 'admin.orders.stats', query: req.query };
+  const context = { path: 'admin.orders.stats' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { period: req.query.period });
+    
     const { period = '30d' } = req.query;
     
     const now = new Date();
@@ -369,10 +403,20 @@ export const getOrderStats = async (req, res) => {
       topProducts: topProductsWithDetails
     };
 
-    console.log('END', { ...context, totalOrders, totalRevenue: stats.totalRevenue });
+    logger.success('Order stats fetched', { 
+      totalOrders, 
+      totalRevenue: stats.totalRevenue,
+      period 
+    });
+    logger.end(context.path, { totalOrders });
+    
     return res.json(stats);
   } catch (error) {
-    console.error('ERROR', { ...context, error: error.message });
+    logger.error('Failed to fetch order stats', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
   }
 };

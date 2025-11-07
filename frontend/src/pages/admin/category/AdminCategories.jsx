@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Table,
   Input,
@@ -17,134 +16,38 @@ import {
 } from "antd";
 import { UploadOutlined } from "@ant-design/icons";
 import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
-import { Button } from "@/components/ui/button"; // shadcn/ui
+import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import { toast } from "@/lib/utils";
-import {
-  getCategories,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  getCategoryById,
-} from "@/api/adminCategories";
+import useAdminCategories from "./useAdminCategories";
 
 const { Search } = Input;
 
 export default function AdminCategories() {
-  const [showSkeleton, setShowSkeleton] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [categories, setCategories] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 5, total: 0 });
-  const [keyword, setKeyword] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [loadingCategoryId, setLoadingCategoryId] = useState(null);
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    categories,
+    showSkeleton,
+    modalLoading,
+    pagination,
+    searchValue,
+    modalOpen,
+    detailOpen,
+    editingRecord,
+    detailData,
+    handleSubmit,
+    handleDelete,
+    handleCreate,
+    openEditModal,
+    closeModal,
+    handleViewDetail,
+    closeDetailModal,
+    handlePaginationChange,
+    handleSearchChange,
+  } = useAdminCategories();
 
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-
-  // debounce search
-  const [searchValue, setSearchValue] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 }));
-      setKeyword(searchValue);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchValue]);
-
-  // Load danh sách categories
-  const fetchCategories = async () => {
-    setShowSkeleton(true);
-    try {
-      const response = await getCategories({
-        page: pagination.page,
-        limit: pagination.limit,
-        q: keyword,
-      });
-      setCategories(response.data.items || []);
-      setPagination((prev) => ({
-        ...prev,
-        total: response.data.total || 0,
-      }));
-
-       // ép skeleton hiển thị ít nhất 500ms (hoặc 800ms tuỳ bạn muốn chậm bao nhiêu)
-    await sleep(800);
-    
-    } catch (error) {
-      toast.error("Lỗi khi tải danh sách danh mục");
-      console.error("Error fetching categories:", error);
-    } finally {
-      setShowSkeleton(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCategories();
-  }, [pagination.page, pagination.limit, keyword]);
-
-  const handleSubmit = async (values, editingRecord) => {
-  setModalLoading(true);
-  try {
-    const formData = new FormData();
-    formData.append("name", values.name);
-    formData.append("description", values.description || "");
-    formData.append("isActive", values.isActive ? "true" : "false");
-
-    // Nếu có ảnh được chọn
-    if (values.image && values.image[0]?.originFileObj) {
-      formData.append("image", values.image[0].originFileObj);
-    }
-
-    if (editingRecord) {
-      await updateCategory(editingRecord.id, formData);
-      toast.success("Cập nhật danh mục thành công");
-    } else {
-      await createCategory(formData);
-      toast.success("Tạo danh mục thành công");
-    }
-
-    setModalOpen(false);
-    setEditingRecord(null);
-    fetchCategories();
-  } catch (error) {
-    toast.error(error.response?.data?.message || "Có lỗi xảy ra");
-  } finally {
-    setModalLoading(false);
-  }
-};
-
-
-  // Handle delete
-  const handleDelete = async (id) => {
-    try {
-      await deleteCategory(id);
-      toast.success("Xóa danh mục thành công");
-      fetchCategories();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
-    }
-  };
-
-  // Handle view detail
-  const handleViewDetail = async (id) => {
-    setLoadingCategoryId(id);
-    try {
-      const response = await getCategoryById(id);
-      setDetailData(response.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error("Lỗi khi tải chi tiết danh mục");
-    } finally {
-      setLoadingCategoryId(null);
-    }
-  };
-
-  // Cột bảng
+  // Cấu hình columns cho table
   const columns = [
     { title: "ID", dataIndex: "id", key: "id", width: 80 },
     {
@@ -173,7 +76,6 @@ export default function AdminCategories() {
     },
     { title: "Tên danh mục", dataIndex: "name", key: "name", render: (t) => <strong>{t}</strong> },
     { title: "Slug", dataIndex: "slug", key: "slug", render: (t) => <code>{t}</code> },
-    { title: "Mô tả", dataIndex: "description", key: "description", ellipsis: true },
     {
       title: "Trạng thái",
       dataIndex: "isActive",
@@ -200,10 +102,7 @@ export default function AdminCategories() {
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white"
               size="sm"
-              onClick={() => {
-                setEditingRecord(record);
-                setModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             >
               <FaEdit />
             </Button>
@@ -223,18 +122,13 @@ export default function AdminCategories() {
     },
   ];
 
-  // Trường cho modal CRUD (Upload ảnh giống Banner)
+  // Cấu hình fields cho form CRUD (Upload ảnh)
   const fields = [
     {
       name: "name",
       label: "Tên danh mục",
       component: <Input placeholder="Nhập tên danh mục" />,
       rules: [{ required: true, message: "Vui lòng nhập tên" }],
-    },
-    {
-      name: "description",
-      label: "Mô tả",
-      component: <Input.TextArea rows={3} placeholder="Nhập mô tả" />,
     },
     {
       name: "image",
@@ -255,12 +149,11 @@ export default function AdminCategories() {
     },
   ];
 
-  // Trường cho modal chi tiết
+  // Cấu hình fields cho modal chi tiết
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "name", label: "Tên danh mục" },
     { name: "slug", label: "Slug" },
-    { name: "description", label: "Mô tả" },
     {
       name: "imageUrl",
       label: "Hình ảnh",
@@ -280,7 +173,7 @@ export default function AdminCategories() {
 
   return (
     <>
-     <style>
+      <style>
         {`
           @keyframes gradientShift {
             0% { background-position: 0% 50%; }
@@ -291,10 +184,11 @@ export default function AdminCategories() {
       </style>
       <Row gutter={[16, 16]}>
         <Col span={24}>
-          <Badge.Ribbon text="Quản lý Danh mục"  color="#667eea"
+          <Badge.Ribbon
+            text="Quản lý Danh mục"
+            color="#667eea"
             style={{
-              background:
-                "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
+              background: "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
               backgroundSize: "300% 300%",
               animation: "gradientShift 4s ease infinite",
               fontWeight: "bold",
@@ -302,11 +196,12 @@ export default function AdminCategories() {
               padding: "8px 20px",
               height: "40px",
               lineHeight: "24px",
-            }}>
+            }}
+          >
             <Card className="shadow rounded-2xl">
               <div className="flex justify-between mb-4">
                 <div className="flex gap-4">
-                  <Button variant="default" onClick={() => setModalOpen(true)}>
+                  <Button variant="default" onClick={handleCreate}>
                     <FaPlus /> Thêm danh mục
                   </Button>
 
@@ -315,10 +210,11 @@ export default function AdminCategories() {
                     allowClear
                     size="large"
                     value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     style={{ width: 300 }}
                   />
                 </div>
+                <div>Tổng: {pagination.total} danh mục</div>
               </div>
 
               {showSkeleton ? (
@@ -336,13 +232,7 @@ export default function AdminCategories() {
                     showQuickJumper: true,
                     showTotal: (total, range) =>
                       `${range[0]}-${range[1]} của ${total} danh mục`,
-                    onChange: (page, pageSize) => {
-                      setPagination((prev) => ({
-                        ...prev,
-                        page,
-                        limit: pageSize || prev.limit,
-                      }));
-                    },
+                    onChange: handlePaginationChange,
                   }}
                   scroll={{ x: 1000 }}
                 />
@@ -355,10 +245,7 @@ export default function AdminCategories() {
       {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
-        onCancel={() => {
-          setModalOpen(false);
-          setEditingRecord(null);
-        }}
+        onCancel={closeModal}
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         fields={fields}
@@ -370,7 +257,7 @@ export default function AdminCategories() {
       {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
+        onCancel={closeDetailModal}
         title="Chi tiết danh mục"
         data={detailData}
         fields={detailFields}
@@ -379,3 +266,4 @@ export default function AdminCategories() {
     </>
   );
 }
+

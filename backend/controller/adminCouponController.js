@@ -1,13 +1,13 @@
-import prisma from '../config/prisma.js'; 
+import prisma from '../config/prisma.js';
+import logger from '../utils/logger.js';
 
 /**
  * Tạo mã giảm giá mới
  */
 export const createCoupon = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.coupon.create', body: req.body };
+  const context = { path: 'admin.coupon.create' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { code: req.body.code });
     
     // Lấy dữ liệu từ request body
     const {
@@ -51,14 +51,20 @@ export const createCoupon = async (req, res) => {
       }
     });
 
-    console.log('END', { ...context, couponId: coupon.id });
+    logger.success('Coupon created', { couponId: coupon.id, code: coupon.code });
+    logger.end(context.path, { couponId: coupon.id });
+    
     res.status(201).json({
       message: "Tạo mã giảm giá thành công",
       data: coupon
     });
 
   } catch (error) {
-    console.error('Create coupon error:', error);
+    logger.error('Failed to create coupon', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -118,10 +124,9 @@ export const getCoupons = async (req, res) => {
  * Lấy chi tiết mã giảm giá theo ID
  */
 export const getCouponById = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.coupon.getById', params: req.params };
+  const context = { path: 'admin.coupon.getById' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
     
     const { id } = req.params;
 
@@ -143,14 +148,20 @@ export const getCouponById = async (req, res) => {
       });
     }
 
-    console.log('END', { ...context, couponId: coupon.id });
+    logger.success('Coupon fetched', { couponId: coupon.id });
+    logger.end(context.path, { couponId: coupon.id });
+    
     res.status(200).json({
       message: "Lấy chi tiết mã giảm giá thành công",
       data: coupon
     });
 
   } catch (error) {
-    console.error('Get coupon by ID error:', error);
+    logger.error('Failed to fetch coupon', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -162,10 +173,9 @@ export const getCouponById = async (req, res) => {
  * Cập nhật mã giảm giá
  */
 export const updateCoupon = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.coupon.update', params: req.params, body: req.body };
+  const context = { path: 'admin.coupon.update' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
     
     const { id } = req.params;
     const {
@@ -233,14 +243,20 @@ export const updateCoupon = async (req, res) => {
       data: updateData
     });
 
-    console.log('END', { ...context, couponId: updatedCoupon.id });
+    logger.success('Coupon updated', { couponId: updatedCoupon.id });
+    logger.end(context.path, { couponId: updatedCoupon.id });
+    
     res.status(200).json({
       message: "Cập nhật mã giảm giá thành công",
       data: updatedCoupon
     });
 
   } catch (error) {
-    console.error('Update coupon error:', error);
+    logger.error('Failed to update coupon', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
@@ -252,10 +268,9 @@ export const updateCoupon = async (req, res) => {
  * Xóa mã giảm giá
  */
 export const deleteCoupon = async (req, res) => {
-  // Tạo context object để log và debug
-  const context = { path: 'admin.coupon.delete', params: req.params };
+  const context = { path: 'admin.coupon.delete' };
   try {
-    console.log('START', context);
+    logger.start(context.path, { id: req.params.id });
     
     const { id } = req.params;
 
@@ -293,13 +308,19 @@ export const deleteCoupon = async (req, res) => {
       where: { id: Number(id) }
     });
 
-    console.log('END', { ...context, couponId: id });
+    logger.success('Coupon deleted', { couponId: id });
+    logger.end(context.path, { couponId: id });
+    
     res.status(200).json({
       message: "Xóa mã giảm giá thành công"
     });
 
   } catch (error) {
-    console.error('Delete coupon error:', error);
+    logger.error('Failed to delete coupon', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined

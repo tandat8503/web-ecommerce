@@ -35,7 +35,15 @@ export default function CrudModal({
   useEffect(() => {
     if (open) {
       if (editingRecord) {
-        form.setFieldsValue(editingRecord); // nếu edit thì set giá trị ban đầu của form
+        // Set tất cả các field với giá trị mặc định để tránh controlled/uncontrolled warning
+        const initialValues = { ...editingRecord };
+        // Đảm bảo tất cả các field đều có giá trị (không phải undefined)
+        Object.keys(initialValues).forEach(key => {
+          if (initialValues[key] === undefined) {
+            initialValues[key] = null;
+          }
+        });
+        form.setFieldsValue(initialValues); // nếu edit thì set giá trị ban đầu của form
       } else {
         form.resetFields(); // nếu tạo mới thì reset form
       }

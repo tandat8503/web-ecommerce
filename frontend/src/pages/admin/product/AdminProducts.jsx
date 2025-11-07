@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Table,
   Input,
@@ -14,236 +13,55 @@ import {
   Select,
   InputNumber,
   Form,
-  // Upload, // ĐÃ COMMENT - Không dùng upload ảnh
   Button as AntButton,
   Switch,
 } from "antd";
-
 import { FaPlus, FaEdit, FaTrash, FaEye, FaImages } from "react-icons/fa";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
-import ProductImageModal from "./ProductImageModal";
-import { toast } from "@/lib/utils";
-import {
-  getProducts,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  getProductById,
-} from "@/api/adminProducts";
-import { getCategories } from "@/api/adminCategories";
-import { getBrands } from "@/api/adminBrands";
-// import { UploadOutlined } from "@ant-design/icons"; // ĐÃ COMMENT - Không dùng upload ảnh
+import ProductImageModal from "../ProductImageModal";
+import { useAdminProducts } from "./useAdminProducts";
 
 const { Search } = Input;
 const { Option } = Select;
 
 export default function AdminProducts() {
-  const [showSkeleton, setShowSkeleton] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 5, total: 0 });
-  const [keyword, setKeyword] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [loadingProductId, setLoadingProductId] = useState(null);
-  const [imageModalOpen, setImageModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+  // Lấy tất cả state và handlers từ custom hook
+  const {
+    products,
+    categories,
+    brands,
+    showSkeleton,
+    modalLoading,
+    pagination,
+    searchValue,
+    modalOpen,
+    detailOpen,
+    editingRecord,
+    detailData,
+    loadingProductId,
+    imageModalOpen,
+    selectedProduct,
+    handleSubmit,
+    handleDelete,
+    handleCreate,
+    openEditModal,
+    closeModal,
+    handleViewDetail,
+    closeDetailModal,
+    handleManageImages,
+    closeImageModal,
+    handlePaginationChange,
+    handleSearchChange,
+    fetchProducts,
+    isChairCategory,
+    isTableOrCabinetCategory,
+  } = useAdminProducts();
 
-  // Hàm delay
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  // debounce search
-  const [searchValue, setSearchValue] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 }));
-      setKeyword(searchValue);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchValue]);
-
-  // Load danh sách products
-  const fetchProducts = async () => {
-    setShowSkeleton(true);
-    try {
-      const response = await getProducts({
-        page: pagination.page,
-        limit: pagination.limit,
-        q: keyword, // Thay đổi từ 'search' thành 'q' để nhất quán
-      });
-      setProducts(response.data.items || []);
-      setPagination((prev) => ({
-        ...prev,
-        total: response.data.total || 0,
-      }));
-      // ép skeleton hiển thị ít nhất 800ms
-      await sleep(800);
-    } catch (error) {
-      toast.error("Lỗi khi tải danh sách sản phẩm");
-      console.error("Error fetching products:", error);
-    } finally {
-      setShowSkeleton(false);
-    }
-  };
-
-  // fetch categories & brands
-  const fetchSelectOptions = async () => {
-    try {
-      const [categoriesRes, brandsRes] = await Promise.all([
-        getCategories({ limit: 1000 }),
-        getBrands({ limit: 1000 }),
-      ]);
-      setCategories(categoriesRes.data.items || []);
-      setBrands(brandsRes.data.items || []);
-    } catch (error) {
-      console.error("Error fetching select options:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-    fetchSelectOptions();
-  }, [pagination.page, pagination.limit, keyword]);
-
-
-  // Handle create/edit
-  const handleSubmit = async (values, editingRecord) => {
-    setModalLoading(true);
-    try {
-      // Tạo FormData để gửi file
-      const formData = new FormData();
-      
-      // Xử lý từng field riêng biệt
-      if (values.name) formData.append('name', values.name);
-      // SKU sẽ được tự động tạo bởi backend
-      if (values.description) formData.append('description', values.description);
-      if (values.price) formData.append('price', values.price);
-      if (values.salePrice) formData.append('salePrice', values.salePrice);
-      if (values.costPrice) formData.append('costPrice', values.costPrice);
-      if (values.stock !== undefined) formData.append('stock', values.stock);
-      if (values.minStockLevel !== undefined) formData.append('minStockLevel', values.minStockLevel);
-      if (values.metaTitle) formData.append('metaTitle', values.metaTitle);
-      if (values.metaDescription) formData.append('metaDescription', values.metaDescription);
-      if (values.categoryId) formData.append('categoryId', values.categoryId);
-      if (values.brandId) formData.append('brandId', values.brandId);
-      if (values.warranty) formData.append('warranty', values.warranty);
-      
-      // Helper function để convert về cm
-      const convertToCm = (value, unit) => {
-        if (!value) return null;
-        if (unit === 'inch') {
-          return (Number(value) * 2.54).toFixed(2);
-        }
-        return Number(value).toFixed(2);
-      };
-
-      // Xử lý các field kích thước với unit riêng
-      if (values.length !== undefined && values.length !== null) {
-        const lengthInCm = convertToCm(values.length, values.lengthUnit || 'cm');
-        formData.append('length', lengthInCm);
-      }
-      if (values.width !== undefined && values.width !== null) {
-        const widthInCm = convertToCm(values.width, values.widthUnit || 'cm');
-        formData.append('width', widthInCm);
-      }
-      if (values.height !== undefined && values.height !== null) {
-        const heightInCm = convertToCm(values.height, values.heightUnit || 'cm');
-        formData.append('height', heightInCm);
-      }
-      if (values.seatHeight !== undefined && values.seatHeight !== null) {
-        const seatHeightInCm = convertToCm(values.seatHeight, values.seatHeightUnit || 'cm');
-        formData.append('seatHeight', seatHeightInCm);
-      }
-      if (values.backHeight !== undefined && values.backHeight !== null) {
-        const backHeightInCm = convertToCm(values.backHeight, values.backHeightUnit || 'cm');
-        formData.append('backHeight', backHeightInCm);
-      }
-      if (values.depth !== undefined && values.depth !== null) {
-        const depthInCm = convertToCm(values.depth, values.depthUnit || 'cm');
-        formData.append('depth', depthInCm);
-      }
-      
-      // Set dimensionUnit mặc định là cm (vì đã convert tất cả về cm)
-      formData.append('dimensionUnit', 'cm');
-      
-      // Xử lý trạng thái - gửi status field thay vì isActive
-      if (values.isActive !== undefined) {
-        formData.append('status', values.isActive ? 'ACTIVE' : 'INACTIVE');
-      }
-      
-      // Xử lý sản phẩm nổi bật
-      if (values.isFeatured !== undefined) {
-        formData.append('isFeatured', values.isFeatured ? 'true' : 'false');
-      }
-      
-      // Thêm file nếu có - ĐÃ COMMENT
-      // if (values.image && values.image[0]?.originFileObj) {
-      //   formData.append('image', values.image[0].originFileObj);
-      // }
-
-      if (editingRecord) {
-        await updateProduct(editingRecord.id, formData);
-        toast.success("Cập nhật sản phẩm thành công");
-      } else {
-        await createProduct(formData);
-        toast.success("Tạo sản phẩm thành công");
-      }
-      setModalOpen(false);
-      setEditingRecord(null);
-      fetchProducts();
-    } catch (error) {
-      console.error('Error updating product:', error);
-      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  // Handle delete
-  const handleDelete = async (id) => {
-    try {
-      await deleteProduct(id);
-      toast.success("Xóa sản phẩm thành công");
-      fetchProducts();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
-    }
-  };
-
-  // Handle create
-  const handleCreate = () => {
-    setEditingRecord(null);
-    setModalOpen(true);
-  };
-
-  // Handle view detail
-  const handleViewDetail = async (id) => {
-    setLoadingProductId(id);
-    try {
-      const response = await getProductById(id);
-      setDetailData(response.data);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error("Lỗi khi tải chi tiết sản phẩm");
-    } finally {
-      setLoadingProductId(null);
-    }
-  };
-
-  // Handle manage images
-  const handleManageImages = (product) => {
-    setSelectedProduct(product);
-    setImageModalOpen(true);
-  };
-
+  // Cấu hình columns cho table
   const columns = [
     { title: "ID", dataIndex: "id", key: "id", width: 80 },
     {
@@ -366,10 +184,7 @@ export default function AdminProducts() {
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white"
               size="sm"
-              onClick={() => {
-                setEditingRecord(record);
-                setModalOpen(true);
-              }}
+              onClick={() => openEditModal(record)}
             >
               <FaEdit />
             </Button>
@@ -391,27 +206,7 @@ export default function AdminProducts() {
     },
   ];
 
-  // Helper function để kiểm tra category có phải là Ghế không
-  const isChairCategory = (categoryId) => {
-    if (!categoryId) return false;
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return false;
-    const categoryName = category.name?.toLowerCase() || '';
-    return categoryName.includes('ghế') || categoryName.includes('ghe') || categoryName.includes('chair');
-  };
-
-  // Helper function để kiểm tra category có phải là Bàn/Tủ không
-  const isTableOrCabinetCategory = (categoryId) => {
-    if (!categoryId) return false;
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return false;
-    const categoryName = category.name?.toLowerCase() || '';
-    return categoryName.includes('bàn') || categoryName.includes('ban') || 
-           categoryName.includes('tủ') || categoryName.includes('tu') ||
-           categoryName.includes('table') || categoryName.includes('cabinet');
-  };
-
-  // Modal fields
+  // Modal fields với conditional rendering dựa trên category
   const fields = [
     {
       name: "name",
@@ -478,17 +273,6 @@ export default function AdminProducts() {
       ),
       rules: [{ required: true, message: "Vui lòng chọn thương hiệu" }],
     },
-    // {
-    //   name: "image",
-    //   label: "Hình ảnh",
-    //   valuePropName: "fileList",
-    //   getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
-    //   component: (
-    //     <Upload name="image" listType="picture" maxCount={1} beforeUpload={() => false}>
-    //       <AntButton icon={<UploadOutlined />}>Chọn ảnh</AntButton>
-    //     </Upload>
-    //   ),
-    // },
     {
       name: "metaTitle",
       label: "Tiêu đề SEO",
@@ -740,8 +524,7 @@ export default function AdminProducts() {
             text="Quản lý Sản phẩm"
             color="#667eea"
             style={{
-              background:
-                "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
+              background: "linear-gradient(45deg, #667eea, #764ba2, #f093fb, #667eea)",
               backgroundSize: "300% 300%",
               animation: "gradientShift 4s ease infinite",
               fontWeight: "bold",
@@ -762,10 +545,9 @@ export default function AdminProducts() {
                     allowClear
                     size="large"
                     value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     onSearch={(value) => {
-                      setSearchValue(value);
-                      setKeyword(value);
+                      handleSearchChange(value);
                     }}
                     style={{ width: 300 }}
                     enterButton
@@ -789,13 +571,7 @@ export default function AdminProducts() {
                     showQuickJumper: true,
                     showTotal: (total, range) =>
                       `${range[0]}-${range[1]} của ${total} sản phẩm`,
-                    onChange: (page, pageSize) => {
-                      setPagination((prev) => ({
-                        ...prev,
-                        page,
-                        limit: pageSize || prev.limit,
-                      }));
-                    },
+                    onChange: handlePaginationChange,
                   }}
                   scroll={{ x: 1000 }}
                 />
@@ -808,10 +584,7 @@ export default function AdminProducts() {
       {/* Modal CRUD */}
       <CrudModal
         open={modalOpen}
-        onCancel={() => {
-          setModalOpen(false);
-          setEditingRecord(null);
-        }}
+        onCancel={closeModal}
         onSubmit={handleSubmit}
         editingRecord={editingRecord}
         fields={fields}
@@ -823,7 +596,7 @@ export default function AdminProducts() {
       {/* Modal Detail */}
       <DetailModal
         open={detailOpen}
-        onCancel={() => setDetailOpen(false)}
+        onCancel={closeDetailModal}
         title="Chi tiết sản phẩm"
         data={detailData}
         fields={detailFields}
@@ -833,10 +606,7 @@ export default function AdminProducts() {
       {/* Modal Quản lý ảnh */}
       <ProductImageModal
         open={imageModalOpen}
-        onCancel={() => {
-          setImageModalOpen(false);
-          setSelectedProduct(null);
-        }}
+        onCancel={closeImageModal}
         productId={selectedProduct?.id}
         productName={selectedProduct?.name}
         onImageUpdated={() => {
@@ -847,3 +617,4 @@ export default function AdminProducts() {
     </>
   );
 }
+
