@@ -60,6 +60,7 @@ export default function UserHeader() {
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
   const navigate = useNavigate();
   
@@ -258,10 +259,22 @@ export default function UserHeader() {
 
 
               <Input.Search
-                placeholder="Tìm kiếm văn phòng phẩm, máy tính, bàn ghế..."
+                placeholder="Tìm kiếm sản phẩm (FullText search)..."
                 allowClear
                 className="rounded-full shadow-lg flex-1"
                 size="large"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                onSearch={(value) => {
+                  // Navigate đến trang products với query parameter q
+                  if (value && value.trim()) {
+                    navigate(`/san-pham?q=${encodeURIComponent(value.trim())}`);
+                  } else {
+                    navigate("/san-pham");
+                  }
+                  setSearchValue("");
+                }}
+                enterButton
               />
             </div>
           </Col>

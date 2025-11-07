@@ -67,7 +67,28 @@ const Products = () => {
     loadInitialData();
   }, []);
 
-  // Effect 2: Load sản phẩm khi component mount hoặc filters/page thay đổi
+  // Effect 2: Sync filters với URL params khi URL thay đổi (ví dụ: navigate từ header search)
+  useEffect(() => {
+    const urlQ = searchParams.get('q') || '';
+    const urlCategoryId = searchParams.get('categoryId') || '';
+    const urlBrandId = searchParams.get('brandId') || '';
+    
+    // Chỉ update nếu có thay đổi từ URL (so sánh với giá trị hiện tại)
+    setFilters(prev => {
+      if (urlQ !== prev.q || urlCategoryId !== prev.categoryId || urlBrandId !== prev.brandId) {
+        // Reset về trang 1 khi filter thay đổi từ URL
+        setPagination(prevPagination => ({ ...prevPagination, page: 1 }));
+        return {
+          q: urlQ,
+          categoryId: urlCategoryId,
+          brandId: urlBrandId
+        };
+      }
+      return prev;
+    });
+  }, [searchParams]);
+
+  // Effect 3: Load sản phẩm khi component mount hoặc filters/page thay đổi
   // Load ngay lập tức khi component mount và load lại khi filters/page thay đổi
   useEffect(() => {
     loadProducts();
