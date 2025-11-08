@@ -104,7 +104,7 @@ export const addAddress = async (req, res) => {
     logger.start(context.path, { userId: req.user.id });
     
     const userId = req.user.id;
-    const { fullName, phone, streetAddress, ward, district, city, postalCode, addressType, isDefault, note } = req.body;
+    const { fullName, phone, streetAddress, ward, district, city, addressType, isDefault, note } = req.body;
 
     // Nếu user chưa có địa chỉ nào thì địa chỉ đầu tiên auto là mặc định
     const count = await prisma.address.count({ where: { userId } });
@@ -136,7 +136,6 @@ export const addAddress = async (req, res) => {
         ward: ward || null,
         district,
         city,
-        postalCode: postalCode || null,
         addressType: addressType || 'HOME',
         isDefault: defaultStatus,
         note: note || null,
@@ -165,7 +164,7 @@ export const updateAddress = async (req, res) => {
     
     const userId = req.user.id;
     const { id } = req.params;
-    const { fullName, phone, streetAddress, ward, district, city, postalCode, addressType, isDefault, note } = req.body;
+    const { fullName, phone, streetAddress, ward, district, city, addressType, isDefault, note } = req.body;
 
     if (!id || isNaN(id)) {
       logger.warn('Invalid address ID', { id });
@@ -199,7 +198,6 @@ export const updateAddress = async (req, res) => {
         ward: ward !== undefined ? ward : found.ward,
         district: district ?? found.district,
         city: city ?? found.city,
-        postalCode: postalCode !== undefined ? postalCode : found.postalCode,
         addressType: addressType ?? found.addressType,
         isDefault: isDefault !== undefined ? isDefault : found.isDefault,
         note: note !== undefined ? note : found.note,

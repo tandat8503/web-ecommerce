@@ -43,10 +43,21 @@ app.use(cors({
 // Express + cors middleware tự động xử lý OPTIONS preflight
 
 // --- Rate limiting ---
+// Tăng rate limit cho development, giữ nguyên cho production
+const isDevelopment = process.env.NODE_ENV !== 'production';
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 phút
-  max: 200, // Giới hạn 200 requests
-  message: 'Quá nhiều requests, vui lòng thử lại sau'
+  max: isDevelopment ? 1000 : 200, // Development: 1000 requests, Production: 200 requests
+  message: 'Quá nhiều requests, vui lòng thử lại sau',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Skip rate limiting nếu là development và có flag trong env
+  skip: (req) => {
+    if (isDevelopment && process.env.SKIP_RATE_LIMIT === 'true') {
+      return true;
+    }
+    return false;
+  }
 })
 app.use(limiter)
 
