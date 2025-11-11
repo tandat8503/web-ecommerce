@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Layout, Avatar, Popover, Button, Space, Divider } from "antd";
-import { FaSignOutAlt } from "react-icons/fa";
+import { Layout, Avatar, Popover, Button, Space, Badge, Divider } from "antd";
+import { FaSignOutAlt, FaBell } from "react-icons/fa";
 import { Typewriter } from "react-simple-typewriter";
 import { useNavigate } from "react-router-dom";
 import { logout } from "@/api/auth";
@@ -8,6 +8,7 @@ import { getUserProfile } from "@/api/userProfile";
 import { toast } from "@/lib/utils";
 import useCartStore from "@/stores/cartStore";
 import useWishlistStore from "@/stores/wishlistStore";
+import { NotificationDropdown, useAdminNotifications, useAdminSocket } from "@/pages/admin/notification";
 
 const { Header } = Layout;
 
@@ -19,6 +20,32 @@ const AdminHeader = () => {
   // Get Zustand stores
   const resetCart = useCartStore(state => state.resetCart);
   const resetWishlist = useWishlistStore(state => state.resetWishlist);
+  
+  // Notifications - Hook quản lý API và state
+  const {
+    notifications,//danh sách thông báo
+    unreadCount,//số lượng thông báo chưa đọc
+    loading: notificationsLoading,//loading
+    fetchNotifications,      //lấy danh sách thông báo
+    fetchUnreadCount,       //lấy số lượng thông báo chưa đọc
+    handleMarkAsRead,//đánh dấu đã đọc  
+    handleMarkAllAsRead,//đánh dấu tất cả đã đọc
+    handleDelete//xóa thông báo
+  } = useAdminNotifications();
+  
+  // ========== WEBSOCKET: LẮNG NGHE ĐƠN HÀNG MỚI ==========
+  // Sử dụng hook chung để tránh lặp code
+  useAdminSocket((data) => {
+    // Hiển thị toast thông báo
+    toast.success(`Đơn hàng mới: ${data.orderNumber} - ${data.customerName}`);
+    
+    // Refresh danh sách thông báo từ server
+    setTimeout(() => {
+      fetchNotifications();//lấy danh sách thông báo
+      fetchUnreadCount();//lấy số lượng thông báo chưa đọc
+    }, 500);//delay 500ms để tránh lỗi
+  }, [fetchNotifications, fetchUnreadCount]);//khi fetchNotifications hoặc fetchUnreadCount thay đổi, hook sẽ chạy lại
+  // ========== END WEBSOCKET: LẮNG NGHE ĐƠN HÀNG MỚI ==========
   
   // Lấy thông tin admin khi component mount
   useEffect(() => {
@@ -32,7 +59,7 @@ const AdminHeader = () => {
         
         setAdminInfo(user);
       } catch (error) {
-        console.error("❌ Error fetching admin info:", error);
+        console.error(" Error fetching admin info:", error);
       }
     };
     
@@ -61,9 +88,21 @@ const AdminHeader = () => {
     }
   };
 
+  // Popover content cho notifications - sử dụng component riêng
+  const notificationContent = (
+    <NotificationDropdown
+      notifications={notifications}//danh sách thông báo
+      unreadCount={unreadCount}//số lượng thông báo chưa đọc
+      loading={notificationsLoading}//loading
+      handleMarkAsRead={handleMarkAsRead}//đánh dấu đã đọc
+      handleMarkAllAsRead={handleMarkAllAsRead}//đánh dấu tất cả đã đọc
+      handleDelete={handleDelete}//xóa thông báo
+    />
+  );
+
+  // Popover content cho user menu
   const popoverContent = (
     <div style={{ minWidth: "150px" }}>
-      
       <Divider style={{ margin: "8px 0" }} />
       <Button
         type="text"
@@ -165,6 +204,17 @@ const AdminHeader = () => {
           `}
         </style>
         </div>
+
+        {/* Notification Bell */}
+        <Popover content={notificationContent} placement="bottomRight" trigger="click">
+          <Badge count={unreadCount} size="small" offset={[-5, 5]}>
+            <Button
+              type="text"
+              icon={<FaBell style={{ fontSize: 20 }} />}
+              style={{ fontSize: 20, color: "#1890ff" }}
+            />
+          </Badge>
+        </Popover>
 
         {/* Admin Avatar + Logout */}
         <Popover content={popoverContent} placement="bottomRight" trigger="click">

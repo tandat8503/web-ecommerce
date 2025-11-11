@@ -6,14 +6,17 @@ import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
 
-export default function LoginHistory() {
+export default function LoginHistory({ isActive = true }) {
   const [loginHistory, setLoginHistory] = useState([]);
   const [loading, setLoading] = useState(false);
 
 
   useEffect(() => {
-    fetchLoginHistory();
-  }, []);
+    // Chỉ gọi API khi component thực sự được hiển thị (isActive = true)
+    if (isActive) {
+      fetchLoginHistory();
+    }
+  }, [isActive]);
 
   const fetchLoginHistory = async () => {
     try {
@@ -24,7 +27,10 @@ export default function LoginHistory() {
       }
     } catch (error) {
       console.error("Error fetching login history:", error);
-      toast.error("Không thể tải lịch sử đăng nhập");
+      // Chỉ hiển thị toast khi component đang active
+      if (isActive) {
+        toast.error("Không thể tải lịch sử đăng nhập");
+      }
     } finally {
       setLoading(false);
     }

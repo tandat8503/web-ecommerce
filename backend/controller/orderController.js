@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
+import { emitNewOrder } from '../config/socket.js';
 
 /**
  * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
@@ -196,6 +197,37 @@ export const createOrder = async (req, res) => {
         payments: true
       }
     });
+
+    // BƯỚC 8: Tạo thông báo cho admin và gửi WebSocket event
+    try {
+      // Lấy danh sách tất cả admin
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true }
+      });
+
+      // Tạo notification cho từng admin
+      if (admins.length > 0) {
+        const totalAmount = Number(orderDetails.totalAmount);
+        await prisma.notification.createMany({
+          data: admins.map(admin => ({
+            userId: admin.id,
+            title: 'Đơn hàng mới',
+            message: `Đơn hàng ${orderDetails.orderNumber} vừa được tạo với tổng tiền ${totalAmount.toLocaleString('vi-VN')}đ`,
+            type: 'ORDER_NEW'
+          }))
+        });
+      }
+
+      // Gửi WebSocket event đến admin room
+      emitNewOrder(orderDetails);
+    } catch (notifError) {
+      // Nếu lỗi khi tạo notification, log nhưng không ảnh hưởng đến response
+      logger.warn('Failed to create notification for new order', {
+        orderId: created.id,
+        error: notifError.message
+      });
+    }
 
     return res.status(201).json({ message: "Tạo đơn hàng thành công", order: orderDetails });
   } catch (error) {

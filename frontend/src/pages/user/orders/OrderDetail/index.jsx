@@ -1,100 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Steps, Card, Descriptions, Tag, List, Space, Skeleton } from "antd";
 import { Button } from "@/components/ui/button";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
-import { getOrderById, cancelOrder, confirmReceivedOrder } from "@/api/orders";
 import { formatPrice } from "@/lib/utils";
+import { useOrderDetail, getStatusLabel, getStatusTagColor } from "./useOrderDetail";
 
 export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-
-  const fetchDetail = async () => {
-    try {
-      setLoading(true);
-      const { data } = await getOrderById(id);
-      setOrder(data.order || null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchDetail(); }, [id]);
-
-  const handleCancel = async () => {
-    try {
-      setActionLoading(true);
-      await cancelOrder(id);
-      await fetchDetail();
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleConfirmReceived = async () => {
-    try {
-      setActionLoading(true);
-      await confirmReceivedOrder(id);
-      await fetchDetail();
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      PENDING: "Chờ xác nhận",
-      CONFIRMED: "Đã xác nhận",
-      PROCESSING: "Đang giao",
-      DELIVERED: "Đã giao",
-      CANCELLED: "Đã hủy",
-    };
-    return labels[status] || status;
-  };
-
-  const getStatusTagColor = (s) => {
-    switch (String(s)) {
-      case 'PENDING': return 'orange';
-      case 'CONFIRMED': return 'blue';
-      case 'PROCESSING': return 'cyan';
-      case 'DELIVERED': return 'green';
-      case 'CANCELLED': return 'red';
-      default: return 'default';
-    }
-  };
-
-  const steps = useMemo(() => {
-    if (!order) return { steps: [], current: 0 };
-    const t = order.timeline || {};
-    const formatDt = (d) => (d ? new Date(d).toLocaleString("vi-VN") : "");
-    const rawSteps = [
-      { key: "PENDING", label: "Đã đặt hàng", time: formatDt(t.pendingAt || order.createdAt) },
-      { key: "CONFIRMED", label: "Đã xác nhận", time: formatDt(t.confirmedAt || t.paymentConfirmedAt) },
-      { key: "PROCESSING", label: "Đang giao", time: formatDt(t.processingAt) },
-      { key: "DELIVERED", label: "Đã nhận hàng", time: formatDt(t.deliveredAt) },
-    ];
-    
-    // Tính current index dựa trên index trong rawSteps array
-    let currentIdx = rawSteps.findIndex(s => s.key === order.status);
-    
-    // Nếu không tìm thấy trong rawSteps (ví dụ: CANCELLED), xử lý riêng
-    if (currentIdx < 0 && order.status === "CANCELLED") {
-      rawSteps.push({ key: "CANCELLED", label: "Đã huỷ", time: formatDt(t.cancelledAt || order.updatedAt) });
-      currentIdx = rawSteps.length - 1;
-    }
-    
-    // Đảm bảo currentIdx hợp lệ
-    if (currentIdx < 0) currentIdx = 0;
-    
-    return {
-      steps: rawSteps,
-      current: currentIdx
-    };
-  }, [order]);
+  const {
+    order,
+    loading,
+    actionLoading,
+    steps,
+    handleCancel,
+    handleConfirmReceived,
+  } = useOrderDetail(id);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -223,5 +144,4 @@ export default function OrderDetail() {
     </div>
   );
 }
-
 

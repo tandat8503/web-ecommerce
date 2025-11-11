@@ -26,6 +26,16 @@ export async function updateOrder(id, data) {
 }
 
 /**
+ * Hủy đơn hàng (admin)
+ * @param {number} id - ID đơn hàng
+ * @param {Object} data - Dữ liệu (hiện tại không cần, để trống {})
+ * Lưu ý: Backend không nhận adminNote trong cancelOrder, nếu muốn cập nhật ghi chú hãy gọi riêng updateOrderNotes
+ */
+export async function cancelOrder(id, data = {}) {
+  return await axiosClient.put(`admin/orders/${id}/cancel`, data);
+}
+
+/**
  * Cập nhật chỉ ghi chú admin (không thay đổi status)
  * @param {number} id - ID đơn hàng
  * @param {string} notes - Ghi chú admin

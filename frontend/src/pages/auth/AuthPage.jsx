@@ -115,6 +115,8 @@ export default function AuthPage() {
                     <Text className="text-blue-700 font-semibold text-xs block">Chất lượng Nhật</Text>
                     <Text className="text-blue-600 text-xs">Gỗ cao cấp</Text>
                   </div>
+
+                  
                   
                   <div className="text-center p-3 bg-white/60 backdrop-blur-sm rounded-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105">
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mx-auto mb-2 shadow-sm">

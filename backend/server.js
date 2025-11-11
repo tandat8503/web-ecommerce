@@ -170,12 +170,31 @@ const startServer = async () => {
     // Đảm bảo FullText index đã được tạo
     await ensureFullTextIndex()
     
-    app.listen(PORT, () => {
+    //Khởi tạo HTTP server để kết nối với Socket.IO
+    const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`🌐 Health check: http://localhost:${PORT}/api/health`)
       console.log(`🗄️  Database test: http://localhost:${PORT}/api/test-db`)
       console.log(`🟢 Auth endpoints: http://localhost:${PORT}/api/auth`)
     })
+
+    // ========================================
+    // Khởi tạo Socket.IO
+    // ========================================
+    // Đây là chỗ DUY NHẤT trong server.js dùng Socket.IO
+    
+    // Import hàm initializeSocket từ file socket.js
+    // - Dùng dynamic import (await import) vì ES modules
+    // - File: backend/config/socket.js
+    const { initializeSocket } = await import('./config/socket.js')
+    
+    // Gọi hàm initializeSocket và truyền HTTP server vào
+    // - server: HTTP server từ app.listen() (dòng trên)
+    // - initializeSocket() sẽ tạo Socket.IO server và kết nối với HTTP server
+    // - Xem chi tiết trong: backend/config/socket.js
+    initializeSocket(server)
+    
+    console.log('✅ Socket.IO initialized')
   } catch (error) {
     console.error('❌ Failed to connect to database:', error.message)
     console.error('Please check your DATABASE_URL in .env file')

@@ -151,10 +151,10 @@ export default function ProfileManager() {
               <ChangePassword />
             )}
             {activeSection === "history" && (
-              <LoginHistory />
+              <LoginHistory isActive={activeSection === "history"} />
             )}
             {activeSection === "address" && (
-              <Address />
+              <Address isActive={activeSection === "address"} />
             )}
           </Col>
         </Row>

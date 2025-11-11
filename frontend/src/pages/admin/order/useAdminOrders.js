@@ -1,108 +1,29 @@
-import { useState, useEffect } from "react";
-import { toast } from "@/lib/utils";
-import {
-  getOrders,
-  getOrderById,
-  updateOrder,
-  updateOrderNotes,
-} from "@/api/adminOrders";
+import { useState, useEffect, useCallback } from "react";
+import { toast, formatPrice } from "@/lib/utils";
+import { getOrders, getOrderById, updateOrder, cancelOrder, updateOrderNotes } from "@/api/adminOrders";
+import { useAdminSocket } from "@/pages/admin/notification";
 
-/**
- * Custom hook quản lý toàn bộ logic cho AdminOrders
- * Bao gồm: state management, API calls, CRUD operations, pagination, search, filter, status update
- * 
- * @returns {Object} Object chứa:
- *   - State: orders, showSkeleton, modalLoading, pagination, keyword, searchValue, statusFilter, modalOpen, detailOpen, editingRecord, detailData, updatingOrderId
- *   - Handlers: fetchOrders, handleSubmit, handleStatusChange, handleViewDetail, openUpdateModal, closeModal, closeDetailModal, handleSearchChange, handleStatusFilterChange, handlePaginationChange, getStatusBadgeColor, getStatusLabel, getStatusUpdateFields
- */
+
 export function useAdminOrders() {
-  const [showSkeleton, setShowSkeleton] = useState(false);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [orders, setOrders] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
-  const [statusFilter, setStatusFilter] = useState("");
-  const [keyword, setKeyword] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [detailData, setDetailData] = useState(null);
-  const [updatingOrderId, setUpdatingOrderId] = useState(null);
-  const [searchValue, setSearchValue] = useState("");
+  // ========== STATE ==========
+  const [orders, setOrders] = useState([]); // Danh sách đơn hàng
+  const [loading, setLoading] = useState(false); // Đang tải danh sách
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 }); // Phân trang
+  const [searchValue, setSearchValue] = useState(""); // Tìm kiếm
+  const [statusFilter, setStatusFilter] = useState(""); // Lọc theo trạng thái
+  
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false); // Modal ghi chú
+  const [detailOpen, setDetailOpen] = useState(false); // Modal chi tiết
+  const [editingOrder, setEditingOrder] = useState(null); // Đơn hàng đang sửa ghi chú
+  const [detailData, setDetailData] = useState(null); // Dữ liệu chi tiết đơn hàng
+  const [updatingId, setUpdatingId] = useState(null); // ID đơn hàng đang cập nhật (để hiển thị loading)
+  const [modalLoading, setModalLoading] = useState(false); // Loading state cho modal cập nhật ghi chú
 
+  // ========== HELPER FUNCTIONS ==========
+  
   /**
-   * Debounce search - cập nhật keyword sau 500ms khi searchValue thay đổi
-   */
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPagination((prev) => ({ ...prev, page: 1 }));
-      setKeyword(searchValue);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchValue]);
-
-  /**
-   * Load danh sách orders từ API
-   */
-  const fetchOrders = async () => {
-    try {
-      setShowSkeleton(true);
-
-      const [res] = await Promise.all([
-        getOrders({
-          page: pagination.page,
-          limit: pagination.limit,
-          status: statusFilter || undefined,
-          q: keyword || undefined,
-        }),
-        new Promise((resolve) => setTimeout(resolve, 600)),
-      ]);
-
-      setOrders(res.data.items || []);
-      setPagination((prev) => ({
-        ...prev,
-        total: res.data.total || 0,
-      }));
-    } catch (err) {
-      console.log(err);
-      toast.error("Không thể tải danh sách đơn hàng");
-    } finally {
-      setShowSkeleton(false);
-    }
-  };
-
-  /**
-   * Fetch orders khi pagination, statusFilter hoặc keyword thay đổi
-   */
-  useEffect(() => {
-    fetchOrders();
-  }, [pagination.page, pagination.limit, statusFilter, keyword]);
-
-  /**
-   * Hàm lấy màu badge theo trạng thái
-   * @param {string} status - Trạng thái đơn hàng
-   * @returns {string} Màu badge
-   */
-  const getStatusBadgeColor = (status) => {
-    switch (String(status)) {
-      case "PENDING":
-        return "orange";
-      case "CONFIRMED":
-        return "blue";
-      case "PROCESSING":
-        return "cyan";
-      case "DELIVERED":
-        return "green";
-      case "CANCELLED":
-        return "red";
-      default:
-        return "default";
-    }
-  };
-
-  /**
-   * Hàm lấy label trạng thái
-   * @param {string} status - Trạng thái đơn hàng
-   * @returns {string} Label trạng thái
+   * Chuyển status code thành label tiếng Việt
    */
   const getStatusLabel = (status) => {
     const labels = {
@@ -116,159 +37,243 @@ export function useAdminOrders() {
   };
 
   /**
-   * Submit form cập nhật ghi chú admin (từ modal)
-   * @param {Object} values - Form values
-   * @param {Object} record - Record đang edit
+   * Lấy màu cho tag status
    */
-  const handleSubmit = async (values, record) => {
-    try {
-      setModalLoading(true);
-      // Cập nhật chỉ ghi chú, không thay đổi status
-      await updateOrderNotes(record.id, values.notes || "");
-      toast.success("Cập nhật ghi chú thành công");
-      setModalOpen(false);
-      setEditingRecord(null);
-      fetchOrders();
-    } catch (err) {
-      console.log(err);
-      const errorMsg =
-        err.response?.data?.message || "Có lỗi khi cập nhật ghi chú";
-      toast.error(errorMsg);
-    } finally {
-      setModalLoading(false);
-    }
+  const getStatusColor = (status) => {
+    const colors = {
+      PENDING: "orange",
+      CONFIRMED: "blue",
+      PROCESSING: "cyan",
+      DELIVERED: "green",
+      CANCELLED: "red",
+    };
+    return colors[status] || "default";
   };
 
   /**
-   * Cập nhật trạng thái trực tiếp từ dropdown
-   * @param {number} orderId - ID đơn hàng
-   * @param {string} newStatus - Trạng thái mới
+   * Tính toán các trạng thái có thể chuyển từ trạng thái hiện tại
+   * Theo backend: PENDING → CONFIRMED → PROCESSING → DELIVERED
    */
-  const handleStatusChange = async (orderId, newStatus) => {
+  const getAvailableStatuses = (currentStatus) => {
+    const transitions = {
+      PENDING: ["CONFIRMED"],        // Chờ xác nhận → Đã xác nhận
+      CONFIRMED: ["PROCESSING"],     // Đã xác nhận → Đang giao
+      PROCESSING: ["DELIVERED"],      // Đang giao → Đã giao
+      DELIVERED: [],                  // Đã giao → không thể chuyển nữa
+      CANCELLED: [],                  // Đã hủy → không thể chuyển nữa
+    };
+    return (transitions[currentStatus] || []).map(status => ({
+      value: status,
+      label: getStatusLabel(status),
+    }));
+  };
+
+  // ========== BƯỚC 1: LẤY DANH SÁCH ĐƠN HÀNG ==========
+  
+  /**
+   * Gọi API lấy danh sách đơn hàng
+   * Backend trả về: { items: [...], total: number, page: number, limit: number }
+   * Dùng useCallback để tránh tạo function mới mỗi lần render → tránh hook chạy lại không cần thiết
+   */
+  const fetchOrders = useCallback(async () => {
     try {
-      setUpdatingOrderId(orderId);
-      await updateOrder(orderId, {
-        status: newStatus,
-        notes: "",
+      setLoading(true);
+      
+      // Gọi API với các tham số: page, limit, status (filter), q (search)
+      const res = await getOrders({
+        page: pagination.page,
+        limit: pagination.limit,
+        status: statusFilter || undefined,
+        q: searchValue || undefined,
       });
-      toast.success("Cập nhật trạng thái đơn hàng thành công");
-      fetchOrders();
-    } catch (err) {
-      console.log(err);
-      const errorMsg =
-        err.response?.data?.message || "Có lỗi khi cập nhật đơn hàng";
-      toast.error(errorMsg);
-      // Refresh để lấy lại trạng thái cũ
-      fetchOrders();
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
 
+      // Backend trả về: { items, total, page, limit }
+      const items = (res.data.items || []).map(order => ({
+        ...order,
+        // Thêm các field tính toán cho UI
+        canCancel: order.status === "PENDING" || order.status === "CONFIRMED", // Có thể hủy không?
+        availableStatuses: getAvailableStatuses(order.status), // Các trạng thái có thể chuyển
+      }));
+
+      setOrders(items);
+      setPagination(prev => ({ ...prev, total: res.data.total || 0 }));
+    } catch (err) {
+      console.error("❌ Lỗi khi lấy danh sách đơn hàng:", err);
+      toast.error("Không thể tải danh sách đơn hàng");
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.limit, statusFilter, searchValue]);
+
+  // Tự động fetch khi search thay đổi (debounce 500ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (pagination.page !== 1) {
+        // Nếu đang ở trang khác trang 1, reset về trang 1
+        setPagination(prev => ({ ...prev, page: 1 }));
+      } else {
+        // Nếu đang ở trang 1, fetch ngay
+        fetchOrders();
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue]);
+
+  // Tự động fetch khi pagination hoặc filter thay đổi
+  useEffect(() => {
+    fetchOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.page, pagination.limit, statusFilter]);
+
+  // ========== WEBSOCKET: LẮNG NGHE ĐƠN HÀNG MỚI ==========
+  
   /**
-   * Xử lý xem chi tiết đơn hàng
-   * @param {number} id - ID đơn hàng
+   * 128-183: websocket
+   * Khởi tạo Socket.IO và lắng nghe đơn hàng mới
+   * - Khi có đơn hàng mới → Hiển thị thông báo và refresh danh sách
+   */
+  // Sử dụng hook chung để tránh lặp code
+  // Lưu ý: Không hiển thị toast ở đây vì AdminHeader đã hiển thị rồi
+  // Chỉ refresh danh sách đơn hàng khi có đơn hàng mới
+  useAdminSocket((data) => {
+    console.log(' Nhận được đơn hàng mới:', data);
+    
+    // Refresh danh sách đơn hàng (nếu đang ở trang 1)
+    if (pagination.page === 1) {
+      fetchOrders();
+    }
+  }, [pagination.page, fetchOrders]);
+  //kết thúc websocket
+
+  // ========== BƯỚC 2: LẤY CHI TIẾT ĐƠN HÀNG ==========
+  
+  /**
+   * Gọi API lấy chi tiết đơn hàng
+   * Backend trả về: order object đầy đủ với user, orderItems (có product, variant), payments, statusHistory
    */
   const handleViewDetail = async (id) => {
     try {
       const res = await getOrderById(id);
-      setDetailData(res.data);
-      setDetailOpen(true);
+      setDetailData(res.data); // Lưu dữ liệu chi tiết
+      setDetailOpen(true); // Mở modal chi tiết
     } catch (err) {
-      console.log(err);
-      toast.error("Không thể tải chi tiết đơn hàng");
+      console.error("❌ Lỗi khi lấy chi tiết đơn hàng:", err);
+      toast.error(err.response?.data?.message || "Không thể tải chi tiết đơn hàng");
     }
   };
 
+  // ========== BƯỚC 3: CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG ==========
+  
   /**
-   * Mở modal cập nhật ghi chú
-   * @param {Object} record - Record cần edit
+   * Gọi API cập nhật trạng thái đơn hàng
+   * Backend chỉ cho phép: PENDING → CONFIRMED → PROCESSING → DELIVERED
    */
-  const openUpdateModal = (record) => {
-    setEditingRecord(record);
-    setModalOpen(true);
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      setUpdatingId(orderId); // Hiển thị loading
+      await updateOrder(orderId, { status: newStatus });
+      toast.success("Cập nhật trạng thái thành công");
+      fetchOrders(); // Refresh danh sách
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Có lỗi khi cập nhật");
+      fetchOrders(); // Refresh để đảm bảo UI đồng bộ
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
+  // ========== BƯỚC 4: HỦY ĐƠN HÀNG ==========
+  
   /**
-   * Đóng modal CRUD
+   * Gọi API hủy đơn hàng
+   * Backend chỉ cho phép hủy khi status = PENDING hoặc CONFIRMED
+   * Backend tự động: hoàn trả tồn kho, cập nhật paymentStatus = FAILED
+   * Lưu ý: Nếu muốn cập nhật ghi chú khi hủy, gọi riêng API updateOrderNotes
    */
-  const closeModal = () => {
-    setModalOpen(false);
-    setEditingRecord(null);
+  const handleCancelOrder = async (orderId) => {
+    try {
+      setUpdatingId(orderId);
+      await cancelOrder(orderId, {}); // Backend không nhận adminNote, chỉ xử lý hủy đơn
+      toast.success("Hủy đơn hàng thành công");
+      fetchOrders(); // Refresh danh sách
+    } catch (err) {
+      console.error("❌ Lỗi khi hủy đơn hàng:", err);
+      toast.error(err.response?.data?.message || "Có lỗi khi hủy đơn");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
+  // ========== BƯỚC 5: CẬP NHẬT GHI CHÚ ==========
+  
   /**
-   * Đóng modal chi tiết
+   * Gọi API cập nhật ghi chú admin
+   * Backend chỉ cập nhật adminNote, không thay đổi status
    */
-  const closeDetailModal = () => {
-    setDetailOpen(false);
-    setDetailData(null);
+  const handleUpdateNotes = async (values) => {
+    try {
+      setModalLoading(true); // Bắt đầu loading
+      await updateOrderNotes(editingOrder.id, values.notes || "");
+      toast.success("Cập nhật ghi chú thành công");
+      setModalOpen(false);
+      setEditingOrder(null);
+      fetchOrders(); // Refresh danh sách
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Có lỗi khi cập nhật");
+    } finally {
+      setModalLoading(false); // Dừng loading
+    }
   };
 
-  /**
-   * Xử lý thay đổi search value
-   * @param {string} value - Giá trị search
-   */
-  const handleSearchChange = (value) => {
-    setSearchValue(value);
-  };
-
-  /**
-   * Xử lý thay đổi status filter
-   * @param {string} value - Giá trị filter
-   */
-  const handleStatusFilterChange = (value) => {
-    setStatusFilter(value || "");
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  /**
-   * Xử lý thay đổi pagination
-   * @param {number} page - Trang hiện tại
-   * @param {number} pageSize - Số items mỗi trang
-   */
-  const handlePaginationChange = (page, pageSize) => {
-    setPagination({ ...pagination, page, limit: pageSize });
-  };
-
-  /**
-   * Lấy initial value cho form field notes
-   * @param {Object} order - Order object
-   * @returns {string} Initial value
-   */
-  const getNotesInitialValue = (order) => {
-    return order?.adminNote || "";
-  };
-
+  // ========== RETURN ==========
   return {
-    // ===== STATE =====
-    orders,                  // Danh sách orders
-    showSkeleton,            // Trạng thái hiển thị skeleton
-    modalLoading,            // Trạng thái loading khi submit form
-    pagination,              // Thông tin phân trang
-    keyword,                 // Keyword tìm kiếm (sau debounce)
-    searchValue,             // Giá trị search hiện tại (trước debounce)
-    statusFilter,            // Filter theo trạng thái
-    modalOpen,               // Trạng thái mở/đóng modal CRUD
-    detailOpen,              // Trạng thái mở/đóng modal chi tiết
-    editingRecord,           // Record đang được edit
-    detailData,             // Data hiển thị trong modal chi tiết
-    updatingOrderId,         // ID của order đang được cập nhật status
-
-    // ===== HANDLERS =====
-    fetchOrders,             // Hàm fetch danh sách orders
-    handleSubmit,            // Hàm xử lý submit form (cập nhật ghi chú)
-    handleStatusChange,      // Hàm xử lý thay đổi trạng thái
-    handleViewDetail,        // Hàm xử lý xem chi tiết
-    openUpdateModal,         // Hàm mở modal cập nhật ghi chú
-    closeModal,              // Hàm đóng modal CRUD
-    closeDetailModal,        // Hàm đóng modal chi tiết
-    handleSearchChange,      // Hàm xử lý thay đổi search
-    handleStatusFilterChange, // Hàm xử lý thay đổi status filter
-    handlePaginationChange,  // Hàm xử lý thay đổi pagination
-    getStatusBadgeColor,     // Hàm lấy màu badge theo trạng thái
-    getStatusLabel,          // Hàm lấy label trạng thái
-    getNotesInitialValue,    // Hàm lấy initial value cho notes field
+    // State
+    orders,
+    loading,
+    pagination,
+    searchValue,
+    statusFilter,
+    modalOpen,
+    detailOpen,
+    editingOrder,
+    detailData,
+    updatingId,
+    modalLoading,
+    // Helpers
+    getStatusLabel,
+    getStatusColor,
+    // Actions
+    handleStatusChange,
+    handleCancelOrder,
+    handleViewDetail,
+    handleUpdateNotes,
+    // Setters
+    setSearchValue,
+    setStatusFilter: (value) => {
+      setStatusFilter(value || "");
+      setPagination(prev => ({ ...prev, page: 1 })); // Reset về trang 1 khi filter
+    },
+    setPagination,
+    openNotesModal: (order) => {
+      // Set đơn hàng và mở modal
+      // CrudModal sẽ tự động map adminNote -> notes khi mở modal
+      setEditingOrder({
+        ...order,
+        notes: order.adminNote || "", // Map adminNote sang notes cho form
+      });
+      setModalOpen(true);
+    },
+    closeModal: () => {
+      setModalOpen(false);
+      // Reset sau khi đóng modal
+      setTimeout(() => {
+        setEditingOrder(null);
+      }, 300); // Đợi animation đóng modal xong
+    },
+    closeDetailModal: () => {
+      setDetailOpen(false);
+      setDetailData(null);
+    },
   };
 }
-

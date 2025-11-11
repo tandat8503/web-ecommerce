@@ -43,12 +43,31 @@ export default function CrudModal({
             initialValues[key] = null;
           }
         });
-        form.setFieldsValue(initialValues); // nếu edit thì set giá trị ban đầu của form
+        // Map các field từ editingRecord sang form values
+        const formValues = {};
+        fields?.forEach(field => {
+          // Ưu tiên lấy từ editingRecord theo tên field
+          if (field.name && initialValues[field.name] !== undefined) {
+            formValues[field.name] = initialValues[field.name] ?? "";
+          } 
+          // Nếu không có trong editingRecord, dùng initialValue từ field config
+          else if (field.initialValue !== undefined) {
+            formValues[field.name] = field.initialValue;
+          }
+          // Nếu không có cả hai, set giá trị rỗng
+          else {
+            formValues[field.name] = "";
+          }
+        });
+        form.setFieldsValue(formValues); // Set giá trị ban đầu của form
       } else {
-        form.resetFields(); // nếu tạo mới thì reset form
+        form.resetFields(); // Nếu tạo mới thì reset form
       }
+    } else {
+      // Khi đóng modal, reset form để tránh hiển thị dữ liệu cũ
+      form.resetFields();
     }
-  }, [editingRecord, form, open]);
+  }, [editingRecord, form, open, fields]);
 
   const handleOk = async () => {
     try {
@@ -72,6 +91,8 @@ export default function CrudModal({
       onCancel={handleCancel}
       width={width}
       destroyOnHidden={destroyOnClose}
+      maskClosable={false} // Không cho phép đóng khi click ra ngoài
+      keyboard={false} // Không cho phép đóng bằng phím ESC
       footer={[
         <Button key="cancel" onClick={handleCancel} disabled={confirmLoading}>
           {cancelText}

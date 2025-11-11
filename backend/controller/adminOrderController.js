@@ -1,76 +1,43 @@
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { emitOrderStatusUpdate } from '../config/socket.js';
 
-//hàm lấy danh sách trạng thái có thể chọn tiếp theo (không cho chọn ngược)
-// Logic: Mỗi trạng thái chỉ có thể chuyển sang các trạng thái phía sau, không thể quay lại
-const getAvailableStatuses = (currentStatus) => {
-  const orderTransitions = {
-    PENDING: ["CONFIRMED", "CANCELLED"],        // Chờ xác nhận → Đã xác nhận hoặc Hủy
-    CONFIRMED: ["PROCESSING", "CANCELLED"],     // Đã xác nhận → Đang giao hoặc Hủy (không thể quay về PENDING)
-    PROCESSING: ["DELIVERED"],                  // Đang giao → Đã giao (không thể quay về CONFIRMED)
-    DELIVERED: [],                              // Đã giao → Không thể thay đổi (trạng thái cuối cùng)
-    CANCELLED: []                               // Đã hủy → Không thể thay đổi (trạng thái cuối cùng)
-  };
-  return orderTransitions[currentStatus] || [];
-};
-
-//hàm lấy label trạng thái dựa vào status của đơn hàng để hiển thị cho người dùng
-const getStatusLabel = (status) => {
-  const statusLabels = {
-    PENDING: "Chờ xác nhận",
-    CONFIRMED: "Đã xác nhận",
-    PROCESSING: "Đang giao",
-    DELIVERED: "Đã giao",
-    CANCELLED: "Đã hủy"
-  };
-  return statusLabels[status] || status;
-};
-
-//hàm hoàn trả tồn kho cho đơn hàng khi hủy đơn hàng
-const restoreStockForOrder = async (tx, orderItems) => {
-  for (const item of orderItems) {
-    if (item.variantId) {
-      await tx.productVariant.update({
-        where: { id: item.variantId },
-        data: { stockQuantity: { increment: item.quantity } }
-      });
-    } else {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stockQuantity: { increment: item.quantity } }
-      });
-    }
-  }
-};
-
-//hàm lấy danh sách đơn hàng cho admin
+/**
+ * Lấy danh sách đơn hàng cho admin
+ * - Phân trang: page, limit
+ * - Lọc theo trạng thái: status
+ * - Tìm kiếm: q (theo số đơn hàng hoặc tên khách hàng)
+ */
 export const listOrders = async (req, res) => {
   const context = { path: 'admin.orders.list' };
   try {
     logger.start(context.path, { query: req.query });
     
+    // Lấy tham số từ query string
     const { page = 1, limit = 10, status, q } = req.query;
     
-    const conditions = [];//điều kiện lọc đơn hàng
-    if (status) conditions.push({ status });//điều kiện lọc theo trạng thái
-    if (q) {//điều kiện lọc theo số đơn hàng hoặc tên khách hàng
+    // Xây dựng điều kiện lọc
+    const conditions = [];
+    if (status) conditions.push({ status }); // Lọc theo trạng thái
+    if (q) {
+      // Tìm kiếm theo số đơn hàng hoặc tên khách hàng
       conditions.push({
         OR: [
-          { orderNumber: { contains: q } },//điều kiện lọc theo số đơn hàng
-          { user: { firstName: { contains: q } } },//điều kiện lọc theo tên khách hàng
-          { user: { lastName: { contains: q } } }//điều kiện lọc theo họ khách hàng
+          { orderNumber: { contains: q } },
+          { user: { firstName: { contains: q } } },
+          { user: { lastName: { contains: q } } }
         ]
       });
     }
-    const where = conditions.length ? { AND: conditions } : undefined;//điều kiện lọc đơn hàng
+    const where = conditions.length ? { AND: conditions } : undefined;
 
-    // Query orders không include product để tránh lỗi khi product không tồn tại
+    // Query đồng thời: lấy danh sách đơn và tổng số đơn
     const [items, total] = await Promise.all([
       prisma.order.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (Number(page) - 1) * Number(limit),
-        take: Number(limit),
+        orderBy: { createdAt: 'desc' }, // Sắp xếp mới nhất trước
+        skip: (Number(page) - 1) * Number(limit), // Bỏ qua số đơn ở trang trước
+        take: Number(limit), // Lấy số đơn mỗi trang
         include: {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
           orderItems: {
@@ -83,64 +50,17 @@ export const listOrders = async (req, res) => {
               variantName: true,
               quantity: true,
               unitPrice: true,
-              totalPrice: true,
-              createdAt: true
+              totalPrice: true
             }
           }
         }
       }),
-      prisma.order.count({ where })
+      prisma.order.count({ where }) // Đếm tổng số đơn
     ]);
 
-    // Query product riêng cho từng orderItem (xử lý trường hợp product không tồn tại)
-    const formattedItems = await Promise.all(
-      items.map(async (order) => {
-        const orderItemsWithProduct = await Promise.all(
-          order.orderItems.map(async (item) => {
-            try {
-              const product = await prisma.product.findUnique({
-                where: { id: item.productId },
-                select: { id: true, name: true, imageUrl: true }
-              });
-              return {
-                ...item,
-                product: product || null
-              };
-            } catch (error) {
-              // Nếu product không tồn tại, trả về null
-              logger.warn('Product not found for orderItem', { 
-                orderItemId: item.id, 
-                productId: item.productId 
-              });
-              return {
-                ...item,
-                product: null
-              };
-            }
-          })
-        );
-
-        return {
-          ...order,
-          orderItems: orderItemsWithProduct.filter(item => item.product !== null), // Lọc bỏ orderItems có product null
-          statusLabel: getStatusLabel(order.status),
-          availableStatuses: getAvailableStatuses(order.status).map(s => ({
-            value: s,
-            label: getStatusLabel(s)
-          }))
-        };
-      })
-    );
-
-    const payload = { 
-      items: formattedItems, 
-      total, //tổng số đơn hàng
-      page: Number(page), //trang hiện tại
-      limit: Number(limit) //số lượng đơn hàng trên mỗi trang
-    };
-    
-    logger.success('Orders fetched', { total: payload.total, count: formattedItems.length });
-    logger.end(context.path, { total: payload.total });
+    const payload = { items, total, page: Number(page), limit: Number(limit) };
+    logger.success('Orders fetched', { total });
+    logger.end(context.path, { total });
     return res.json(payload);
   } catch (error) {
     logger.error('Failed to fetch orders', {
@@ -148,10 +68,17 @@ export const listOrders = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
-//hàm lấy chi tiết đơn hàng cho admin
+
+/**
+ * Lấy chi tiết 1 đơn hàng
+ * - Bao gồm: thông tin user, orderItems (có product, variant), payments, lịch sử trạng thái
+ */
 export const getOrder = async (req, res) => {
   const context = { path: 'admin.orders.get' };
   try {
@@ -159,96 +86,89 @@ export const getOrder = async (req, res) => {
     
     const id = Number(req.params.id);
     
-    // Query order không include product để tránh lỗi khi product không tồn tại
+    // Lấy order và orderItems riêng để xử lý trường hợp product/variant bị xóa
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        user: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true }
-        },
-        orderItems: {
-          select: {
-            id: true,
-            productId: true,
-            variantId: true,
-            productName: true,
-            productSku: true,
-            variantName: true,
-            quantity: true,
-            unitPrice: true,
-            totalPrice: true,
-            createdAt: true
-          }
-        }
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        orderItems: true, // Lấy orderItems không include product/variant
+        payments: true,
+        statusHistory: { orderBy: { createdAt: 'asc' } }
       }
     });
-
+    
     if (!order) {
       logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
-    // Query product và variant riêng cho các orderItems (xử lý trường hợp không tồn tại)
-    const orderItemsWithDetails = await Promise.all(
+    // Lấy product và variant cho từng orderItem (xử lý null)
+    const orderItemsWithProducts = await Promise.all(
       order.orderItems.map(async (item) => {
-        try {
-          const [product, variant] = await Promise.all([
-            prisma.product.findUnique({
+        let product = null;
+        let variant = null;
+
+        // Lấy product nếu tồn tại
+        if (item.productId) {
+          try {
+            product = await prisma.product.findUnique({
               where: { id: item.productId },
               select: { id: true, name: true, imageUrl: true, price: true }
-            }).catch(() => null),
-            item.variantId ? prisma.productVariant.findUnique({
+            });
+          } catch (err) {
+            // Product không tồn tại, giữ null
+            logger.warn('Product not found for orderItem', { productId: item.productId, orderItemId: item.id });
+          }
+        }
+
+        // Lấy variant nếu tồn tại
+        if (item.variantId) {
+          try {
+            variant = await prisma.productVariant.findUnique({
               where: { id: item.variantId },
               select: { id: true, name: true, price: true }
-            }).catch(() => null) : null
-          ]);
-
-          return {
-            ...item,
-            product: product || null,
-            variant: variant || null
-          };
-        } catch (error) {
-          logger.warn('Product/Variant not found for orderItem', { 
-            orderItemId: item.id, 
-            productId: item.productId,
-            variantId: item.variantId
-          });
-          return {
-            ...item,
-            product: null,
-            variant: null
-          };
+            });
+          } catch (err) {
+            // Variant không tồn tại, giữ null
+            logger.warn('Variant not found for orderItem', { variantId: item.variantId, orderItemId: item.id });
+          }
         }
+
+        return {
+          ...item,
+          product,
+          variant
+        };
       })
     );
 
-    // Format dữ liệu cho frontend dễ xử lý
-    const formattedOrder = {
+    const orderWithSafeItems = {
       ...order,
-      orderItems: orderItemsWithDetails.filter(item => item.product !== null), // Lọc bỏ orderItems có product null
-      statusLabel: getStatusLabel(order.status),
-      availableStatuses: getAvailableStatuses(order.status).map(s => ({
-        value: s,
-        label: getStatusLabel(s)
-      }))
+      orderItems: orderItemsWithProducts
     };
-
+    
     logger.success('Order fetched', { id });
     logger.end(context.path, { id });
-    return res.json(formattedOrder);
+    return res.json(orderWithSafeItems);
   } catch (error) {
     logger.error('Failed to fetch order', {
       path: context.path,
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
-//hàm cập nhật trạng thái đơn hàng (admin)
-// Logic: Chỉ cho phép chuyển trạng thái tiến lên, không cho phép quay lại trạng thái cũ
+/**
+ * Cập nhật trạng thái đơn hàng
+ * - Chỉ cho phép chuyển trạng thái tiến lên: PENDING → CONFIRMED → PROCESSING → DELIVERED
+ * - Không cho phép hủy đơn ở đây (phải dùng API cancelOrder riêng)
+ * - Gửi WebSocket thông báo đến user
+ */
 export const updateOrder = async (req, res) => {
   const context = { path: 'admin.orders.update' };
   try {
@@ -259,55 +179,62 @@ export const updateOrder = async (req, res) => {
 
     // Validate: Trạng thái là bắt buộc
     if (!status) {
-      return res.status(400).json({ message: 'Status is required' });
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
-    // Validate: Trạng thái phải thuộc enum OrderStatus
+    // Validate: Trạng thái phải hợp lệ
     const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+      return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
-    // Lấy đơn hàng hiện tại từ database (không include product để tránh lỗi)
+    // Lấy thông tin đơn hàng hiện tại
     const currentOrder = await prisma.order.findUnique({
       where: { id },
       select: { 
         status: true,
+        userId: true, // Cần để gửi WebSocket
         orderItems: {
           select: {
-            id: true,
             productId: true,
             variantId: true,
-            quantity: true
+            quantity: true // Cần để hoàn trả tồn kho
           }
         }
       }
     });
 
     if (!currentOrder) {
-      logger.warn('Order not found', { id });
-      return res.status(404).json({ message: 'đơn hàng không tồn tại' });
+      logger.warn('Đơn hàng không tồn tại', { id });
+      return res.status(404).json({ message: 'Đơn hàng không tồn tại' });
     }
 
-    // Kiểm tra: Không cho phép cập nhật nếu đơn đã ở trạng thái cuối (DELIVERED hoặc CANCELLED)
+    // Không cho phép cập nhật đơn đã giao hoặc đã hủy
     if (currentOrder.status === 'DELIVERED' || currentOrder.status === 'CANCELLED') {
       return res.status(400).json({ 
-        message: `Không thể thay đổi trạng thái. Đơn hàng đã ở trạng thái: ${currentOrder.status}` 
+        message: `Không thể cập nhật đơn hàng với trạng thái: ${currentOrder.status}` 
       });
     }
 
-    // Kiểm tra: Không cho phép chọn trạng thái hiện tại
+    // Không cho phép chọn trạng thái hiện tại
     if (status === currentOrder.status) {
       return res.status(400).json({ 
-        message: `đơn hàng đã ở trạng thái: ${currentOrder.status}` 
+        message: `Đơn hàng đã có trạng thái: ${status}` 
       });
     }
 
-    // Kiểm tra: Chỉ cho phép chọn các trạng thái tiếp theo (không cho chọn ngược)
-    const availableStatuses = getAvailableStatuses(currentOrder.status);
-    if (!availableStatuses.includes(status)) {
+    // Kiểm tra quy tắc chuyển trạng thái
+    // Lưu ý: Không cho phép hủy đơn ở đây, phải dùng API cancelOrder riêng
+    const statusTransitions = {
+      PENDING: ['CONFIRMED'],        // Chờ xác nhận → Đã xác nhận
+      CONFIRMED: ['PROCESSING'],     // Đã xác nhận → Đang giao
+      PROCESSING: ['DELIVERED']      // Đang giao → Đã giao
+    };
+
+    const allowedStatuses = statusTransitions[currentOrder.status] || [];
+    if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ 
-        message: `Không thể thay đổi trạng thái. Đơn hàng đã ở trạng thái: ${currentOrder.status}` 
+        message: `Không thể chuyển trạng thái từ ${currentOrder.status} sang ${status}` 
       });
     }
 
@@ -319,73 +246,168 @@ export const updateOrder = async (req, res) => {
         data: { status }
       });
 
-      // 2. Lưu lịch sử thay đổi trạng thái vào bảng OrderStatusHistory
+      // 2. Lưu lịch sử thay đổi trạng thái
       await tx.orderStatusHistory.create({
         data: { orderId: id, status }
       });
 
-      // 3. Nếu hủy đơn → hoàn trả tồn kho cho các sản phẩm
-      if (status === 'CANCELLED' && currentOrder.status !== 'CANCELLED') {
-        // Kiểm tra và chỉ hoàn trả tồn kho cho orderItems có product/variant tồn tại
-        for (const item of currentOrder.orderItems) {
-          try {
-            if (item.variantId) {
-              const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
-              if (variant) {
-                await tx.productVariant.update({
-                  where: { id: item.variantId },
-                  data: { stockQuantity: { increment: item.quantity } }
-                });
-              }
-            } else if (item.productId) {
-              const product = await tx.product.findUnique({ where: { id: item.productId } });
-              if (product) {
-                await tx.product.update({
-                  where: { id: item.productId },
-                  data: { stockQuantity: { increment: item.quantity } }
-                });
-              }
-            }
-          } catch (error) {
-            // Bỏ qua nếu product/variant không tồn tại
-            logger.warn('Product/Variant not found when restoring stock', { 
-              productId: item.productId, 
-              variantId: item.variantId,
-              error: error.message
-            });
-          }
-        }
-      }
-
       return order;
     });
 
-    logger.success('Order status updated', { 
-      id: updated.id, 
-      oldStatus: currentOrder.status, 
-      newStatus: updated.status 
-    });
-    logger.end(context.path, { id: updated.id, status: updated.status });
-    
-    return res.json({
-      id: updated.id,
+    // Gửi WebSocket thông báo đến user
+    emitOrderStatusUpdate(currentOrder.userId, {
+      orderId: updated.id,
       orderNumber: updated.orderNumber,
-      status: updated.status,
-      statusLabel: getStatusLabel(updated.status),
-      message: `Order status updated from ${currentOrder.status} to ${updated.status}`
+      status: updated.status
     });
+
+    logger.success('Order status updated', { id, oldStatus: currentOrder.status, newStatus: updated.status });
+    logger.end(context.path, { id });
+    return res.json(updated);
   } catch (error) {
     logger.error('Failed to update order', {
       path: context.path,
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
+/**
+ * Hủy đơn hàng (API riêng cho hủy đơn)
+ * - Chỉ cho phép hủy đơn ở trạng thái PENDING hoặc CONFIRMED
+ * - Tự động: hoàn trả tồn kho, cập nhật paymentStatus = FAILED
+ * - Gửi WebSocket thông báo đến user
+ * - Lưu ý: Nếu muốn cập nhật ghi chú khi hủy, gọi riêng API updateOrderNotes
+ */
+export const cancelOrder = async (req, res) => {
+  const context = { path: 'admin.orders.cancel' };
+  try {
+    logger.start(context.path, { id: req.params.id });
+    
+    const id = Number(req.params.id);
 
-//hàm cập nhật ghi chú đơn hàng (admin)
+    // Lấy thông tin đơn hàng hiện tại
+    const currentOrder = await prisma.order.findUnique({
+      where: { id },
+      select: { 
+        status: true,
+        userId: true,
+        orderItems: {
+          select: {
+            productId: true,
+            variantId: true,
+            quantity: true
+          }
+        }
+      }
+    });
+
+    if (!currentOrder) {
+      logger.warn('Đơn hàng không tồn tại', { id });
+      return res.status(404).json({ message: 'Đơn hàng không tồn tại' });
+    }
+
+    // Chỉ cho phép hủy đơn ở trạng thái PENDING hoặc CONFIRMED
+    if (currentOrder.status !== 'PENDING' && currentOrder.status !== 'CONFIRMED') {
+      return res.status(400).json({ 
+        message: `Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED. Trạng thái hiện tại: ${currentOrder.status}` 
+      });
+    }
+
+    // Cập nhật trong transaction
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Cập nhật trạng thái đơn hàng thành CANCELLED
+      const order = await tx.order.update({
+        where: { id },
+        data: { 
+          status: 'CANCELLED',
+          paymentStatus: 'FAILED' // Cập nhật trạng thái thanh toán
+        }
+      });
+
+      // 2. Lưu lịch sử thay đổi trạng thái
+      await tx.orderStatusHistory.create({
+        data: { orderId: id, status: 'CANCELLED' }
+      });
+
+      // 3. Hoàn trả tồn kho cho các sản phẩm (xử lý trường hợp product/variant đã bị xóa)
+      for (const item of currentOrder.orderItems) {
+        try {
+          if (item.variantId) {
+            // Kiểm tra variant có tồn tại không
+            const variant = await tx.productVariant.findUnique({
+              where: { id: item.variantId }
+            });
+            if (variant) {
+              await tx.productVariant.update({
+                where: { id: item.variantId },
+                data: { stockQuantity: { increment: item.quantity } }
+              });
+            } else {
+              logger.warn('Variant không tồn tại khi hoàn trả tồn kho', { variantId: item.variantId, orderItemId: item.id });
+            }
+          } else if (item.productId) {
+            // Kiểm tra product có tồn tại không
+            const product = await tx.product.findUnique({
+              where: { id: item.productId }
+            });
+            if (product) {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { stockQuantity: { increment: item.quantity } }
+              });
+            } else {
+              logger.warn('Product không tồn tại khi hoàn trả tồn kho', { productId: item.productId, orderItemId: item.id });
+            }
+          }
+        } catch (err) {
+          // Nếu có lỗi khi hoàn trả tồn kho, log warning nhưng vẫn tiếp tục
+          logger.warn('Lỗi khi hoàn trả tồn kho', { 
+            productId: item.productId, 
+            variantId: item.variantId, 
+            error: err.message 
+          });
+        }
+      }
+
+      return order;
+    });
+
+    // Gửi WebSocket thông báo đến user
+    emitOrderStatusUpdate(currentOrder.userId, {
+      orderId: updated.id,
+      orderNumber: updated.orderNumber,
+      status: 'CANCELLED'
+    });
+
+    logger.success('Order cancelled', { id, oldStatus: currentOrder.status });
+    logger.end(context.path, { id });
+    return res.json({ 
+      message: 'Hủy đơn hàng thành công',
+      order: updated 
+    });
+  } catch (error) {
+    logger.error('Failed to cancel order', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({ 
+      message: 'Lỗi server', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
+  }
+};
+
+/**
+ * Cập nhật ghi chú admin cho đơn hàng
+ * - Chỉ cập nhật adminNote, không thay đổi trạng thái
+ */
 export const updateOrderNotes = async (req, res) => {
   const context = { path: 'admin.orders.updateNotes' };
   try {
@@ -394,35 +416,40 @@ export const updateOrderNotes = async (req, res) => {
     const id = Number(req.params.id);
     const { notes } = req.body;
 
+    // Kiểm tra đơn hàng có tồn tại không
     const found = await prisma.order.findUnique({ where: { id } });
     if (!found) {
       logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
+    // Cập nhật ghi chú admin
     const updated = await prisma.order.update({
       where: { id },
       data: { adminNote: notes || null }
     });
 
-    logger.success('Order notes updated', { id: updated.id });
-    logger.end(context.path, { id: updated.id });
-    
-    return res.json({
-      id: updated.id,
-      orderNumber: updated.orderNumber,
-      adminNote: updated.adminNote
-    });
+    logger.success('Order notes updated', { id });
+    logger.end(context.path, { id });
+    return res.json(updated);
   } catch (error) {
     logger.error('Failed to update order notes', {
       path: context.path,
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
 
+/**
+ * Lấy thống kê đơn hàng
+ * - Thống kê theo khoảng thời gian: 7d, 30d, 90d, 1y
+ * - Tổng số đơn, doanh thu, số đơn theo trạng thái
+ */
 export const getOrderStats = async (req, res) => {
   const context = { path: 'admin.orders.stats' };
   try {
@@ -430,82 +457,35 @@ export const getOrderStats = async (req, res) => {
     
     const { period = '30d' } = req.query;
     
+    // Tính ngày bắt đầu dựa trên period
     const now = new Date();
     let startDate;
     switch (period) {
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case '90d':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case '1y':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      default:
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+      case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+      case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
+      case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+      default: startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const [
-      totalOrders,
-      totalRevenue,
-      ordersByStatus,
-      recentOrders,
-      topProducts
-    ] = await Promise.all([
-      prisma.order.count({
-        where: { createdAt: { gte: startDate } }
-      }),
+    // Query đồng thời: tổng số đơn, doanh thu, số đơn theo trạng thái
+    const [totalOrders, totalRevenue, ordersByStatus] = await Promise.all([
+      // Đếm tổng số đơn trong khoảng thời gian
+      prisma.order.count({ where: { createdAt: { gte: startDate } } }),
+      // Tính tổng doanh thu (chỉ đơn đã thanh toán)
       prisma.order.aggregate({
-        where: {
-          createdAt: { gte: startDate },
-          paymentStatus: 'PAID'
-        },
+        where: { createdAt: { gte: startDate }, paymentStatus: 'PAID' },
         _sum: { totalAmount: true }
       }),
+      // Nhóm đơn theo trạng thái và đếm
       prisma.order.groupBy({
         by: ['status'],
         where: { createdAt: { gte: startDate } },
         _count: { status: true }
-      }),
-      prisma.order.findMany({
-        where: { createdAt: { gte: startDate } },
-        orderBy: { createdAt: 'desc' },
-        take: 5,
-        include: {
-          user: {
-            select: { firstName: true, lastName: true, email: true }
-          }
-        }
-      }),
-      prisma.orderItem.groupBy({
-        by: ['productId'],
-        where: {
-          order: {
-            createdAt: { gte: startDate },
-            status: { not: 'CANCELLED' }
-          }
-        },
-        _sum: { quantity: true },
-        _count: { productId: true },
-        orderBy: { _sum: { quantity: 'desc' } },
-        take: 5
       })
     ]);
 
-    const topProductsWithDetails = await Promise.all(
-      topProducts.map(async (item) => {
-        const product = await prisma.product.findUnique({
-          where: { id: item.productId },
-          select: { id: true, name: true, imageUrl: true, price: true }
-        });
-        return { ...item, product };
-      })
-    );
-
+    // Format dữ liệu thống kê
     const stats = {
       period,
       totalOrders,
@@ -513,18 +493,11 @@ export const getOrderStats = async (req, res) => {
       ordersByStatus: ordersByStatus.reduce((acc, item) => {
         acc[item.status] = item._count.status;
         return acc;
-      }, {}),
-      recentOrders,
-      topProducts: topProductsWithDetails
+      }, {})
     };
 
-    logger.success('Order stats fetched', { 
-      totalOrders, 
-      totalRevenue: stats.totalRevenue,
-      period 
-    });
+    logger.success('Order stats fetched', { totalOrders });
     logger.end(context.path, { totalOrders });
-    
     return res.json(stats);
   } catch (error) {
     logger.error('Failed to fetch order stats', {
@@ -532,6 +505,10 @@ export const getOrderStats = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ message: 'Server error', error: process.env.NODE_ENV !== 'production' ? error.message : undefined });
+    return res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    });
   }
 };
+

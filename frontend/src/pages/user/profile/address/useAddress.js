@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/lib/utils";
 import { getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress } from "@/api/address";
 import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
@@ -21,11 +21,12 @@ const INIT_FORM = {
  * Custom hook quản lý toàn bộ logic cho trang quản lý địa chỉ
  * Bao gồm: lấy danh sách, thêm, sửa, xóa, đặt mặc định địa chỉ
  * 
+ * @param {boolean} isActive - Component có đang được hiển thị không
  * @returns {Object} Object chứa:
  *   - State: addresses, loading, open, editing, form, selectedCodes, provinces, districts, wards
  *   - Handlers: handleSubmit, handleDelete, handleSetDefault, edit, handleProvinceChange, ...
  */
-export function useAddress() {
+export function useAddress(isActive = true) {
   // ========== STATE MANAGEMENT ==========
   
   // Danh sách tất cả địa chỉ của user
@@ -81,14 +82,6 @@ export function useAddress() {
   // - Nên khi edit: Phải tìm lại code từ name trong danh sách provinces/districts/wards
   const { provinces, districts, wards, fetchDistricts, fetchWards } = useVietnamesePlaces();
 
-  // ========== EFFECT HOOKS ==========
-  
-  // Tự động load danh sách địa chỉ khi component mount lần đầu
-  // Chỉ chạy 1 lần khi component được render lần đầu tiên
-  useEffect(() => {
-    loadAddresses();
-  }, []);
-
   // ========== API CALLS ==========
   
   /**
@@ -96,18 +89,30 @@ export function useAddress() {
    * Gọi API GET /addresses để lấy danh sách
    * Sau khi lấy thành công, cập nhật state addresses
    */
-  const loadAddresses = async () => {
+  const loadAddresses = useCallback(async () => {
     try {
       setLoading(true); // Bật loading để hiển thị spinner
       const { data } = await getAddresses(); // Gọi API
       setAddresses(data.addresses || []); // Lưu danh sách vào state
     } catch {
-      // Nếu có lỗi, hiển thị thông báo lỗi
-      toast.error(" Không thể tải địa chỉ");
+      // Nếu có lỗi, chỉ hiển thị thông báo khi component đang active
+      if (isActive) {
+        toast.error(" Không thể tải địa chỉ");
+      }
     } finally {
       setLoading(false); // Tắt loading dù thành công hay thất bại
     }
-  };
+  }, [isActive]);
+
+  // ========== EFFECT HOOKS ==========
+  
+  // Tự động load danh sách địa chỉ khi component được hiển thị
+  // Chỉ gọi API khi isActive = true (component đang được hiển thị)
+  useEffect(() => {
+    if (isActive) {
+      loadAddresses();
+    }
+  }, [isActive, loadAddresses]);
 
   /**
    * Reset form về trạng thái ban đầu (rỗng)

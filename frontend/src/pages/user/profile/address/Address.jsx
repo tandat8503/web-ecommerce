@@ -29,7 +29,7 @@ const getName = (type) => {
 
 // ========== COMPONENT ==========
 
-export default function Address() {
+export default function Address({ isActive = true }) {
   // Lấy tất cả state và handlers từ custom hook
   const {
     addresses,
@@ -51,7 +51,7 @@ export default function Address() {
     openAddDialog,
     closeDialog,
     setOpen
-  } = useAddress();
+  } = useAddress(isActive);
 
   return (
     <Card>

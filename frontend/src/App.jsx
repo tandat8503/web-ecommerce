@@ -17,7 +17,7 @@ function App() {
       {/* limit={1} - Chỉ hiển thị 1 toast tại một thời điểm, toast mới sẽ thay thế toast cũ */}
       <ToastContainer 
         position="top-right" 
-        autoClose={100}
+        autoClose={500}
         hideProgressBar={false}
         newestOnTop={true}
         closeOnClick
