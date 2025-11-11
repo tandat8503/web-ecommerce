@@ -15,8 +15,10 @@ import {
   Form,
   Button as AntButton,
   Switch,
+  Upload,
 } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye, FaImages } from "react-icons/fa";
+import { UploadOutlined } from '@ant-design/icons';
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -24,7 +26,6 @@ import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import ProductImageModal from "../ProductImageModal";
 import { useAdminProducts } from "./useAdminProducts";
-import { formatPrice } from "@/lib/utils";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -91,7 +92,6 @@ export default function AdminProducts() {
         ),
     },
     { title: "Tên sản phẩm", dataIndex: "name", key: "name", render: (t) => <strong>{t}</strong> },
-    { title: "SKU", dataIndex: "sku", key: "sku", render: (t) => <code>{t}</code> },
     { title: "Danh mục", dataIndex: "category", render: (c) => c ? <Tag color="blue">{c.name}</Tag> : "-" },
     { title: "Thương hiệu", dataIndex: "brand", render: (b) => b ? <Tag color="green">{b.name}</Tag> : "-" },
     { 
@@ -99,24 +99,10 @@ export default function AdminProducts() {
       dataIndex: "price", 
       render: (p, record) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>{formatPrice(p)}</div>
+          <div style={{ fontWeight: 'bold' }}>${p?.toLocaleString() || 0}</div>
           {record.salePrice && (
             <div style={{ color: '#ff4d4f', fontSize: '12px' }}>
-              Sale: {formatPrice(record.salePrice)}
-            </div>
-          )}
-        </div>
-      )
-    },
-    { 
-      title: "Tồn kho", 
-      dataIndex: "stockQuantity", 
-      render: (s, record) => (
-        <div>
-          <div>{s || 0}</div>
-          {record.minStockLevel && (
-            <div style={{ fontSize: '12px', color: s <= record.minStockLevel ? '#ff4d4f' : '#52c41a' }}>
-              Min: {record.minStockLevel}
+              Sale: ${record.salePrice.toLocaleString()}
             </div>
           )}
         </div>
@@ -207,7 +193,8 @@ export default function AdminProducts() {
     },
   ];
 
-  // Modal fields với conditional rendering dựa trên category
+  // ✅ Modal fields CHỈ CHO PRODUCT (Thông tin chung + Giá)
+  // Dimension & Stock đã chuyển sang ProductVariant
   const fields = [
     {
       name: "name",
@@ -216,35 +203,51 @@ export default function AdminProducts() {
       rules: [{ required: true, message: "Vui lòng nhập tên sản phẩm" }],
     },
     {
+      name: "slug",
+      label: "Slug (URL)",
+      component: <Input placeholder="Auto generate nếu để trống" />,
+    },
+    {
       name: "description",
       label: "Mô tả",
-      component: <Input.TextArea rows={3} placeholder="Nhập mô tả" />,
+      component: <Input.TextArea rows={4} placeholder="Nhập mô tả sản phẩm" />,
+    },
+    {
+      name: "image",
+      label: "Hình ảnh sản phẩm",
+      valuePropName: "file",
+      getValueFromEvent: (e) => {
+        if (Array.isArray(e)) {
+          return e;
+        }
+        return e?.fileList?.[0]?.originFileObj;
+      },
+      component: (
+        <Upload
+          listType="picture"
+          maxCount={1}
+          beforeUpload={() => false}
+          accept="image/*"
+        >
+          <AntButton icon={<UploadOutlined />}>Chọn hình ảnh</AntButton>
+        </Upload>
+      ),
     },
     {
       name: "price",
-      label: "Giá",
-      component: <InputNumber placeholder="Nhập giá" style={{ width: "100%" }} />,
+      label: "Giá bán (VNĐ)",
+      component: <InputNumber placeholder="Nhập giá bán" style={{ width: "100%" }} min={0} />,
       rules: [{ required: true, message: "Vui lòng nhập giá" }],
     },
     {
       name: "salePrice",
-      label: "Giá khuyến mãi",
-      component: <InputNumber placeholder="Nhập giá khuyến mãi" style={{ width: "100%" }} />,
+      label: "Giá khuyến mãi (VNĐ)",
+      component: <InputNumber placeholder="Nhập giá khuyến mãi" style={{ width: "100%" }} min={0} />,
     },
     {
       name: "costPrice",
-      label: "Giá nhập",
-      component: <InputNumber placeholder="Nhập giá nhập" style={{ width: "100%" }} />,
-    },
-    {
-      name: "stock",
-      label: "Tồn kho",
-      component: <InputNumber placeholder="Nhập số lượng tồn kho" style={{ width: "100%" }} />,
-    },
-    {
-      name: "minStockLevel",
-      label: "Mức tồn kho tối thiểu",
-      component: <InputNumber placeholder="Nhập mức tồn kho tối thiểu" style={{ width: "100%" }} min={0} />,
+      label: "Giá nhập (VNĐ)",
+      component: <InputNumber placeholder="Nhập giá nhập" style={{ width: "100%" }} min={0} />,
     },
     {
       name: "categoryId",
@@ -296,182 +299,23 @@ export default function AdminProducts() {
       component: <Switch checkedChildren="⭐ Nổi bật" unCheckedChildren="Bình thường" />,
       valuePropName: "checked",
     },
-    {
-      name: "warranty",
-      label: "Bảo hành",
-      component: <Input placeholder="VD: 24 tháng, 12 tháng..." />,
-    },
-    // ===== KÍCH THƯỚC CHO BÀN/TỦ =====
-    {
-      name: "length",
-      label: "Chiều dài (cho bàn/tủ)",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="length" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 120"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="lengthUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId),
-    },
-    {
-      name: "width",
-      label: "Chiều rộng",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="width" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 60"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="widthUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId) || isChairCategory(categoryId),
-    },
-    {
-      name: "height",
-      label: "Chiều cao (cho bàn/tủ)",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="height" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 75"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="heightUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isTableOrCabinetCategory(categoryId),
-    },
-    // ===== KÍCH THƯỚC CHO GHẾ =====
-    {
-      name: "seatHeight",
-      label: "Chiều cao ghế ngồi (cho ghế)",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="seatHeight" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 45"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="seatHeightUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isChairCategory(categoryId),
-    },
-    {
-      name: "backHeight",
-      label: "Chiều cao tựa lưng (cho ghế)",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="backHeight" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 110"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="backHeightUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isChairCategory(categoryId),
-    },
-    {
-      name: "depth",
-      label: "Chiều sâu (cho ghế/tủ)",
-      component: (
-        <Input.Group compact>
-          <Form.Item name="depth" noStyle>
-            <InputNumber
-              style={{ width: '75%' }}
-              placeholder="VD: 55"
-              min={0}
-              step={0.01}
-            />
-          </Form.Item>
-          <Form.Item name="depthUnit" noStyle initialValue="cm">
-            <Select style={{ width: '25%' }}>
-              <Option value="cm">cm</Option>
-              <Option value="inch">inch</Option>
-            </Select>
-          </Form.Item>
-        </Input.Group>
-      ),
-      shouldRender: (categoryId) => isChairCategory(categoryId) || isTableOrCabinetCategory(categoryId),
-    },
   ];
+  
+  // ℹ️ GHI CHÚ: 
+  // - Tồn kho (stock), Kích thước (dimensions), Bảo hành (warranty) đã chuyển sang ProductVariant
+  // - Quản lý Variant: Vào menu "Quản lý biến thể" hoặc /admin/product-variants
 
-  // Detail fields
+  // ✅ Detail fields - CHỈ HIỂN THỊ THÔNG TIN PRODUCT
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "name", label: "Tên sản phẩm" },
-    { name: "sku", label: "SKU" },
-    { name: "description", label: "Mô tả" },
-    { name: "price", label: "Giá", render: (v) => v ? formatPrice(v) : "-" },
-    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? formatPrice(v) : "-" },
-    { name: "costPrice", label: "Giá nhập", render: (v) => v ? formatPrice(v) : "-" },
-    { name: "stockQuantity", label: "Tồn kho", render: (v) => v || 0 },
-    { name: "minStockLevel", label: "Mức tồn kho tối thiểu", render: (v) => v || 5 },
+    { name: "slug", label: "Slug (URL)", render: (v) => v || "-" },
+    { name: "description", label: "Mô tả", render: (v) => v || "-" },
+    { name: "price", label: "Giá bán", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
+    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
+    { name: "costPrice", label: "Giá nhập", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
     { name: "metaTitle", label: "Tiêu đề SEO", render: (v) => v || "-" },
     { name: "metaDescription", label: "Mô tả SEO", render: (v) => v || "-" },
-    { name: "warranty", label: "Bảo hành", render: (v) => v || "-" },
-    { 
-      name: "dimensions", 
-      label: "Kích thước", 
-      render: (_, record) => {
-        const unit = record.dimensionUnit || "cm";
-        const parts = [];
-        if (record.length) parts.push(`Dài: ${Number(record.length).toFixed(2)} ${unit}`);
-        if (record.width) parts.push(`Rộng: ${Number(record.width).toFixed(2)} ${unit}`);
-        if (record.height) parts.push(`Cao: ${Number(record.height).toFixed(2)} ${unit}`);
-        if (record.seatHeight) parts.push(`Cao ghế: ${Number(record.seatHeight).toFixed(2)} ${unit}`);
-        if (record.backHeight) parts.push(`Cao tựa: ${Number(record.backHeight).toFixed(2)} ${unit}`);
-        if (record.depth) parts.push(`Sâu: ${Number(record.depth).toFixed(2)} ${unit}`);
-        return parts.length > 0 ? parts.join(", ") : "-";
-      }
-    },
     { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },
     { name: "brand", label: "Thương hiệu", render: (v) => v?.name || "-" },
     {
@@ -574,7 +418,7 @@ export default function AdminProducts() {
                       `${range[0]}-${range[1]} của ${total} sản phẩm`,
                     onChange: handlePaginationChange,
                   }}
-                  
+                  scroll={{ x: 1000 }}
                 />
               )}
             </Card>

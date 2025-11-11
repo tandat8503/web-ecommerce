@@ -12,11 +12,11 @@ import { getBrands } from "@/api/adminBrands";
 
 /**
  * Custom hook quản lý toàn bộ logic cho AdminProducts
- * Bao gồm: state management, API calls, CRUD operations, pagination, search, dimension conversion
+ * Bao gồm: state management, API calls, CRUD operations, pagination, search
  * 
  * @returns {Object} Object chứa:
  *   - State: products, categories, brands, showSkeleton, modalLoading, pagination, keyword, searchValue, modalOpen, detailOpen, editingRecord, detailData, loadingProductId, imageModalOpen, selectedProduct
- *   - Handlers: fetchProducts, fetchSelectOptions, handleSubmit, handleDelete, handleCreate, handleViewDetail, handleManageImages, openEditModal, closeModal, closeDetailModal, closeImageModal, handlePaginationChange, handleSearchChange, processEditingRecord, isChairCategory, isTableOrCabinetCategory
+ *   - Handlers: fetchProducts, fetchSelectOptions, handleSubmit, handleDelete, handleCreate, handleViewDetail, handleManageImages, openEditModal, closeModal, closeDetailModal, closeImageModal, handlePaginationChange, handleSearchChange, processEditingRecord
  */
 export function useAdminProducts() {
   const [showSkeleton, setShowSkeleton] = useState(false);
@@ -110,67 +110,27 @@ export function useAdminProducts() {
   }, [pagination.page, pagination.limit, keyword]);
 
   /**
-   * Xử lý submit form (create/update) với FormData và convert dimensions
+   * Xử lý submit form (create/update) với FormData
    * @param {Object} values - Form values
    * @param {Object|null} record - Record đang edit (null nếu là create)
    */
   const handleSubmit = async (values, record) => {
     setModalLoading(true);
     try {
-      // Tạo FormData để gửi file
+      // ✅ Tạo FormData để gửi file
       const formData = new FormData();
       
-      // Xử lý từng field riêng biệt
+      // ✅ CHỈ GỬI CÁC FIELD PRODUCT (Theo schema mới)
       if (values.name) formData.append('name', values.name);
+      if (values.slug) formData.append('slug', values.slug);
       if (values.description) formData.append('description', values.description);
       if (values.price) formData.append('price', values.price);
       if (values.salePrice) formData.append('salePrice', values.salePrice);
       if (values.costPrice) formData.append('costPrice', values.costPrice);
-      if (values.stock !== undefined) formData.append('stock', values.stock);
-      if (values.minStockLevel !== undefined) formData.append('minStockLevel', values.minStockLevel);
       if (values.metaTitle) formData.append('metaTitle', values.metaTitle);
       if (values.metaDescription) formData.append('metaDescription', values.metaDescription);
       if (values.categoryId) formData.append('categoryId', values.categoryId);
       if (values.brandId) formData.append('brandId', values.brandId);
-      if (values.warranty) formData.append('warranty', values.warranty);
-      
-      // Helper function để convert về cm
-      const convertToCm = (value, unit) => {
-        if (!value) return null;
-        if (unit === 'inch') {
-          return (Number(value) * 2.54).toFixed(2);
-        }
-        return Number(value).toFixed(2);
-      };
-
-      // Xử lý các field kích thước với unit riêng
-      if (values.length !== undefined && values.length !== null) {
-        const lengthInCm = convertToCm(values.length, values.lengthUnit || 'cm');
-        formData.append('length', lengthInCm);
-      }
-      if (values.width !== undefined && values.width !== null) {
-        const widthInCm = convertToCm(values.width, values.widthUnit || 'cm');
-        formData.append('width', widthInCm);
-      }
-      if (values.height !== undefined && values.height !== null) {
-        const heightInCm = convertToCm(values.height, values.heightUnit || 'cm');
-        formData.append('height', heightInCm);
-      }
-      if (values.seatHeight !== undefined && values.seatHeight !== null) {
-        const seatHeightInCm = convertToCm(values.seatHeight, values.seatHeightUnit || 'cm');
-        formData.append('seatHeight', seatHeightInCm);
-      }
-      if (values.backHeight !== undefined && values.backHeight !== null) {
-        const backHeightInCm = convertToCm(values.backHeight, values.backHeightUnit || 'cm');
-        formData.append('backHeight', backHeightInCm);
-      }
-      if (values.depth !== undefined && values.depth !== null) {
-        const depthInCm = convertToCm(values.depth, values.depthUnit || 'cm');
-        formData.append('depth', depthInCm);
-      }
-      
-      // Set dimensionUnit mặc định là cm (vì đã convert tất cả về cm)
-      formData.append('dimensionUnit', 'cm');
       
       // Xử lý trạng thái - gửi status field thay vì isActive
       if (values.isActive !== undefined) {
@@ -180,6 +140,11 @@ export function useAdminProducts() {
       // Xử lý sản phẩm nổi bật
       if (values.isFeatured !== undefined) {
         formData.append('isFeatured', values.isFeatured ? 'true' : 'false');
+      }
+
+      // Xử lý image upload - CHỈ THÊM NẾU CÓ FILE MỚI
+      if (values.image && values.image instanceof File) {
+        formData.append('image', values.image);
       }
 
       if (record) {
@@ -222,32 +187,15 @@ export function useAdminProducts() {
   const processEditingRecord = (record) => {
     if (!record) return null;
     
-    // Xử lý dữ liệu để hiển thị trong form
+    // ✅ Xử lý dữ liệu để hiển thị trong form (CHỈ CÁC FIELD PRODUCT)
     const processedRecord = {
       ...record,
-      // Map stockQuantity -> stock
-      stock: record.stockQuantity !== undefined ? Number(record.stockQuantity) : undefined,
       // Map status -> isActive
       isActive: record.status === 'ACTIVE' || record.isActive === true,
-      // Convert các field dimension từ Decimal sang number
-      length: record.length ? Number(record.length) : undefined,
-      width: record.width ? Number(record.width) : undefined,
-      height: record.height ? Number(record.height) : undefined,
-      seatHeight: record.seatHeight ? Number(record.seatHeight) : undefined,
-      backHeight: record.backHeight ? Number(record.backHeight) : undefined,
-      depth: record.depth ? Number(record.depth) : undefined,
-      // Set unit mặc định là cm
-      lengthUnit: record.dimensionUnit || 'cm',
-      widthUnit: record.dimensionUnit || 'cm',
-      heightUnit: record.dimensionUnit || 'cm',
-      seatHeightUnit: record.dimensionUnit || 'cm',
-      backHeightUnit: record.dimensionUnit || 'cm',
-      depthUnit: record.dimensionUnit || 'cm',
       // Đảm bảo các số được convert đúng
       price: record.price ? Number(record.price) : undefined,
       salePrice: record.salePrice ? Number(record.salePrice) : undefined,
       costPrice: record.costPrice ? Number(record.costPrice) : undefined,
-      minStockLevel: record.minStockLevel ? Number(record.minStockLevel) : undefined,
       categoryId: record.categoryId ? Number(record.categoryId) : undefined,
       brandId: record.brandId ? Number(record.brandId) : undefined,
       isFeatured: record.isFeatured === true || record.isFeatured === 'true',
@@ -344,33 +292,8 @@ export function useAdminProducts() {
     setSearchValue(value);
   };
 
-  /**
-   * Helper function để kiểm tra category có phải là Ghế không
-   * @param {number} categoryId - ID của category
-   * @returns {boolean}
-   */
-  const isChairCategory = (categoryId) => {
-    if (!categoryId) return false;
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return false;
-    const categoryName = category.name?.toLowerCase() || '';
-    return categoryName.includes('ghế') || categoryName.includes('ghe') || categoryName.includes('chair');
-  };
-
-  /**
-   * Helper function để kiểm tra category có phải là Bàn/Tủ không
-   * @param {number} categoryId - ID của category
-   * @returns {boolean}
-   */
-  const isTableOrCabinetCategory = (categoryId) => {
-    if (!categoryId) return false;
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return false;
-    const categoryName = category.name?.toLowerCase() || '';
-    return categoryName.includes('bàn') || categoryName.includes('ban') || 
-           categoryName.includes('tủ') || categoryName.includes('tu') ||
-           categoryName.includes('table') || categoryName.includes('cabinet');
-  };
+  // ℹ️ NOTE: isChairCategory và isTableOrCabinetCategory đã xóa
+  // Dimension logic đã chuyển sang ProductVariant
 
   return {
     // ===== STATE =====
@@ -404,8 +327,6 @@ export function useAdminProducts() {
     handlePaginationChange,   // Hàm xử lý thay đổi pagination
     handleSearchChange,       // Hàm xử lý thay đổi search
     processEditingRecord,     // Hàm xử lý editing record cho form
-    isChairCategory,          // Helper function kiểm tra category là Ghế
-    isTableOrCabinetCategory, // Helper function kiểm tra category là Bàn/Tủ
   };
 }
 

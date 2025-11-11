@@ -98,8 +98,10 @@ export const createOrder = async (req, res) => {
         productId: item.productId,
         variantId: item.variantId ?? null,
         productName: item.product.name,
-        productSku: item.variant?.sku || item.product.sku,
-        variantName: item.variant?.name || null,
+        productSku: item.product.slug, // Sử dụng slug thay vì SKU
+        variantName: item.variant ? 
+          `${item.variant.color || ''} ${item.variant.width ? `${item.variant.width}x${item.variant.depth}x${item.variant.height}mm` : ''}`.trim() 
+          : null,
         quantity: item.quantity,
         unitPrice,
         totalPrice

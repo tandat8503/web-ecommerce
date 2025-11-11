@@ -26,6 +26,7 @@ import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Route
 import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã giảm giá (admin)
 import couponRoutes from "./couponRoutes.js"; // Routes mã giảm giá (user)
 import notificationRoutes from "./notificationRoutes.js"; // Routes quản lý thông báo
+import productCommentRoutes from "./productCommentRoutes.js"; // Routes bình luận sản phẩm
 
 /**
  * Function cấu hình tất cả routes cho ứng dụng
@@ -47,6 +48,7 @@ const routes = (app) => {
   app.use("/api/products", adminProductRoutes); // Product endpoints (public + admin)
   app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public + admin)
   app.use("/api/product-images", adminProductImageRoutes); // Product image endpoints (public + admin)
+  app.use("/api/product-comments", productCommentRoutes); // Product comment endpoints (public + user + admin)
  
   // ==================== USER ROUTES ====================
   // Các routes yêu cầu authentication nhưng không cần quyền admin

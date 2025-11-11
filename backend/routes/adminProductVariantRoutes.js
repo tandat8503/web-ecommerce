@@ -1,44 +1,68 @@
-import express from "express";
+// Import các thư viện cần thiết
+import { Router } from 'express';
+import { authenticateToken, requireAdmin } from '../middleware/auth.js';
 import {
-  createProductVariant,
   getProductVariants,
   getProductVariantById,
+  createProductVariant,
   updateProductVariant,
   deleteProductVariant,
-} from "../controller/adminProductVariantController.js";
-import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+  getPublicProductVariants,
+  getPublicProductVariantById
+} from '../controller/adminProductVariantController.js';
 
+const router = Router();
 
-const router = express.Router();
-
-/**
- * ✅ API PUBLIC - Lấy danh sách biến thể theo productId (không cần đăng nhập)
- * Dùng cho user xem các biến thể của sản phẩm (màu, size...)
- */
-router.get("/public", getProductVariants);
+// ==================== PUBLIC ROUTES ====================
+// Không cần authentication, dành cho user xem sản phẩm
 
 /**
- * ✅ API PUBLIC - Lấy chi tiết biến thể theo ID (không cần đăng nhập)
- * Dùng cho user xem chi tiết 1 biến thể (màu, size, giá, tồn kho...)
+ * Lấy danh sách variants PUBLIC (chỉ lấy isActive = true)
+ * GET /api/product-variants/public?productId=1
  */
-router.get("/public/:id", getProductVariantById);
+router.get('/public', getPublicProductVariants);
 
-// Tất cả route dưới đây đều cần auth và admin
+/**
+ * Lấy chi tiết 1 variant PUBLIC (chỉ lấy isActive = true)
+ * GET /api/product-variants/public/:id
+ */
+router.get('/public/:id', getPublicProductVariantById);
+
+// ==================== ADMIN ROUTES ====================
+// Tất cả routes dưới đây cần authentication và quyền admin
 router.use(authenticateToken, requireAdmin);
 
-// Tạo biến thể mới
-router.post("/", createProductVariant);
+/**
+ * Lấy danh sách tất cả variants (có thể filter theo productId)
+ * GET /api/admin/product-variants?productId=1&page=1&limit=10
+ */
+router.get('/', getProductVariants);
 
-// Lấy danh sách biến thể (có thể lọc theo productId) - Admin
-router.get("/", getProductVariants);
+/**
+ * Lấy chi tiết 1 variant
+ * GET /api/admin/product-variants/:id
+ */
+router.get('/:id', getProductVariantById);
 
-// Lấy chi tiết 1 biến thể
-router.get("/:id", getProductVariantById);
+/**
+ * Tạo variant mới
+ * POST /api/admin/product-variants
+ * Body: { productId, name, stockQuantity, width, depth, height, ... }
+ */
+router.post('/', createProductVariant);
 
-// Cập nhật biến thể
-router.put("/:id", updateProductVariant);
+/**
+ * Cập nhật variant
+ * PUT /api/admin/product-variants/:id
+ * Body: { name, stockQuantity, width, ... }
+ */
+router.put('/:id', updateProductVariant);
 
-// Xóa biến thể
-router.delete("/:id", deleteProductVariant);
+/**
+ * Xóa variant
+ * DELETE /api/admin/product-variants/:id
+ */
+router.delete('/:id', deleteProductVariant);
 
 export default router;
+
