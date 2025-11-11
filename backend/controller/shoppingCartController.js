@@ -56,9 +56,11 @@ export const getCart = async (req, res) => {
         },
         variant: item.variant ? {
           id: item.variant.id,
-          name: item.variant.name,
-          size: item.variant.size,
+          width: item.variant.width,
+          depth: item.variant.depth,
+          height: item.variant.height,
           color: item.variant.color,
+          material: item.variant.material,
           stockQuantity: item.variant.stockQuantity // Tồn kho của variant
         } : null
       };

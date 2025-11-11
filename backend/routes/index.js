@@ -22,9 +22,10 @@ import adminProductImageRoutes from "./adminProductImageRoutes.js"; // Routes qu
 import adminBrandRoutes from "./adminBrandRoutes.js"; // Routes quản lý thương hiệu
 import adminUserRoutes from "./adminUserRoutes.js"; // Routes quản lý người dùng
 import adminBannerRoutes from "./adminBannerRouters.js"; // Routes quản lý banner quảng cáo
-import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Routes quản lý biến thể sản phẩm
 import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã giảm giá (admin)
+import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Routes quản lý biến thể sản phẩm
 import couponRoutes from "./couponRoutes.js"; // Routes mã giảm giá (user)
+import productCommentRoutes from "./productCommentRoutes.js"; // Routes bình luận sản phẩm
 
 /**
  * Function cấu hình tất cả routes cho ứng dụng
@@ -43,8 +44,9 @@ const routes = (app) => {
   app.use("/api/payment", paymentRouter); // Payment endpoints (MoMo)
   app.use("/api/coupons", couponRoutes); // Coupon endpoints (user)
   app.use("/api/products", adminProductRoutes); // Product endpoints (public + admin)
-  app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public + admin)
   app.use("/api/product-images", adminProductImageRoutes); // Product image endpoints (public + admin)
+  app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public)
+  app.use("/api/product-comments", productCommentRoutes); // Product comment endpoints (public + user + admin)
  
   // ==================== USER ROUTES ====================
   // Các routes yêu cầu authentication nhưng không cần quyền admin
@@ -61,7 +63,7 @@ const routes = (app) => {
   app.use("/api/admin/orders", adminOrderRoutes); // Order management
   app.use("/api/admin/users", adminUserRoutes); // User management
   app.use("/api/admin/banners", adminBannerRoutes); // Banner management
-  app.use("/api/admin/product-variants", adminProductVariantRoutes); // Product variant management
+  app.use("/api/admin/product-variants", adminProductVariantRoutes); // Product variant management (admin)
   app.use("/api/admin/coupons", adminCouponRoutes); // Coupon management
 };
 

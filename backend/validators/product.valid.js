@@ -3,15 +3,6 @@ import Joi from "joi";
 export const createProductSchema = Joi.object({
     name: Joi.string().min(2).max(200).required(),
     slug: Joi.string().min(2).max(220).optional(),
-    // SKU sẽ được tự động tạo bởi backend nếu không được cung cấp
-    sku: Joi.string()
-      .max(100)
-      .pattern(/^[A-Z0-9-]+$/)
-      .optional()
-      .allow('')
-      .messages({
-        'string.pattern.base': 'SKU chỉ được chứa chữ hoa, số và dấu gạch'
-      }),
     price: Joi.number().min(0).precision(2).required(),
     salePrice: Joi.number().min(0).precision(2).optional(),
     costPrice: Joi.number().min(0).precision(2).optional(),
@@ -40,15 +31,6 @@ export const createProductSchema = Joi.object({
   export const updateProductSchema = Joi.object({
     name: Joi.string().min(2).max(200).optional(),
     slug: Joi.string().min(2).max(220).optional(),
-    // SKU có thể được cập nhật thủ công hoặc để trống để giữ nguyên
-    sku: Joi.string()
-      .max(100)
-      .pattern(/^[A-Z0-9-]+$/)
-      .optional()
-      .allow('')
-      .messages({
-        'string.pattern.base': 'SKU chỉ được chứa chữ hoa, số và dấu gạch'
-      }),
     price: Joi.alternatives().try(
       Joi.number().min(0).precision(2),
       Joi.string().pattern(/^\d+(\.\d{1,2})?$/).custom((value, helpers) => {

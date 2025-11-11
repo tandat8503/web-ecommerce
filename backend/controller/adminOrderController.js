@@ -128,7 +128,16 @@ export const getOrder = async (req, res) => {
         orderItems: {
           include: { 
             product: { select: { id: true, name: true, imageUrl: true, price: true } },
-            variant: { select: { id: true, name: true, price: true } }
+            variant: { 
+              select: { 
+                id: true, 
+                width: true, 
+                depth: true, 
+                height: true, 
+                color: true, 
+                material: true 
+              } 
+            }
           }
         }
       }
@@ -191,7 +200,16 @@ export const updateOrder = async (req, res) => {
         orderItems: {
           include: {
             product: { select: { id: true, name: true, stockQuantity: true } },
-            variant: { select: { id: true, name: true, stockQuantity: true } }
+            variant: { 
+              select: { 
+                id: true, 
+                width: true, 
+                depth: true, 
+                height: true, 
+                color: true, 
+                stockQuantity: true 
+              } 
+            }
           }
         }
       }
