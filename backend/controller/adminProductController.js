@@ -1,6 +1,6 @@
 // Import các thư viện cần thiết
 import prisma from '../config/prisma.js'; // Prisma client để kết nối database
-import { slugify, generateSKU } from '../utils/slugify.js'; // Utility function để tạo slug và SKU
+import { slugify } from '../utils/slugify.js'; // Utility function để tạo slug
 import cloudinary from '../config/cloudinary.js'; // Cloudinary client để upload ảnh
 import { searchProductsWithFullText } from '../utils/fulltextSearch.js'; // FullText search utility
 import logger from '../utils/logger.js'; // Logger utility
@@ -200,9 +200,8 @@ export const createProduct = async (req, res) => {
     logger.start(context.path, { name: req.body.name });
     
     const {
-      name, slug: slugInput, sku: skuInput, price, salePrice, costPrice, stock, minStockLevel,
-      description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured,
-      warranty, length, width, height, seatHeight, backHeight, depth, dimensionUnit
+      name, slug: slugInput, price, salePrice, costPrice,
+      description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured
     } = req.body;
 
     // Validation cơ bản
@@ -226,33 +225,23 @@ export const createProduct = async (req, res) => {
     if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
     if (!br) return res.status(400).json({ message: 'Invalid brandId' });
 
-    // Tạo slug và SKU tự động
+    // Tạo slug tự động
     const slug = slugInput?.trim() || slugify(name);
-    const sku = (skuInput && skuInput.trim()) ? skuInput.trim() : await generateSKU(name, cat.name, br.name, prisma);
 
-    const [dupSlug, dupSku] = await Promise.all([
-      prisma.product.findUnique({ where: { slug } }),
-      prisma.product.findUnique({ where: { sku } })
-    ]);
+    // Kiểm tra slug trùng lặp
+    const dupSlug = await prisma.product.findUnique({ where: { slug } });
     if (dupSlug) {
       logger.warn('Slug conflict', { slug });
       return res.status(409).json({ message: 'Slug already exists' });
     }
-    if (dupSku) {
-      logger.warn('SKU conflict', { sku });
-      return res.status(409).json({ message: 'SKU already exists' });
-    }
 
-    // Chuẩn bị dữ liệu để tạo sản phẩm
+    // Chuẩn bị dữ liệu để tạo sản phẩm (CHỈ THÔNG TIN CHUNG + GIÁ)
     const productData = {
       name: name.trim(),
       slug,
-      sku,
       price: Number(price).toFixed(2),
       salePrice: salePrice ? Number(salePrice).toFixed(2) : null,
       costPrice: costPrice ? Number(costPrice).toFixed(2) : null,
-      stockQuantity: Number(stock) || 0,
-      minStockLevel: Number(minStockLevel) || 5,
       description: description ? description.trim() : null,
       metaTitle: metaTitle ? metaTitle.trim() : null,
       metaDescription: metaDescription ? metaDescription.trim() : null,
@@ -260,14 +249,6 @@ export const createProduct = async (req, res) => {
       brandId: Number(brandId),
       status: isActive === 'true' || isActive === true ? 'ACTIVE' : 'INACTIVE',
       isFeatured: isFeatured === 'true' || isFeatured === true ? true : false,
-      warranty: warranty ? warranty.trim() : null,
-      length: length ? Number(length) : null,
-      width: width ? Number(width) : null,
-      height: height ? Number(height) : null,
-      seatHeight: seatHeight ? Number(seatHeight) : null,
-      backHeight: backHeight ? Number(backHeight) : null,
-      depth: depth ? Number(depth) : null,
-      dimensionUnit: dimensionUnit ? dimensionUnit.trim() : 'cm',
     };
 
     // Xử lý trạng thái trực tiếp nếu có
@@ -281,7 +262,7 @@ export const createProduct = async (req, res) => {
       productData.imagePublicId = imagePublicId;
     }
 
-    logger.debug('Creating product', { name: productData.name, sku: productData.sku });
+    logger.debug('Creating product', { name: productData.name });
 
     const created = await prisma.product.create({
       data: productData,
@@ -339,14 +320,6 @@ export const updateProduct = async (req, res) => {
       }
     }
 
-    if (data.sku && data.sku !== found.sku) {
-      const dupSku = await prisma.product.findUnique({ where: { sku: data.sku } });
-      if (dupSku) {
-        logger.warn('SKU conflict', { sku: data.sku });
-        return res.status(409).json({ message: 'SKU already exists' });
-      }
-    }
-
     if (data.categoryId) {
       const cat = await prisma.category.findUnique({ where: { id: Number(data.categoryId) } });
       if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
@@ -359,10 +332,18 @@ export const updateProduct = async (req, res) => {
       data.brandId = Number(data.brandId);
     }
 
-    if (data.stock !== undefined) {
-      data.stockQuantity = Number(data.stock) || 0;
-      delete data.stock;
-    }
+    // Xóa các field không còn tồn tại trong Product model
+    delete data.stock;
+    delete data.stockQuantity;
+    delete data.minStockLevel;
+    delete data.warranty;
+    delete data.length;
+    delete data.width;
+    delete data.height;
+    delete data.seatHeight;
+    delete data.backHeight;
+    delete data.depth;
+    delete data.dimensionUnit;
 
     if (data.price !== undefined) {
       data.price = Number(data.price).toFixed(2);
@@ -374,10 +355,6 @@ export const updateProduct = async (req, res) => {
 
     if (data.costPrice !== undefined) {
       data.costPrice = data.costPrice ? Number(data.costPrice).toFixed(2) : null;
-    }
-
-    if (data.minStockLevel !== undefined) {
-      data.minStockLevel = Number(data.minStockLevel) || 5;
     }
 
     // Xử lý trạng thái từ isActive
@@ -394,34 +371,6 @@ export const updateProduct = async (req, res) => {
     // Xử lý trạng thái trực tiếp nếu có
     if (data.status && ['ACTIVE', 'INACTIVE', 'OUT_OF_STOCK'].includes(data.status.toUpperCase())) {
       data.status = data.status.toUpperCase();
-    }
-
-    // Xử lý warranty
-    if (data.warranty !== undefined) {
-      data.warranty = data.warranty ? data.warranty.trim() : null;
-    }
-
-    // Xử lý các field kích thước
-    if (data.length !== undefined) {
-      data.length = data.length ? Number(data.length) : null;
-    }
-    if (data.width !== undefined) {
-      data.width = data.width ? Number(data.width) : null;
-    }
-    if (data.height !== undefined) {
-      data.height = data.height ? Number(data.height) : null;
-    }
-    if (data.seatHeight !== undefined) {
-      data.seatHeight = data.seatHeight ? Number(data.seatHeight) : null;
-    }
-    if (data.backHeight !== undefined) {
-      data.backHeight = data.backHeight ? Number(data.backHeight) : null;
-    }
-    if (data.depth !== undefined) {
-      data.depth = data.depth ? Number(data.depth) : null;
-    }
-    if (data.dimensionUnit !== undefined) {
-      data.dimensionUnit = data.dimensionUnit ? data.dimensionUnit.trim() : 'cm';
     }
 
     const updated = await prisma.product.update({

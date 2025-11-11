@@ -9,8 +9,10 @@ import {
   Card,
   Badge,
   Input,
+  InputNumber,
   Select,
   Switch,
+  Form,
 } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui
@@ -43,13 +45,20 @@ export default function AdminProductVariant() {
     handlePaginationChange,
   } = useAdminProductVariant();
 
-  // ✅ Fields cho CrudModal
+  // ✅ Fields cho CrudModal - Theo schema ProductVariant mới
   const formFields = [
     {
       name: "productId",
       label: "Sản phẩm",
       component: (
-        <Select placeholder="Chọn sản phẩm">
+        <Select 
+          placeholder="Chọn sản phẩm"
+          showSearch
+          optionFilterProp="children"
+          filterOption={(input, option) =>
+            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+          }
+        >
           {(products || []).map((p) => (
             <Select.Option key={p.id} value={p.id}>
               {p.name}
@@ -59,35 +68,80 @@ export default function AdminProductVariant() {
       ),
       rules: [{ required: true, message: "Vui lòng chọn sản phẩm" }],
     },
+    
+    // ===== KÍCH THƯỚC (mm) =====
     {
-      name: "name",
-      label: "Tên biến thể",
-      component: <Input placeholder="Nhập tên biến thể" />,
-      rules: [{ required: true, message: "Vui lòng nhập tên" }],
+      name: "width",
+      label: "Chiều rộng (mm)",
+      component: <InputNumber placeholder="VD: 640" min={0} style={{ width: "100%" }} />,
+      help: "Width - Chiều rộng sản phẩm"
     },
     {
-      name: "price",
-      label: "Giá",
-      component: <Input type="number" placeholder="Nhập giá" />,
+      name: "depth",
+      label: "Chiều sâu (mm)",
+      component: <InputNumber placeholder="VD: 710" min={0} style={{ width: "100%" }} />,
+      help: "Depth - Chiều sâu/độ dày sản phẩm"
     },
     {
-      name: "stockQuantity",
-      label: "Số lượng tồn",
-      component: <Input type="number" placeholder="Nhập số lượng" />,
+      name: "height",
+      label: "Chiều cao (mm)",
+      component: <InputNumber placeholder="VD: 1040" min={0} style={{ width: "100%" }} />,
+      help: "Height - Chiều cao tối thiểu"
+    },
+    {
+      name: "heightMax",
+      label: "Chiều cao tối đa (mm)",
+      component: <InputNumber placeholder="VD: 1115" min={0} style={{ width: "100%" }} />,
+      help: "Cho ghế/bàn nâng hạ điều chỉnh được chiều cao"
+    },
+    {
+      name: "dimensionNote",
+      label: "Ghi chú kích thước",
+      component: <Input.TextArea rows={2} placeholder="VD: Có thể điều chỉnh chiều cao từ 1040-1115mm" />,
+    },
+    
+    // ===== THÔNG SỐ KỸ THUẬT =====
+    {
+      name: "material",
+      label: "Chất liệu",
+      component: <Input placeholder="VD: Da PU, Lưới, Thép mạ..." />,
+      help: "Chất liệu chính của sản phẩm"
     },
     {
       name: "color",
       label: "Màu sắc",
-      component: <Input placeholder="VD: Đỏ, Đen..." />,
+      component: <Input placeholder="VD: Đen, Trắng, Xám..." />,
     },
     {
-      name: "size",
-      label: "Size",
-      component: <Input placeholder="VD: S, M, L" />,
+      name: "warranty",
+      label: "Bảo hành",
+      component: <Input placeholder="VD: 24 tháng, 12 tháng..." />,
     },
+    {
+      name: "weightCapacity",
+      label: "Trọng tải (kg)",
+      component: <InputNumber placeholder="VD: 150" min={0} style={{ width: "100%" }} />,
+      help: "Trọng lượng tối đa sản phẩm chịu được"
+    },
+    
+    // ===== TỒN KHO =====
+    {
+      name: "stockQuantity",
+      label: "Số lượng tồn kho",
+      component: <InputNumber placeholder="Nhập số lượng" min={0} style={{ width: "100%" }} />,
+      rules: [{ required: true, message: "Vui lòng nhập số lượng tồn kho" }],
+    },
+    {
+      name: "minStockLevel",
+      label: "Mức tồn kho tối thiểu",
+      component: <InputNumber placeholder="VD: 5" min={0} style={{ width: "100%" }} />,
+      help: "Cảnh báo khi tồn kho dưới mức này"
+    },
+    
+    // ===== TRẠNG THÁI =====
     {
       name: "isActive",
-      label: "Trạng thái",
+      label: "Trạng thái hoạt động",
       component: (
         <Switch checkedChildren="Hoạt động" unCheckedChildren="Tạm dừng" />
       ),
@@ -95,15 +149,65 @@ export default function AdminProductVariant() {
     },
   ];
 
-  // ✅ Fields cho DetailModal
+  // ✅ Fields cho DetailModal - Hiển thị đầy đủ thông tin variant
   const detailFields = [
     { name: "id", label: "ID" },
-    { name: "productId", label: "Sản phẩm" },
-    { name: "name", label: "Tên" },
-    { name: "price", label: "Giá" },
-    { name: "color", label: "Màu" },
-    { name: "size", label: "Size" },
-    { name: "stockQuantity", label: "Số lượng tồn" },
+    { 
+      name: "product", 
+      label: "Sản phẩm", 
+      render: (v) => v?.name || "N/A" 
+    },
+    
+    // Kích thước
+    { 
+      name: "dimensions", 
+      label: "Kích thước (WxDxH)", 
+      render: (_, record) => {
+        const parts = [];
+        if (record.width) parts.push(`W${record.width}mm`);
+        if (record.depth) parts.push(`D${record.depth}mm`);
+        if (record.height) {
+          if (record.heightMax) {
+            parts.push(`H${record.height}-${record.heightMax}mm`);
+          } else {
+            parts.push(`H${record.height}mm`);
+          }
+        }
+        return parts.length > 0 ? parts.join(" × ") : "-";
+      }
+    },
+    { name: "dimensionNote", label: "Ghi chú kích thước", render: (v) => v || "-" },
+    
+    // Thông số kỹ thuật
+    { name: "material", label: "Chất liệu", render: (v) => v || "-" },
+    { name: "color", label: "Màu sắc", render: (v) => v || "-" },
+    { name: "warranty", label: "Bảo hành", render: (v) => v || "-" },
+    { 
+      name: "weightCapacity", 
+      label: "Trọng tải", 
+      render: (v) => v ? `${v} kg` : "-" 
+    },
+    
+    // Tồn kho
+    { 
+      name: "stockQuantity", 
+      label: "Số lượng tồn",
+      render: (qty) => {
+        const quantity = qty || 0;
+        let color = "green";
+        if (quantity === 0) color = "red";
+        else if (quantity < 10) color = "orange";
+        else if (quantity < 50) color = "blue";
+        return <Tag color={color}>{quantity.toLocaleString("vi-VN")}</Tag>;
+      }
+    },
+    { 
+      name: "minStockLevel", 
+      label: "Mức tồn tối thiểu", 
+      render: (v) => v || 0 
+    },
+    
+    // Trạng thái
     {
       name: "isActive",
       label: "Trạng thái",
@@ -111,14 +215,14 @@ export default function AdminProductVariant() {
         <Tag color={v ? "green" : "red"}>{v ? "Hoạt động" : "Tạm dừng"}</Tag>
       ),
     },
+    
+    // Thời gian
     {
       name: "createdAt",
       label: "Ngày tạo",
       render: (v) => {
         const d = new Date(v);
-        const date = d.toLocaleDateString("vi-VN");
-        const time = d.toLocaleTimeString("vi-VN");
-        return `${time} ${date}`;
+        return `${d.toLocaleTimeString("vi-VN")} ${d.toLocaleDateString("vi-VN")}`;
       },
     },
     {
@@ -126,37 +230,67 @@ export default function AdminProductVariant() {
       label: "Ngày cập nhật",
       render: (v) => {
         const d = new Date(v);
-        const date = d.toLocaleDateString("vi-VN");
-        const time = d.toLocaleTimeString("vi-VN");
-        return `${time} ${date}`;
+        return `${d.toLocaleTimeString("vi-VN")} ${d.toLocaleDateString("vi-VN")}`;
       },
     },
   ];
 
-  // ✅ Columns table
+  // ✅ Columns table - Hiển thị thông tin quan trọng
   const columns = [
-    { title: "ID", dataIndex: "id", width: 80 },
-    { title: "Tên", dataIndex: "name" },
-    { title: "Giá", dataIndex: "price", render: (val) => formatPrice(val) },
-    { title: "Màu", dataIndex: "color" },
-    { title: "Size", dataIndex: "size" },
+    { 
+      title: "ID", 
+      dataIndex: "id", 
+      width: 60,
+      fixed: "left"
+    },
+    { 
+      title: "Sản phẩm", 
+      dataIndex: ["product", "name"],
+      width: 250,
+      render: (_, record) => <strong>{record.product?.name || "N/A"}</strong>
+    },
+    { 
+      title: "Kích thước", 
+      width: 150,
+      render: (_, record) => {
+        const parts = [];
+        if (record.width) parts.push(`${record.width}mm`);
+        if (record.depth) parts.push(`${record.depth}mm`);
+        if (record.height) {
+          if (record.heightMax) {
+            parts.push(`${record.height}-${record.heightMax}mm`);
+          } else {
+            parts.push(`${record.height}mm`);
+          }
+        }
+        return parts.length > 0 ? (
+          <small>{parts.join(" × ")}</small>
+        ) : "-";
+      }
+    },
+    { 
+      title: "Màu", 
+      dataIndex: "color",
+      width: 100,
+      render: (val) => val || "-"
+    },
     {
-      title: "Số lượng tồn",
+      title: "Tồn kho",
       dataIndex: "stockQuantity",
+      width: 100,
       render: (qty) => {
         const quantity = qty || 0;
-        // Xác định màu theo số lượng
-        let color = "green"; // Còn nhiều (>= 50)
-        if (quantity === 0) color = "red"; // Hết hàng
-        else if (quantity < 10) color = "orange"; // Sắp hết
-        else if (quantity < 50) color = "blue"; // Còn ít
-
+        let color = "green";
+        if (quantity === 0) color = "red";
+        else if (quantity < 10) color = "orange";
+        else if (quantity < 50) color = "blue";
         return <Tag color={color}>{quantity.toLocaleString("vi-VN")}</Tag>;
       },
     },
     {
       title: "Trạng thái",
       dataIndex: "isActive",
+      width: 100,
       render: (val) => (
         <Tag color={val ? "green" : "red"}>
           {val ? "Hoạt động" : "Tạm dừng"}

@@ -64,7 +64,6 @@ export const listOrders = async (req, res) => {
     }
     const where = conditions.length ? { AND: conditions } : undefined;//điều kiện lọc đơn hàng
 
-    // Query orders không include product để tránh lỗi khi product không tồn tại
     const [items, total] = await Promise.all([
       prisma.order.findMany({
         where,
@@ -74,17 +73,8 @@ export const listOrders = async (req, res) => {
         include: {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
           orderItems: {
-            select: {
-              id: true,
-              productId: true,
-              variantId: true,
-              productName: true,
-              productSku: true,
-              variantName: true,
-              quantity: true,
-              unitPrice: true,
-              totalPrice: true,
-              createdAt: true
+            include: {
+              product: { select: { id: true, name: true, imageUrl: true } }
             }
           }
         }
@@ -92,45 +82,15 @@ export const listOrders = async (req, res) => {
       prisma.order.count({ where })
     ]);
 
-    // Query product riêng cho từng orderItem (xử lý trường hợp product không tồn tại)
-    const formattedItems = await Promise.all(
-      items.map(async (order) => {
-        const orderItemsWithProduct = await Promise.all(
-          order.orderItems.map(async (item) => {
-            try {
-              const product = await prisma.product.findUnique({
-                where: { id: item.productId },
-                select: { id: true, name: true, imageUrl: true }
-              });
-              return {
-                ...item,
-                product: product || null
-              };
-            } catch (error) {
-              // Nếu product không tồn tại, trả về null
-              logger.warn('Product not found for orderItem', { 
-                orderItemId: item.id, 
-                productId: item.productId 
-              });
-              return {
-                ...item,
-                product: null
-              };
-            }
-          })
-        );
-
-        return {
-          ...order,
-          orderItems: orderItemsWithProduct.filter(item => item.product !== null), // Lọc bỏ orderItems có product null
-          statusLabel: getStatusLabel(order.status),
-          availableStatuses: getAvailableStatuses(order.status).map(s => ({
-            value: s,
-            label: getStatusLabel(s)
-          }))
-        };
-      })
-    );
+    // Format dữ liệu cho frontend dễ xử lý
+    const formattedItems = items.map(order => ({
+      ...order,
+      statusLabel: getStatusLabel(order.status),
+      availableStatuses: getAvailableStatuses(order.status).map(s => ({
+        value: s,
+        label: getStatusLabel(s)
+      }))
+    }));
 
     const payload = { 
       items: formattedItems, 
@@ -159,7 +119,6 @@ export const getOrder = async (req, res) => {
     
     const id = Number(req.params.id);
     
-    // Query order không include product để tránh lỗi khi product không tồn tại
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -167,17 +126,18 @@ export const getOrder = async (req, res) => {
           select: { id: true, firstName: true, lastName: true, email: true, phone: true }
         },
         orderItems: {
-          select: {
-            id: true,
-            productId: true,
-            variantId: true,
-            productName: true,
-            productSku: true,
-            variantName: true,
-            quantity: true,
-            unitPrice: true,
-            totalPrice: true,
-            createdAt: true
+          include: { 
+            product: { select: { id: true, name: true, imageUrl: true, price: true } },
+            variant: { 
+              select: { 
+                id: true, 
+                width: true, 
+                depth: true, 
+                height: true, 
+                color: true, 
+                material: true 
+              } 
+            }
           }
         }
       }
@@ -188,45 +148,9 @@ export const getOrder = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
 
-    // Query product và variant riêng cho các orderItems (xử lý trường hợp không tồn tại)
-    const orderItemsWithDetails = await Promise.all(
-      order.orderItems.map(async (item) => {
-        try {
-          const [product, variant] = await Promise.all([
-            prisma.product.findUnique({
-              where: { id: item.productId },
-              select: { id: true, name: true, imageUrl: true, price: true }
-            }).catch(() => null),
-            item.variantId ? prisma.productVariant.findUnique({
-              where: { id: item.variantId },
-              select: { id: true, name: true, price: true }
-            }).catch(() => null) : null
-          ]);
-
-          return {
-            ...item,
-            product: product || null,
-            variant: variant || null
-          };
-        } catch (error) {
-          logger.warn('Product/Variant not found for orderItem', { 
-            orderItemId: item.id, 
-            productId: item.productId,
-            variantId: item.variantId
-          });
-          return {
-            ...item,
-            product: null,
-            variant: null
-          };
-        }
-      })
-    );
-
     // Format dữ liệu cho frontend dễ xử lý
     const formattedOrder = {
       ...order,
-      orderItems: orderItemsWithDetails.filter(item => item.product !== null), // Lọc bỏ orderItems có product null
       statusLabel: getStatusLabel(order.status),
       availableStatuses: getAvailableStatuses(order.status).map(s => ({
         value: s,
@@ -268,17 +192,24 @@ export const updateOrder = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' });
     }
 
-    // Lấy đơn hàng hiện tại từ database (không include product để tránh lỗi)
+    // Lấy đơn hàng hiện tại từ database
     const currentOrder = await prisma.order.findUnique({
       where: { id },
       select: { 
         status: true,
         orderItems: {
-          select: {
-            id: true,
-            productId: true,
-            variantId: true,
-            quantity: true
+          include: {
+            product: { select: { id: true, name: true, stockQuantity: true } },
+            variant: { 
+              select: { 
+                id: true, 
+                width: true, 
+                depth: true, 
+                height: true, 
+                color: true, 
+                stockQuantity: true 
+              } 
+            }
           }
         }
       }
@@ -326,35 +257,7 @@ export const updateOrder = async (req, res) => {
 
       // 3. Nếu hủy đơn → hoàn trả tồn kho cho các sản phẩm
       if (status === 'CANCELLED' && currentOrder.status !== 'CANCELLED') {
-        // Kiểm tra và chỉ hoàn trả tồn kho cho orderItems có product/variant tồn tại
-        for (const item of currentOrder.orderItems) {
-          try {
-            if (item.variantId) {
-              const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
-              if (variant) {
-                await tx.productVariant.update({
-                  where: { id: item.variantId },
-                  data: { stockQuantity: { increment: item.quantity } }
-                });
-              }
-            } else if (item.productId) {
-              const product = await tx.product.findUnique({ where: { id: item.productId } });
-              if (product) {
-                await tx.product.update({
-                  where: { id: item.productId },
-                  data: { stockQuantity: { increment: item.quantity } }
-                });
-              }
-            }
-          } catch (error) {
-            // Bỏ qua nếu product/variant không tồn tại
-            logger.warn('Product/Variant not found when restoring stock', { 
-              productId: item.productId, 
-              variantId: item.variantId,
-              error: error.message
-            });
-          }
-        }
+        await restoreStockForOrder(tx, currentOrder.orderItems);
       }
 
       return order;
