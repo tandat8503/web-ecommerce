@@ -9,6 +9,7 @@ import BreadcrumbNav from '../../components/user/BreadcrumbNav';
 import { WishlistTextButton } from '../../components/user/WishlistButton';
 import CartButton from '../../components/user/CartButton';
 import { formatPrice } from '../../lib/utils';
+import useCartStore from '../../stores/cartStore';
 
 /**
  * ProductDetail Component - Trang chi tiết sản phẩm
@@ -36,7 +37,7 @@ const ProductDetail = () => {
   // State cho biến thể được chọn
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [selectedColor, setSelectedColor] = useState('');
-  const [selectedSize, setSelectedSize] = useState('');
+  const [selectedDimensions, setSelectedDimensions] = useState(''); // Thay size bằng dimensions
   
   // State cho UI
   const [quantity, setQuantity] = useState(1);
@@ -84,7 +85,11 @@ const ProductDetail = () => {
           const firstVariant = variantsRes.data.data.variants[0];
           setSelectedVariant(firstVariant);
           setSelectedColor(firstVariant.color || '');
-          setSelectedSize(firstVariant.size || '');
+          // Tạo string kích thước từ width x depth x height
+          const dimStr = firstVariant.width && firstVariant.depth && firstVariant.height
+            ? `${firstVariant.width}x${firstVariant.depth}x${firstVariant.height}`
+            : '';
+          setSelectedDimensions(dimStr);
         }
       }
       
@@ -109,31 +114,112 @@ const ProductDetail = () => {
   // Xử lý khi user chọn màu
   const handleColorChange = (color) => {
     setSelectedColor(color);
-    const matchingVariant = variants.find(variant => 
-      variant.color === color && variant.size === selectedSize
-    );
-    setSelectedVariant(matchingVariant || null);
+    // Tìm variant khớp với màu và kích thước đã chọn
+    const matchingVariant = variants.find(variant => {
+      const colorMatch = variant.color === color;
+      const dimStr = variant.width && variant.depth && variant.height
+        ? `${variant.width}x${variant.depth}x${variant.height}`
+        : '';
+      const dimMatch = !selectedDimensions || dimStr === selectedDimensions;
+      return colorMatch && dimMatch;
+    });
+    // Nếu không tìm thấy variant khớp cả màu và kích thước, chọn variant đầu tiên cùng màu
+    const newVariant = matchingVariant || variants.find(v => v.color === color) || null;
+    setSelectedVariant(newVariant);
+    
+    // Cập nhật selectedDimensions nếu tìm thấy variant
+    if (newVariant) {
+      const dimStr = newVariant.width && newVariant.depth && newVariant.height
+        ? `${newVariant.width}x${newVariant.depth}x${newVariant.height}`
+        : '';
+      setSelectedDimensions(dimStr);
+      
+      // Reset quantity nếu stock của variant mới nhỏ hơn quantity hiện tại
+      const newStock = newVariant.stockQuantity || 0;
+      if (quantity > newStock && newStock > 0) {
+        setQuantity(newStock);
+      } else if (newStock === 0) {
+        setQuantity(1); // Reset về 1 nếu hết hàng
+      }
+    }
   };
 
-  // Xử lý khi user chọn size
-  const handleSizeChange = (size) => {
-    setSelectedSize(size);
-    const matchingVariant = variants.find(variant => 
-      variant.color === selectedColor && variant.size === size
-    );
+  // Xử lý khi user chọn kích thước
+  const handleDimensionsChange = (dimensions) => {
+    setSelectedDimensions(dimensions);
+    // Tìm variant khớp với màu và kích thước
+    const matchingVariant = variants.find(variant => {
+      const colorMatch = !selectedColor || variant.color === selectedColor;
+      const dimStr = variant.width && variant.depth && variant.height
+        ? `${variant.width}x${variant.depth}x${variant.height}`
+        : '';
+      const dimMatch = dimStr === dimensions;
+      return colorMatch && dimMatch;
+    });
     setSelectedVariant(matchingVariant || null);
+    
+    // Reset quantity nếu stock của variant mới nhỏ hơn quantity hiện tại
+    if (matchingVariant) {
+      const newStock = matchingVariant.stockQuantity || 0;
+      if (quantity > newStock && newStock > 0) {
+        setQuantity(newStock);
+      } else if (newStock === 0) {
+        setQuantity(1); // Reset về 1 nếu hết hàng
+      }
+    }
   };
 
   // Xử lý khi user thay đổi số lượng
   const handleQuantityChange = (newQuantity) => {
-    if (newQuantity >= 1) {
-      setQuantity(newQuantity);
+    if (newQuantity < 1) {
+      setQuantity(1);
+      return;
     }
+    
+    // Kiểm tra không vượt quá stock
+    const maxStock = getDisplayStock();
+    if (newQuantity > maxStock && maxStock > 0) {
+      setQuantity(maxStock);
+      alert(`Chỉ còn ${maxStock} sản phẩm trong kho`);
+      return;
+    }
+    
+    setQuantity(newQuantity);
   };
 
   // Xử lý khi user click "Thêm vào giỏ hàng"
   const handleAddToCart = (result) => {
     console.log('Add to cart success:', result);
+    // Có thể thêm logic như hiển thị notification, cập nhật UI, etc.
+  };
+  
+  // Validation trước khi thêm vào giỏ hàng
+  const validateBeforeAddToCart = () => {
+    // Kiểm tra sản phẩm còn hàng không
+    if (getDisplayStock() === 0) {
+      alert('Sản phẩm đã hết hàng');
+      return false;
+    }
+    
+    // Kiểm tra quantity hợp lệ
+    if (quantity < 1) {
+      alert('Số lượng phải lớn hơn 0');
+      return false;
+    }
+    
+    // Kiểm tra quantity không vượt quá stock
+    if (quantity > getDisplayStock()) {
+      alert(`Chỉ còn ${getDisplayStock()} sản phẩm trong kho`);
+      return false;
+    }
+    
+    // Nếu có variants, phải chọn variant
+    if (variants.length > 0 && !selectedVariant) {
+      alert('Vui lòng chọn màu sắc và kích thước sản phẩm');
+      return false;
+    }
+    
+    return true;
   };
 
   // Xử lý khi user chọn hình ảnh
@@ -146,13 +232,31 @@ const ProductDetail = () => {
     console.log('Share product:', product);
   };
 
+  // Lấy addToCart từ cartStore
+  const { addToCart: addToCartAction } = useCartStore();
+  
   // Xử lý khi user click "Mua ngay"
-  const handleBuyNow = () => {
-    if (variants.length > 0 && !selectedVariant) {
-      alert('Vui lòng chọn màu và size');
+  const handleBuyNow = async () => {
+    // Validation giống như thêm vào giỏ hàng
+    if (!validateBeforeAddToCart()) {
       return;
     }
-    alert(`Chuyển đến trang thanh toán với ${quantity} sản phẩm!`);
+    
+    try {
+      // Thêm vào giỏ hàng trước
+      await addToCartAction({
+        productId: Number(id),
+        variantId: selectedVariant?.id ? Number(selectedVariant.id) : null,
+        quantity: quantity
+      });
+      
+      // Sau khi thêm thành công, chuyển đến checkout
+      // Checkout sẽ tự động chọn item vừa thêm (item mới nhất)
+      navigate('/checkout');
+    } catch (error) {
+      console.error('Failed to add to cart for buy now:', error);
+      // Error đã được xử lý trong cartStore với toast notification
+    }
   };
 
   // Lấy danh sách màu unique từ variants
@@ -162,11 +266,16 @@ const ProductDetail = () => {
       .filter((color, index, self) => color && self.indexOf(color) === index);
   };
 
-  // Lấy danh sách size unique từ variants
-  const getUniqueSizes = () => {
+  // Lấy danh sách kích thước unique từ variants (format: width x depth x height)
+  const getUniqueDimensions = () => {
     return variants
-      .map(v => v.size)
-      .filter((size, index, self) => size && self.indexOf(size) === index);
+      .map(v => {
+        if (v.width && v.depth && v.height) {
+          return `${v.width}x${v.depth}x${v.height}`;
+        }
+        return null;
+      })
+      .filter((dim, index, self) => dim && self.indexOf(dim) === index);
   };
 
   // Lấy giá hiển thị (ưu tiên giá biến thể, fallback về giá sản phẩm)
@@ -176,37 +285,72 @@ const ProductDetail = () => {
     return product?.price || 0;
   };
 
-  // Lấy stock hiển thị (ưu tiên stock biến thể, fallback về stock sản phẩm)
+  // Lấy stock hiển thị (ưu tiên stock biến thể, fallback về stock sản phẩm từ backend)
   const getDisplayStock = () => {
-    if (selectedVariant?.stockQuantity !== undefined) return selectedVariant.stockQuantity;
-    return product?.stockQuantity || 0;
-  };
-
-  // Lấy danh sách hình ảnh để hiển thị
-  const getAllImages = () => {
-    const images = [];
-    
-    // Thêm hình chính của sản phẩm (nếu có)
-    if (product?.imageUrl) {
-      images.push({ url: product.imageUrl, isMain: true, id: 'main' });
+    // Nếu có variant được chọn, dùng stock của variant đó
+    if (selectedVariant?.stockQuantity !== undefined) {
+      return selectedVariant.stockQuantity;
     }
     
-    // Thêm các hình ảnh từ API
+    // Nếu không có variant được chọn, dùng stock từ backend (đã tính tổng từ variants)
+    // Hoặc tính từ variants nếu có trong state
+    if (product?.stockQuantity !== undefined) {
+      return product.stockQuantity;
+    }
+    
+    // Fallback: tính từ variants trong state nếu có
+    if (variants.length > 0) {
+      return variants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
+    }
+    
+    return 0;
+  };
+  
+  // Kiểm tra sản phẩm còn hàng không
+  const isInStock = getDisplayStock() > 0;
+  
+  // Kiểm tra sắp hết hàng
+  const isLowStock = getDisplayStock() > 0 && getDisplayStock() < 5;
+
+  // Lấy danh sách hình ảnh để hiển thị (loại bỏ trùng lặp)
+  const getAllImages = () => {
+    const images = [];
+    const seenUrls = new Set(); // Set để track các URL đã thêm
+    
+    // Ưu tiên: Thêm các hình ảnh từ API trước (có sortOrder và isPrimary)
     if (productImages.length > 0) {
       productImages.forEach(img => {
-        images.push({ 
-          url: img.imageUrl, 
-          isMain: img.isPrimary || false,
-          id: img.id,
-          sortOrder: img.sortOrder || 0
-        });
+        if (img.imageUrl && !seenUrls.has(img.imageUrl)) {
+          seenUrls.add(img.imageUrl);
+          images.push({ 
+            url: img.imageUrl, 
+            isMain: img.isPrimary || false,
+            id: img.id,
+            sortOrder: img.sortOrder || 0
+          });
+        }
+      });
+    }
+    
+    // Sau đó thêm hình chính của sản phẩm (nếu có và chưa bị trùng)
+    if (product?.imageUrl && !seenUrls.has(product.imageUrl)) {
+      seenUrls.add(product.imageUrl);
+      // Tìm xem có hình primary nào trong productImages không
+      const hasPrimaryImage = productImages.some(img => img.isPrimary);
+      images.push({ 
+        url: product.imageUrl, 
+        isMain: !hasPrimaryImage, // Chỉ đánh dấu là main nếu không có primary image từ API
+        id: 'main',
+        sortOrder: -1 // Đặt sortOrder thấp để ưu tiên hiển thị đầu
       });
     }
     
     // Sắp xếp lại: ảnh chính trước, sau đó theo sortOrder
     return images.sort((a, b) => {
-      if (a.isMain) return -1;
-      if (b.isMain) return 1;
+      // Ưu tiên ảnh chính (isMain = true)
+      if (a.isMain && !b.isMain) return -1;
+      if (!a.isMain && b.isMain) return 1;
+      // Nếu cùng loại, sắp xếp theo sortOrder
       return (a.sortOrder || 0) - (b.sortOrder || 0);
     });
   };
@@ -351,9 +495,26 @@ const ProductDetail = () => {
             </div>
 
             {/* Stock Status */}
-            <div className="inline-flex items-center px-4 py-2 rounded-full text-base font-medium bg-green-100 text-green-800 border border-green-200">
-              <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-              Còn lại: {getDisplayStock()} sản phẩm
+            <div className={`inline-flex items-center px-4 py-2 rounded-full text-base font-medium border ${
+              !isInStock 
+                ? 'bg-red-100 text-red-800 border-red-200' 
+                : isLowStock 
+                ? 'bg-orange-100 text-orange-800 border-orange-200' 
+                : 'bg-green-100 text-green-800 border-green-200'
+            }`}>
+              <span className={`w-3 h-3 rounded-full mr-2 ${
+                !isInStock 
+                  ? 'bg-red-500' 
+                  : isLowStock 
+                  ? 'bg-orange-500' 
+                  : 'bg-green-500'
+              }`}></span>
+              {!isInStock 
+                ? 'Hết hàng' 
+                : isLowStock 
+                ? `Sắp hết: ${getDisplayStock()} sản phẩm` 
+                : `Còn lại: ${getDisplayStock()} sản phẩm`
+              }
             </div>
 
             {/* Variants Selection */}
@@ -383,26 +544,31 @@ const ProductDetail = () => {
                   </div>
                 )}
 
-                {/* Size Selection */}
-                {getUniqueSizes().length > 0 && (
+                {/* Dimensions Selection */}
+                {getUniqueDimensions().length > 0 && (
                   <div>
                     <label className="block text-base font-medium text-gray-700 mb-3">
-                      Kích thước:
+                      Kích thước (W×D×H mm):
                     </label>
                     <div className="flex flex-wrap gap-3">
-                      {getUniqueSizes().map(size => (
-                        <button
-                          key={size}
-                          onClick={() => handleSizeChange(size)}
-                          className={`px-5 py-3 rounded-md border text-base font-medium transition-colors ${
-                            selectedSize === size
-                              ? 'bg-primary text-white border-primary'
-                              : 'bg-white text-gray-700 border-gray-300 hover:border-primary'
-                          }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
+                      {getUniqueDimensions().map(dim => {
+                        const [width, depth, height] = dim.split('x');
+                        const displayText = `${width}×${depth}×${height}mm`;
+                        return (
+                          <button
+                            key={dim}
+                            onClick={() => handleDimensionsChange(dim)}
+                            className={`px-5 py-3 rounded-md border text-base font-medium transition-colors ${
+                              selectedDimensions === dim
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-primary'
+                            }`}
+                            title={`Chiều rộng: ${width}mm, Chiều sâu: ${depth}mm, Chiều cao: ${height}mm`}
+                          >
+                            {displayText}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -450,18 +616,33 @@ const ProductDetail = () => {
                   size="lg"
                   className="py-4 text-xl font-semibold cursor-pointer"
                   onAddToCart={handleAddToCart}
-                  disabled={getDisplayStock() === 0}
+                  disabled={!isInStock || (variants.length > 0 && !selectedVariant)}
+                  validateBeforeAdd={validateBeforeAddToCart}
                   showBadge={false}
                 />
 
                 <Button
                   onClick={handleBuyNow}
-                  disabled={getDisplayStock() === 0}
+                  disabled={!isInStock || (variants.length > 0 && !selectedVariant)}
                   className="py-4 text-xl bg-primary hover:bg-primary/90 font-semibold cursor-pointer"
                 >
                   Mua ngay
                 </Button>
               </div>
+              
+              {/* Thông báo khi chưa chọn variant */}
+              {variants.length > 0 && !selectedVariant && isInStock && (
+                <div className="text-sm text-orange-600 font-medium mt-2">
+                  ⚠️ Vui lòng chọn màu sắc và kích thước trước khi thêm vào giỏ hàng
+                </div>
+              )}
+              
+              {/* Thông báo khi hết hàng */}
+              {!isInStock && (
+                <div className="text-sm text-red-600 font-medium mt-2">
+                  ❌ Sản phẩm đã hết hàng. Vui lòng chọn sản phẩm khác.
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -131,7 +131,7 @@ const useWishlistStore = create((set, get) => ({
     set({ loading: true })
     try {
       const response = await clearWishlistAPI()
-      toast.success(`🗑️ Đã xóa ${response.data.removedCount} sản phẩm`)
+      toast.success(`🗑️ Đã xóa ${response.data.deletedCount} sản phẩm`)
       
       set({ 
         items: [], 

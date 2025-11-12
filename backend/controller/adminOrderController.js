@@ -352,18 +352,12 @@ export const cancelOrder = async (req, res) => {
               logger.warn('Variant không tồn tại khi hoàn trả tồn kho', { variantId: item.variantId, orderItemId: item.id });
             }
           } else if (item.productId) {
-            // Kiểm tra product có tồn tại không
-            const product = await tx.product.findUnique({
-              where: { id: item.productId }
+            // Nếu không có variantId, không thể hoàn trả stock vì product không có field stockQuantity
+            // Stock được quản lý ở variant level
+            logger.warn('Không thể hoàn trả stock cho product không có variant', { 
+              productId: item.productId, 
+              orderItemId: item.id 
             });
-            if (product) {
-              await tx.product.update({
-                where: { id: item.productId },
-                data: { stockQuantity: { increment: item.quantity } }
-              });
-            } else {
-              logger.warn('Product không tồn tại khi hoàn trả tồn kho', { productId: item.productId, orderItemId: item.id });
-            }
           }
         } catch (err) {
           // Nếu có lỗi khi hoàn trả tồn kho, log warning nhưng vẫn tiếp tục

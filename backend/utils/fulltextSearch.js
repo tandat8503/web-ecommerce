@@ -177,8 +177,38 @@ export async function searchProductsWithFullText({
       prisma.$queryRawUnsafe(countQuery)
     ]);
     
-    const items = itemsResult || [];
+    const rawItems = itemsResult || [];
     const total = Number(countResult[0]?.total || 0);
+    
+    // Lấy product IDs để query variants
+    const productIds = rawItems.map(item => item.id);
+    
+    // Query variants cho các products này
+    const variants = productIds.length > 0 ? await prisma.productVariant.findMany({
+      where: {
+        productId: { in: productIds },
+        isActive: true
+      },
+      select: {
+        productId: true,
+        stockQuantity: true
+      }
+    }) : [];
+    
+    // Nhóm variants theo productId và tính tổng stock
+    const stockByProductId = {};
+    variants.forEach(variant => {
+      if (!stockByProductId[variant.productId]) {
+        stockByProductId[variant.productId] = 0;
+      }
+      stockByProductId[variant.productId] += variant.stockQuantity || 0;
+    });
+    
+    // Thêm stockQuantity vào mỗi item
+    const items = rawItems.map(item => ({
+      ...item,
+      stockQuantity: stockByProductId[item.id] || 0
+    }));
     
     // Include category và brand cho mỗi item
     const itemsWithRelations = await Promise.all(items.map(async (item) => {

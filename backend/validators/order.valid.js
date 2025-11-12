@@ -38,6 +38,20 @@ export const createOrderSchema = Joi.object({
     .messages({
       'string.min': 'Mã giảm giá phải có ít nhất 3 ký tự',
       'string.max': 'Mã giảm giá tối đa 20 ký tự'
+    }),
+
+  // Danh sách ID các cart items được chọn - bắt buộc, phải là mảng số nguyên dương
+  cartItemIds: Joi.array()
+    .items(Joi.number().integer().positive())
+    .min(1)
+    .required()
+    .messages({
+      'array.base': 'Danh sách sản phẩm phải là mảng',
+      'array.min': 'Phải chọn ít nhất 1 sản phẩm',
+      'any.required': 'Danh sách sản phẩm là bắt buộc',
+      'number.base': 'ID sản phẩm phải là số',
+      'number.integer': 'ID sản phẩm phải là số nguyên',
+      'number.positive': 'ID sản phẩm phải là số dương'
     })
 });
 

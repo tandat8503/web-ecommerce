@@ -81,8 +81,15 @@ export const createOrder = async (req, res) => {
     const stockUpdates = [];          // danh sách cần trừ kho
 
     for (const item of cartItems) {
-      // tồn kho: ưu tiên variant, nếu không có thì dùng product
-      const stock = item.variant?.stockQuantity ?? item.product.stockQuantity;
+      // tồn kho: ưu tiên variant, nếu không có thì tính tổng từ variants
+      let stock = 0;
+      if (item.variant?.stockQuantity !== undefined) {
+        stock = item.variant.stockQuantity;
+      } else {
+        // Tính tổng stock từ tất cả variants active
+        stock = item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
+      }
+      
       if (item.quantity > stock) {
         return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
       }
@@ -180,7 +187,9 @@ export const createOrder = async (req, res) => {
         if (s.isVariant) {
           await tx.productVariant.update({ where: { id: s.id }, data: { stockQuantity: s.currentStock - s.quantity } });
         } else {
-          await tx.product.update({ where: { id: s.id }, data: { stockQuantity: s.currentStock - s.quantity } });
+          // Nếu không có variant, không thể trừ stock vì product không có field stockQuantity
+          // Trường hợp này không nên xảy ra vì đã kiểm tra ở trên
+          logger.warn('Attempting to update product stock without variant', { productId: s.id });
         }
       }
 

@@ -9,7 +9,19 @@ import logger from '../utils/logger.js'; // Logger utility
 // Chỉ lấy thông tin cần thiết của category và brand để tối ưu performance
 const includeBasic = {
   category: { select: { id: true, name: true, slug: true } }, // Chỉ lấy id, name, slug của category
-  brand: { select: { id: true, name: true } } // Chỉ lấy id, name của brand
+  brand: { select: { id: true, name: true } }, // Chỉ lấy id, name của brand
+  variants: { 
+    where: { isActive: true }, // Chỉ lấy variants đang active
+    select: { stockQuantity: true } // Chỉ cần stockQuantity để tính tổng
+  }
+};
+
+// Helper function để tính tổng stock từ variants
+const calculateTotalStock = (product) => {
+  if (!product.variants || product.variants.length === 0) {
+    return 0; // Nếu không có variant thì stock = 0
+  }
+  return product.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0);
 };
 
 // Function lấy danh sách sản phẩm với phân trang và tìm kiếm FullText
@@ -77,8 +89,14 @@ export const listProducts = async (req, res) => {
       ]);
     }
 
+    // Tính tổng stock từ variants cho mỗi sản phẩm
+    const itemsWithStock = items.map(product => ({
+      ...product,
+      stockQuantity: calculateTotalStock(product) // Thêm field stockQuantity tính từ variants
+    }));
+
     // Tạo response payload với thông tin phân trang
-    const payload = { items, total, page: pageNum, limit: limitNum };
+    const payload = { items: itemsWithStock, total, page: pageNum, limit: limitNum };
     logger.success('Products fetched', { total: payload.total, itemsCount: items.length });
     logger.end(context.path, { total: payload.total, itemsCount: items.length });
     return res.json(payload);
@@ -177,10 +195,16 @@ export const getProduct = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
     
+    // Tính tổng stock từ variants và thêm vào response
+    const productWithStock = {
+      ...product,
+      stockQuantity: calculateTotalStock(product) // Thêm field stockQuantity tính từ variants
+    };
+    
     // Log kết quả
-    logger.success('Product fetched', { id, isPublicRoute });
+    logger.success('Product fetched', { id, isPublicRoute, stockQuantity: productWithStock.stockQuantity });
     logger.end(context.path, { id });
-    return res.json(product);
+    return res.json(productWithStock);
   } catch (error) {
     // Xử lý lỗi
     logger.error('Failed to fetch product', { 
@@ -400,29 +424,98 @@ export const deleteProduct = async (req, res) => {
     logger.start(context.path, { id: req.params.id });
     
     const id = Number(req.params.id);
-    const found = await prisma.product.findUnique({ where: { id } });
+    const found = await prisma.product.findUnique({ 
+      where: { id },
+      include: {
+        orderItems: { take: 1 }, // Chỉ cần kiểm tra có đơn hàng không
+        images: true,
+        variants: true
+      }
+    });
+    
     if (!found) {
       logger.warn('Product not found', { id });
       return res.status(404).json({ message: 'Not found' });
     }
 
-    // Xóa ảnh Cloudinary nếu có
-    if (found.imagePublicId) {
-      await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-      logger.debug('Image deleted', { publicId: found.imagePublicId });
+    // Kiểm tra xem sản phẩm có trong đơn hàng không
+    // Nếu có thì không cho xóa vì cần giữ lịch sử đơn hàng
+    if (found.orderItems && found.orderItems.length > 0) {
+      logger.warn('Cannot delete product with orders', { id });
+      return res.status(400).json({ 
+        message: 'Không thể xóa sản phẩm đã có trong đơn hàng. Vui lòng vô hiệu hóa sản phẩm thay vì xóa.' 
+      });
     }
 
-    await prisma.product.delete({ where: { id } });
+    // Xóa trong transaction để đảm bảo tính toàn vẹn
+    await prisma.$transaction(async (tx) => {
+      // 1. Xóa tất cả ảnh sản phẩm từ Cloudinary
+      const allImages = found.images || [];
+      for (const image of allImages) {
+        if (image.imagePublicId) {
+          try {
+            await cloudinary.uploader.destroy(image.imagePublicId, { invalidate: true });
+            logger.debug('Product image deleted from Cloudinary', { publicId: image.imagePublicId });
+          } catch (cloudError) {
+            logger.warn('Failed to delete image from Cloudinary', { 
+              publicId: image.imagePublicId, 
+              error: cloudError.message 
+            });
+            // Tiếp tục xóa dù lỗi Cloudinary
+          }
+        }
+      }
+
+      // 2. Xóa ảnh chính từ Cloudinary nếu có
+      if (found.imagePublicId) {
+        try {
+          await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+          logger.debug('Primary image deleted from Cloudinary', { publicId: found.imagePublicId });
+        } catch (cloudError) {
+          logger.warn('Failed to delete primary image from Cloudinary', { 
+            publicId: found.imagePublicId, 
+            error: cloudError.message 
+          });
+        }
+      }
+
+      // 3. Xóa các bản ghi liên quan (variants sẽ tự xóa do onDelete: Cascade)
+      // Xóa wishlist items
+      await tx.wishlist.deleteMany({ where: { productId: id } });
+      
+      // Xóa shopping cart items
+      await tx.shoppingCart.deleteMany({ where: { productId: id } });
+      
+      // Xóa product images
+      await tx.productImage.deleteMany({ where: { productId: id } });
+      
+      // Xóa product comments
+      await tx.productComment.deleteMany({ where: { productId: id } });
+      
+      // Xóa product reviews
+      await tx.productReview.deleteMany({ where: { productId: id } });
+      
+      // 4. Cuối cùng xóa sản phẩm (variants sẽ tự xóa do cascade)
+      await tx.product.delete({ where: { id } });
+    });
     
     logger.success('Product deleted', { id, name: found.name });
     logger.end(context.path, { id });
-    return res.json({ success: true });
+    return res.json({ success: true, message: 'Xóa sản phẩm thành công' });
   } catch (error) {
     logger.error('Failed to delete product', {
       path: context.path,
       error: error.message,
       stack: error.stack
     });
+    
+    // Kiểm tra lỗi foreign key constraint
+    if (error.code === 'P2003' || error.message.includes('Foreign key constraint')) {
+      return res.status(400).json({ 
+        message: 'Không thể xóa sản phẩm vì đang được sử dụng trong hệ thống' 
+      });
+    }
+    
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);

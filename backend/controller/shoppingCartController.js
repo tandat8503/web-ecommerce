@@ -52,7 +52,8 @@ export const getCart = async (req, res) => {
           name: item.product.name,
           imageUrl: item.product.imageUrl,
           primaryImage: item.product.images[0]?.imageUrl, // Ảnh chính
-          stockQuantity: item.product.stockQuantity // Số lượng tồn kho
+          // Tính tổng stock từ variants (nếu có) hoặc 0
+          stockQuantity: item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0
         },
         variant: item.variant ? {
           id: item.variant.id,
@@ -100,7 +101,11 @@ export const addToCart = async (req, res) => {
             id: Number(variantId), 
             isActive: true 
           }
-        } : false
+        } : {
+          where: { 
+            isActive: true // Lấy tất cả variants active để tính tổng stock
+          }
+        }
       }
     });
 
@@ -111,8 +116,7 @@ export const addToCart = async (req, res) => {
     }
 
     // Bước 2: Kiểm tra variant và tồn kho
-    let availableStock = product.stockQuantity; // Mặc định dùng tồn kho của product
-    logger.debug('Product stock checked', { productId, stock: product.stockQuantity });
+    let availableStock = 0;
     
     if (variantId) {
       logger.debug('Checking variant', { variantId });
@@ -120,10 +124,12 @@ export const addToCart = async (req, res) => {
         logger.warn('Variant not found', { variantId });
         return res.status(400).json({ message: "Biến thể sản phẩm không tồn tại hoặc đã ngừng bán" });
       }
-      availableStock = product.variants[0].stockQuantity; // Dùng tồn kho của variant
+      availableStock = product.variants[0].stockQuantity || 0; // Dùng tồn kho của variant
       logger.debug('Variant stock', { variantId, stock: availableStock });
     } else {
-      logger.debug('Using product stock', { stock: availableStock });
+      // Nếu không có variant, tính tổng stock từ tất cả variants active
+      availableStock = product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
+      logger.debug('Using total product stock from variants', { stock: availableStock });
     }
 
     // Bước 3: Kiểm tra tồn kho có đủ không
@@ -228,7 +234,13 @@ export const updateCartItem = async (req, res) => {
     }
 
     // Bước 2: Kiểm tra tồn kho có đủ cho số lượng mới không
-    const availableStock = existingCartItem.variant?.stockQuantity || existingCartItem.product.stockQuantity;
+    let availableStock = 0;
+    if (existingCartItem.variant?.stockQuantity !== undefined) {
+      availableStock = existingCartItem.variant.stockQuantity;
+    } else {
+      // Tính tổng stock từ variants
+      availableStock = existingCartItem.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
+    }
     
     if (quantity > availableStock) {
       return res.status(400).json({ 

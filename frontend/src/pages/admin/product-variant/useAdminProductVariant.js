@@ -120,7 +120,7 @@ export function useAdminProductVariant() {
   const handleView = async (id) => {
     try {
       const res = await getProductVariantById(id);
-      setDetailData(res.data.data);
+      setDetailData(res.data);
       setDetailOpen(true);
     } catch (err) {
       console.error(err);

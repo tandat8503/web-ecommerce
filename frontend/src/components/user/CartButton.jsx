@@ -31,7 +31,8 @@ export default function CartButton({
   className = "",  
   showBadge = true, 
   onAddToCart,
-  disabled = false //disabled khi đang loading
+  disabled = false, //disabled khi đang loading
+  validateBeforeAdd // Optional validation function từ parent
 }) {
   const { addToCart, loading } = useCartStore();//kết nối với store để lấy hàm addToCart và loading
   
@@ -42,7 +43,23 @@ export default function CartButton({
     e.preventDefault(); //ngăn chặn hành vi mặc định của button
     e.stopPropagation(); //ngăn chặn hành vi lan truyền của button
     
-    if (isAdding || loading) return; //nếu đang thêm vào giỏ hàng hoặc đang loading thì không cho click
+    if (isAdding || loading || disabled) return; //nếu đang thêm vào giỏ hàng hoặc đang loading thì không cho click
+    
+    // Validation từ parent nếu có
+    if (validateBeforeAdd && !validateBeforeAdd()) {
+      return; // Validation failed, không tiếp tục
+    }
+    
+    // Validation cơ bản
+    if (!productId) {
+      console.error('Product ID is required');
+      return;
+    }
+    
+    if (quantity < 1) {
+      console.error('Quantity must be at least 1');
+      return;
+    }
     
     try {
       setIsAdding(true); //set trạng thái đang thêm vào giỏ hàng
@@ -62,7 +79,8 @@ export default function CartButton({
       
     } catch (error) {
       console.error('Add to cart failed:', error);
-      
+      // Error đã được xử lý trong cartStore với toast notification
+      // Không cần xử lý thêm ở đây
     } finally {
       setIsAdding(false); //set trạng thái đang thêm vào giỏ hàng về false
     }

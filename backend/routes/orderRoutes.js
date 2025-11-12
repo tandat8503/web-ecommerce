@@ -7,6 +7,8 @@ import {
   confirmReceivedOrder,
   cancelOrder
 } from "../controller/orderController.js";
+import { createOrderSchema } from "../validators/order.valid.js";
+import { validate } from "../middleware/validate.middleware.js";
 
 const router = express.Router();
 
@@ -14,7 +16,7 @@ const router = express.Router();
 router.use(authenticateToken);
 
 // Tạo đơn hàng từ giỏ hàng
-router.post("/", createOrder);
+router.post("/", validate(createOrderSchema), createOrder);
 
 // Danh sách đơn hàng (phân trang, lọc trạng thái)
 router.get("/", getUserOrders);

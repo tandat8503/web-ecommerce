@@ -31,11 +31,16 @@ const ProductCard = ({
   // Tính phần trăm giảm giá (làm tròn)
   const discountPercent = isOnSale ? Math.round(((product.price - product.salePrice) / product.price) * 100) : 0;
   
+  // Lấy stockQuantity (backend đã tính tổng từ variants)
+  // Nếu không có, tính từ variants nếu có, hoặc mặc định 0
+  const stockQuantity = product.stockQuantity ?? 
+    (product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0);
+  
   // Kiểm tra còn hàng (số lượng > 0)
-  const isInStock = product.stockQuantity > 0;
+  const isInStock = stockQuantity > 0;
   
   // Kiểm tra sắp hết hàng (còn hàng nhưng < 5 sản phẩm)
-  const isLowStock = product.stockQuantity > 0 && product.stockQuantity < 5;
+  const isLowStock = stockQuantity > 0 && stockQuantity < 5;
   
   // URL ảnh mặc định nếu không có ảnh
   const imageUrl = product.imageUrl || product.images?.[0]?.imageUrl || "https://images.unsplash.com/photo-1586023492125-27b2c04ef357?w=800&h=800&fit=crop";
@@ -51,7 +56,7 @@ const ProductCard = ({
   //style cho badge tồn kho
   const stockStyle = !isInStock ? "bg-red-100 text-red-700 border-red-200" : isLowStock ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-green-100 text-green-700 border-green-200";
   //text cho badge tồn kho
-  const stockText = !isInStock ? "Hết hàng" : isLowStock ? `Sắp hết (${product.stockQuantity})` : `Còn ${product.stockQuantity} sản phẩm`;
+  const stockText = !isInStock ? "Hết hàng" : isLowStock ? `Sắp hết (${stockQuantity})` : `Còn ${stockQuantity} sản phẩm`;
 
   // =======================
   // RENDER

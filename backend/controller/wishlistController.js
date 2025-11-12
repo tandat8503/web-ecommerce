@@ -19,20 +19,33 @@ export const getWishlist = async (req, res) => {
               take: 1
             },
             category: true,
-            brand: true
+            brand: true,
+            variants: {
+              where: { isActive: true },
+              select: { stockQuantity: true } // Chỉ cần stockQuantity để tính tổng
+            }
           }
         }
       },
       orderBy: { createdAt: "desc" }
     });
+    
+    // Tính tổng stock từ variants cho mỗi sản phẩm
+    const wishlistWithStock = wishlist.map(item => ({
+      ...item,
+      product: {
+        ...item.product,
+        stockQuantity: item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0
+      }
+    }));
 
-    logger.success('Wishlist fetched', { count: wishlist.length });
-    logger.end(context.path, { count: wishlist.length });
+    logger.success('Wishlist fetched', { count: wishlistWithStock.length });
+    logger.end(context.path, { count: wishlistWithStock.length });
     
     res.status(200).json({ 
       message: "Lấy danh sách yêu thích thành công", 
-      wishlist,
-      count: wishlist.length
+      wishlist: wishlistWithStock,
+      count: wishlistWithStock.length
     });
   } catch (error) {
     logger.error('Failed to fetch wishlist', {
