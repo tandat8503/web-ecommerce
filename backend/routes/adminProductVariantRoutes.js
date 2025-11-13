@@ -1,6 +1,11 @@
 // Import các thư viện cần thiết
 import { Router } from 'express';
 import { authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  createProductVariantSchema,
+  updateProductVariantSchema
+} from '../validators/productVariant.valid.js';
 import {
   getProductVariants,
   getProductVariantById,
@@ -47,16 +52,16 @@ router.get('/:id', getProductVariantById);
 /**
  * Tạo variant mới
  * POST /api/admin/product-variants
- * Body: { productId, name, stockQuantity, width, depth, height, ... }
+ * Body: { productId, stockQuantity, width, depth, height, ... }
  */
-router.post('/', createProductVariant);
+router.post('/', validate(createProductVariantSchema), createProductVariant);
 
 /**
  * Cập nhật variant
  * PUT /api/admin/product-variants/:id
- * Body: { name, stockQuantity, width, ... }
+ * Body: { stockQuantity, width, ... }
  */
-router.put('/:id', updateProductVariant);
+router.put('/:id', validate(updateProductVariantSchema), updateProductVariant);
 
 /**
  * Xóa variant

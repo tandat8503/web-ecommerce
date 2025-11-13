@@ -92,7 +92,16 @@ export function useAdminProductVariant() {
       fetchVariants();
     } catch (err) {
       console.error(err);
-      toast.error("Lỗi khi lưu biến thể");
+      // Hiển thị lỗi validation chi tiết nếu có
+      const errorMessage = err.response?.data?.message || "Lỗi khi lưu biến thể";
+      const errorDetails = err.response?.data?.errors;
+      
+      if (errorDetails && Array.isArray(errorDetails) && errorDetails.length > 0) {
+        // Hiển thị lỗi validation chi tiết
+        toast.error(`${errorMessage}: ${errorDetails.join(', ')}`);
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setConfirmLoading(false);
     }
@@ -141,7 +150,12 @@ export function useAdminProductVariant() {
    * @param {Object} record - Record cần edit
    */
   const openEditModal = (record) => {
-    setEditingRecord(record);
+    // Đảm bảo productId được map đúng từ product.id hoặc record.productId
+    const recordWithProductId = {
+      ...record,
+      productId: record?.productId || record?.product?.id || null
+    };
+    setEditingRecord(recordWithProductId);
     setModalOpen(true);
   };
 

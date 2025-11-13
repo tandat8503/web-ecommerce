@@ -43,8 +43,11 @@ export const initializeSocket = (userId) => {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
-    reconnectionAttempts: 5,
-    autoConnect: true
+    reconnectionAttempts: Infinity, // Retry vô hạn (cho đến khi kết nối thành công)
+    autoConnect: true,
+    // Tắt log lỗi connection trong console (vì đã có retry tự động)
+    // Chỉ log khi thực sự cần thiết
+    timeout: 20000 // Timeout 20 giây
   });
 
   socket.on('connect', () => {
@@ -70,7 +73,12 @@ export const initializeSocket = (userId) => {
   });
 
   socket.on('connect_error', (error) => {
-    console.error('❌ Socket.IO connection error', error);
+    // Chỉ log khi không phải lỗi retry thông thường
+    // Socket.IO sẽ tự động retry, không cần log mỗi lần thử
+    if (error.message && !error.message.includes('websocket error')) {
+      console.warn('⚠️ Socket.IO connection error:', error.message);
+    }
+    // Không log lỗi websocket thông thường vì Socket.IO sẽ tự động fallback sang polling
   });
 
   return socket;

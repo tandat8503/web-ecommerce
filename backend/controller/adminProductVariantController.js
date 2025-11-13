@@ -11,10 +11,28 @@ import logger from '../utils/logger.js';
 export const getProductVariants = async (req, res) => {
   const context = { path: 'admin.productVariants.list' };
   try {
-    const { productId, page = 1, limit = 10 } = req.query;
-    logger.start(context.path, { productId, page, limit });
+    const { productId, page = 1, limit = 10, keyword } = req.query;
+    logger.start(context.path, { productId, page, limit, keyword });
 
-    const where = productId ? { productId: Number(productId) } : {};
+    // Xây dựng where clause
+    const where = {};
+    
+    if (productId) {
+      where.productId = Number(productId);
+    }
+    
+    // Tìm kiếm theo keyword (tìm trong color, material, hoặc product name)
+    // MySQL/MariaDB không hỗ trợ mode: 'insensitive', dùng contains (case-sensitive)
+    if (keyword && keyword.trim()) {
+      const searchTerm = keyword.trim();
+      where.OR = [
+        { color: { contains: searchTerm } },
+        { material: { contains: searchTerm } },
+        { dimensionNote: { contains: searchTerm } },
+        { product: { name: { contains: searchTerm } } }
+      ];
+    }
+    
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
@@ -188,8 +206,20 @@ export const updateProductVariant = async (req, res) => {
 
     const data = { ...req.body };
     
-    // Remove productId from update (không cho phép đổi productId)
-    delete data.productId;
+    // Cho phép cập nhật productId (chuyển variant sang sản phẩm khác)
+    if (data.productId !== undefined) {
+      data.productId = Number(data.productId);
+      
+      // Kiểm tra sản phẩm mới có tồn tại không
+      const newProduct = await prisma.product.findUnique({
+        where: { id: data.productId }
+      });
+      
+      if (!newProduct) {
+        logger.warn('Product not found', { productId: data.productId });
+        return res.status(400).json({ message: 'Sản phẩm không tồn tại' });
+      }
+    }
 
     // Convert numbers
     if (data.stockQuantity !== undefined) data.stockQuantity = Number(data.stockQuantity);
@@ -206,17 +236,18 @@ export const updateProductVariant = async (req, res) => {
     if (data.color !== undefined) data.color = data.color?.trim() || null;
     if (data.dimensionNote !== undefined) data.dimensionNote = data.dimensionNote?.trim() || null;
 
+    // Cập nhật variant
     const updated = await prisma.productVariant.update({
       where: { id },
       data,
       include: {
         product: {
-          select: { id: true, name: true }
+          select: { id: true, name: true, slug: true }
         }
       }
     });
 
-    logger.success('Variant updated', { id });
+    logger.success('Variant updated', { id, productIdChanged: data.productId !== undefined && data.productId !== variant.productId });
     return res.json({ 
       message: 'Variant updated successfully', 
       variant: updated 
@@ -244,7 +275,11 @@ export const deleteProductVariant = async (req, res) => {
     logger.start(context.path, { id });
 
     const variant = await prisma.productVariant.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        orderItems: { take: 1 }, // Chỉ cần kiểm tra có đơn hàng không
+        cartItems: { take: 1 } // Chỉ cần kiểm tra có trong giỏ hàng không
+      }
     });
 
     if (!variant) {
@@ -252,6 +287,15 @@ export const deleteProductVariant = async (req, res) => {
       return res.status(404).json({ message: 'Variant not found' });
     }
 
+    // Kiểm tra xem variant có đang được sử dụng trong đơn hàng không
+    if (variant.orderItems && variant.orderItems.length > 0) {
+      logger.warn('Cannot delete variant with orders', { id });
+      return res.status(400).json({ 
+        message: 'Không thể xóa biến thể đã có trong đơn hàng. Vui lòng vô hiệu hóa biến thể thay vì xóa.' 
+      });
+    }
+
+    // Xóa variant (cartItems sẽ tự xóa do onDelete: Cascade nếu có)
     await prisma.productVariant.delete({
       where: { id }
     });
@@ -264,6 +308,14 @@ export const deleteProductVariant = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
+    
+    // Kiểm tra lỗi foreign key constraint
+    if (error.code === 'P2003' || error.message.includes('Foreign key constraint')) {
+      return res.status(400).json({ 
+        message: 'Không thể xóa biến thể vì đang được sử dụng trong hệ thống' 
+      });
+    }
+    
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);

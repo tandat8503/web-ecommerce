@@ -15,7 +15,8 @@ export const validate = (schema, source = 'body') => {
     if (source === 'body') {
       // List of fields that should be numbers
       const numberFields = ['price', 'salePrice', 'costPrice', 'stock', 'minStockLevel', 'categoryId', 'brandId', 
-                            'length', 'width', 'height', 'seatHeight', 'backHeight', 'depth'];
+                            'length', 'width', 'height', 'seatHeight', 'backHeight', 'depth',
+                            'stockQuantity', 'heightMax', 'weightCapacity', 'productId'];
       
       // Convert string numbers to numbers
       for (const field of numberFields) {
@@ -23,12 +24,20 @@ export const validate = (schema, source = 'body') => {
           if (typeof data[field] === 'string') {
             // Check if it's a valid number string
             if (/^-?\d+(\.\d+)?$/.test(data[field])) {
-              data[field] = parseFloat(data[field]);
+              // Use parseInt for integer fields, parseFloat for decimal fields
+              if (['width', 'depth', 'height', 'heightMax', 'stockQuantity', 'minStockLevel'].includes(field)) {
+                data[field] = parseInt(data[field], 10);
+              } else {
+                data[field] = parseFloat(data[field]);
+              }
             }
           }
-        } else if (data[field] === '') {
-          // Empty string should be null for optional fields
-          data[field] = null;
+        } else if (data[field] === '' || data[field] === undefined) {
+          // Empty string or undefined should be null for optional fields (except required fields)
+          // Don't convert required fields like stockQuantity if they're empty
+          if (!['stockQuantity', 'productId'].includes(field)) {
+            data[field] = null;
+          }
         }
       }
       
@@ -54,7 +63,11 @@ export const validate = (schema, source = 'body') => {
       }
     }
     
-    const { error, value } = schema.validate(data, { abortEarly: false, stripUnknown: true });
+    const { error, value } = schema.validate(data, { 
+      abortEarly: false, 
+      stripUnknown: true,
+      allowUnknown: true // Cho phép unknown fields (sẽ bị strip)
+    });
     if (error) {
       console.error('Validation error:', error.details);
       return res.status(400).json({
