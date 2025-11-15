@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getPublicCategories } from "@/api/adminCategories";
 import { Spin } from "antd";
-
+import { Link } from "react-router-dom";
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
@@ -24,99 +24,63 @@ export default function Categories() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-[400px] bg-gray-50">
+      <div className="flex justify-center items-center h-[400px] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 py-8">
+    <div className="py-16 bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Tiêu đề */}
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">DANH MỤC</h2>
-        
-        {/* Container responsive với grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-4">
-          {categories.map((category) => (
-            <CategoryCard key={category.id} category={category} />
+        {/* Header Section */}
+        <div className="mb-12">
+          <h2 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4 tracking-wide">
+            DANH MỤC 
+          </h2>
+          <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+        </div>
+
+        {/* Grid Categories */}
+        <div 
+          className="grid gap-4" 
+          style={{ 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))'
+          }}
+        >
+          {categories.map((cat, idx) => (
+            <Link 
+              key={cat.id}
+              to={`/danh-muc/${cat.slug}`}
+              className="block"
+              style={{ animation: `fadeIn 0.5s ease-out ${idx * 0.05}s both` }}
+            >
+              <div className="group rounded-xl overflow-hidden bg-white shadow-md hover:shadow-lg transition-all duration-300">
+                {/* Image container */}
+                <div className="aspect-[4/3] overflow-hidden bg-gray-100">
+                  {cat.imageUrl ? (
+                    <img 
+                      src={cat.imageUrl} 
+                      alt={cat.name} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100">
+                      <span className="text-3xl">📦</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Text container */}
+                <div className="p-3 bg-white">
+                  <p className="text-xs font-semibold text-gray-800 text-center line-clamp-2">
+                    {cat.name}
+                  </p>
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
-      </div>
-
-      {/* CSS cho responsive và hiệu ứng */}
-      <style jsx global>{`
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        
-        /* Responsive breakpoints */
-        @media (max-width: 640px) {
-          .grid {
-            grid-template-columns: repeat(3, 1fr);
-            gap: 0.75rem;
-          }
-        }
-        
-        @media (min-width: 640px) and (max-width: 768px) {
-          .grid {
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-          }
-        }
-        
-        @media (min-width: 768px) and (max-width: 1024px) {
-          .grid {
-            grid-template-columns: repeat(6, 1fr);
-            gap: 1rem;
-          }
-        }
-        
-        @media (min-width: 1024px) and (max-width: 1280px) {
-          .grid {
-            grid-template-columns: repeat(8, 1fr);
-            gap: 1rem;
-          }
-        }
-        
-        @media (min-width: 1280px) {
-          .grid {
-            grid-template-columns: repeat(10, 1fr);
-            gap: 1rem;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-// 👉 Component card danh mục responsive với kích thước lớn hơn
-function CategoryCard({ category }) {
-  return (
-    <div className="bg-white rounded-lg p-4 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group aspect-square flex flex-col items-center justify-center">
-      {/* Icon/Ảnh danh mục */}
-      <div className="flex justify-center mb-3">
-        {category.imageUrl ? (
-          <img
-            src={category.imageUrl}
-            alt={category.name}
-            className="w-16 h-16 object-contain group-hover:scale-110 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg flex items-center justify-center group-hover:from-blue-200 group-hover:to-blue-300 transition-all duration-300">
-            <span className="text-blue-600 text-2xl">📦</span>
-          </div>
-        )}
-      </div>
-      
-      {/* Tên danh mục */}
-      <div className="text-center flex-1 flex items-center justify-center">
-        <p className="text-sm text-gray-700 font-medium leading-tight group-hover:text-blue-600 transition-colors duration-300 line-clamp-2">
-          {category.name}
-        </p>
       </div>
     </div>
   );

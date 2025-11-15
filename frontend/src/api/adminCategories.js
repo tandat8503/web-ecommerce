@@ -45,7 +45,9 @@ export async function deleteCategory(id) {
  *    Không cần token
  */
 export async function getPublicCategories() {
-  const res = await axiosClient.get("admin/categories/public");
+  const res = await axiosClient.get("admin/categories/public", {
+    params: { limit: 100 }, // Lấy nhiều categories hơn cho navbar
+  });
   return { data: res.data }; // bọc lại cho tương thích với các chỗ khác
 }
 

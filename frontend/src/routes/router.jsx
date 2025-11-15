@@ -14,8 +14,8 @@ import AdminOrders from "@/pages/admin/order/AdminOrders";
 //User
 import UserLayout from "@/layout/user/UserLayout";
 import Home from "@/pages/user/Home";
-import Products from "@/pages/user/Products";
-import ProductDetail from "@/pages/user/ProductDetail";
+import ProductDetail from "@/pages/user/ProductDetail/index";
+import CategoryPage from "@/pages/user/CategoryPage";
 import Wishlist from "@/pages/user/wishlist/Wishlist";
 import Cart from "@/pages/user/cart/Cart";
 import Checkout from "@/pages/user/checkout/Checkout";
@@ -38,8 +38,8 @@ const router = createBrowserRouter([
     element: <UserLayout />,
     children: [
       { index: true, element: <Home /> },
-      { path: "san-pham", element: <Products /> },
       { path: "san-pham/:id", element: <ProductDetail /> },
+      { path: "danh-muc/:slug", element: <CategoryPage /> },
       { path: "wishlist", element: <Wishlist /> },
       { path: "cart", element: <Cart /> },
       { path: "checkout", element: <Checkout /> },

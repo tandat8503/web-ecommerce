@@ -2,267 +2,225 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "@/lib/utils";
 import useCartStore from "@/stores/cartStore";
-import { getAddresses } from "@/api/address";
+import { getAddresses, addAddress } from "@/api/address";
 import { createOrder } from "@/api/orders";
-import { createMoMoPayment } from "@/api/payment";
+import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
 
 /**
  * ========================================
- * USE CHECKOUT HOOK - XỬ LÝ LOGIC CHECKOUT ✨
- * =======================================
- * 
- * Hook này chứa TẤT CẢ logic cho trang Checkout
- * Component Checkout.jsx chỉ cần import và sử dụng
+ * CHECKOUT HOOK - Logic đặt hàng đơn giản ✨
+ * ========================================
  */
 export function useCheckout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items: cartItems, fetchCart, loading: cartLoading } = useCartStore();
+  const { items: cartItems, fetchCart } = useCartStore();
 
-  // =======================
-  // STATE
-  // =======================
-  const [addresses, setAddresses] = useState([]); //danh sách địa chỉ từ API getAddresses()
-  const [addressId, setAddressId] = useState(""); //id địa chỉ được chọn
-  const [selectedAddress, setSelectedAddress] = useState(null); //địa chỉ được chọn
-  const [paymentMethod, setPaymentMethod] = useState("COD"); //phương thức thanh toán
-  const [customerNote, setCustomerNote] = useState(""); //ghi chú cho người bán
-  const [submitting, setSubmitting] = useState(false); //trạng thái đang đặt hàng
-  const [openAddressDialog, setOpenAddressDialog] = useState(false); //trạng thái mở dialog chọn địa chỉ
-  const [selectedItemIds, setSelectedItemIds] = useState([]); //Danh sách ID cart item được chọn (nhận từ query ?selected=1,2 ở trang Giỏ hàng)
+  // 📦 STATE CƠ BẢN
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [customerNote, setCustomerNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // =======================
-  // EFFECTS
-  // =======================
-  
-  // Fetch giỏ hàng khi component mount
+  // 🏠 STATE FORM ĐỊA CHỈ (chỉ hiện khi chưa có địa chỉ)
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    fullName: "",
+    phone: "",
+    streetAddress: "",
+    ward: "",
+    district: "",
+    city: "",
+    addressType: "HOME",
+    note: "",
+  });
+  const [selectedCodes, setSelectedCodes] = useState({
+    provinceCode: "",
+    districtCode: "",
+    wardCode: "",
+  });
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  const { provinces, districts, wards, fetchDistricts, fetchWards } = useVietnamesePlaces();
+
+  // 🛒 Lấy danh sách sản phẩm được chọn từ URL: /checkout?selected=1,2,3
+  const selectedCartItemIds = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("selected");
+    if (!raw) return [];
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  }, [location.search]);
+
+  const checkoutItems = useMemo(() => {
+    if (selectedCartItemIds.length === 0) return cartItems;
+    return cartItems.filter((item) => selectedCartItemIds.includes(String(item.id)));
+  }, [cartItems, selectedCartItemIds]);
+
+  const summary = useMemo(() => {
+    const subtotal = checkoutItems.reduce((sum, item) => {
+      const price = Number(item?.final_price ?? item?.product?.price ?? 0);
+      return sum + price * item.quantity;
+    }, 0);
+    return { subtotal, shippingFee: 0, discount: 0, total: subtotal };
+  }, [checkoutItems]);
+
+  const selectedAddress = useMemo(() => {
+    return addresses.find((a) => a.id === selectedAddressId) || null;
+  }, [addresses, selectedAddressId]);
+
+  // 🔄 Tải giỏ hàng
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
 
-  // B1 - Đọc danh sách item được chọn từ query string
-  // Ví dụ URL: /checkout?selected=10,12  => selectedItemIds = ["10","12"]
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const raw = params.get("selected");
-    const ids = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    setSelectedItemIds(ids);
-  }, [location.search]);
+  // 🔄 Tải địa chỉ lần đầu
+  const loadAddresses = async () => {
+    try {
+      const res = await getAddresses();
+      const list = res.data?.addresses || [];
+      setAddresses(list);
 
-  // B2 - Tải toàn bộ địa chỉ một lần
-  // Đơn giản hoá: chỉ gọi 1 API getAddresses() → lấy mảng addresses
-  // Sau khi có danh sách: ưu tiên chọn địa chỉ mặc định, không có thì chọn phần tử đầu tiên
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      try {
-        const res = await getAddresses();
-        const all = Array.isArray(res.data?.addresses) ? res.data.addresses : []; //lấy mảng addresses từ response
-        setAddresses(all);
-        if (all.length) {
-          const defaultAddress = all.find((a) => a.isDefault) || all[0]; //tìm địa chỉ mặc định, không có thì chọn phần tử đầu tiên
-          setAddressId(String(defaultAddress.id)); //set id địa chỉ được chọn
-          setSelectedAddress(defaultAddress); //set địa chỉ được chọn
-        }
-      } catch {
-        setAddresses([]); //nếu lỗi thì set mảng addresses trống
+      if (list.length === 0) {
+        // ❗ CHƯA CÓ ĐỊA CHỈ → Hiện form nhập ngay
+        setShowAddressForm(true);
+        setSelectedAddressId(null);
+      } else {
+        // ✅ CÓ ĐỊA CHỈ → Chọn địa chỉ mặc định
+        const defaultAddr = list.find((a) => a.isDefault) || list[0];
+        setSelectedAddressId(defaultAddr.id);
+        setShowAddressForm(false);
       }
-    };
-    fetchAddresses(); //gọi hàm fetchAddresses để tải toàn bộ địa chỉ
+    } catch (error) {
+      console.error("Lỗi tải địa chỉ:", error);
+      setShowAddressForm(true);
+    }
+  };
+
+  useEffect(() => {
+    loadAddresses();
   }, []);
 
-  // B3 - Đồng bộ addressId -> selectedAddress để phần header hiển thị đúng
-  useEffect(() => {
-    if (!addressId) return;
-    const found = addresses.find((a) => String(a.id) === String(addressId));
-    if (found) setSelectedAddress(found);
-  }, [addressId, addresses]);
+  // 📝 XỬ LÝ FORM ĐỊA CHỈ
+  const handleAddressChange = (field, value) => {
+    setAddressForm((prev) => ({ ...prev, [field]: value }));
+  };
+//hàm xử lý thay đổi tỉnh
+  const handleProvinceChange = (code) => {
+    const province = provinces.find((p) => String(p.code) === code);
+    if (!province) return;
+    setSelectedCodes({ provinceCode: code, districtCode: "", wardCode: "" });
+    setAddressForm((prev) => ({ ...prev, city: province.name, district: "", ward: "" }));
+    fetchDistricts(code);
+  };
+//hàm xử lý thay đổi quận
+  const handleDistrictChange = (code) => {
+    const district = districts.find((d) => String(d.code) === code);
+    if (!district) return;
+    setSelectedCodes((prev) => ({ ...prev, districtCode: code, wardCode: "" }));
+    setAddressForm((prev) => ({ ...prev, district: district.name, ward: "" }));
+    fetchWards(code);
+  };
+//hàm xử lý thay đổi phường
+  const handleWardChange = (code) => {
+    const ward = wards.find((w) => String(w.code) === code);
+    if (!ward) return;
+    setSelectedCodes((prev) => ({ ...prev, wardCode: code }));
+    setAddressForm((prev) => ({ ...prev, ward: ward.name }));
+  };
+//hàm xử lý lưu địa chỉ
+  const handleSaveAddress = async () => {
+    // Validate
+    if (!addressForm.fullName.trim()) return toast.error("Vui lòng nhập họ tên");
+    if (!/^0\d{9}$/.test(addressForm.phone.trim())) return toast.error("Số điện thoại không hợp lệ");
+    if (!addressForm.city || !addressForm.district || !addressForm.ward) {
+      return toast.error("Vui lòng chọn đầy đủ Tỉnh/Quận/Phường");
+    }
+    if (!addressForm.streetAddress.trim()) return toast.error("Vui lòng nhập địa chỉ cụ thể");
 
-  // =======================
-  // COMPUTED VALUES
-  // =======================
-  
-  // B4 - Xác định danh sách item sẽ đặt hàng
-  // Nếu có selectedItemIds: chỉ lấy các item tương ứng; nếu không: lấy toàn bộ cartItems
-  const selectedItems = useMemo(() => {
-    const hasSelection = selectedItemIds.length > 0;
-    return hasSelection ? cartItems.filter((i) => selectedItemIds.includes(String(i.id))) : cartItems;
-  }, [cartItems, selectedItemIds]);
+    try {
+      setSavingAddress(true);
+      const res = await addAddress({
+        ...addressForm,
+        isDefault: addresses.length === 0, // Địa chỉ đầu tiên = mặc định
+      });
+      toast.success("Thêm địa chỉ thành công");
+      
+      // Reload địa chỉ và chọn địa chỉ vừa tạo
+      await loadAddresses();
+      const newId = res.data?.address?.id;
+      if (newId) setSelectedAddressId(newId);
+      setShowAddressForm(false);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Không thể lưu địa chỉ");
+    } finally {
+      setSavingAddress(false);
+    }
+  };
 
-  // B5 - Tính toán tóm tắt tiền: tạm tính, phí ship, giảm giá, tổng cộng
-  const summary = useMemo(() => {
-    const subtotal = selectedItems.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0);
-    const shippingFee = 0;
-    const discountAmount = 0;
-    const total = subtotal + shippingFee - discountAmount;
-    return { subtotal, shippingFee, discountAmount, total };
-  }, [selectedItems]);
-
-  // =======================
-  // HANDLERS
-  // =======================
-  
-  /**
-   * Xử lý khi submit form đặt hàng
-   */
-  const onSubmit = async () => {
-    // B6 - Validate: bắt buộc có địa chỉ và có item để đặt
-    if (!addressId) {
+  // 🛍️ ĐẶT HÀNG
+  const handlePlaceOrder = async () => {
+    if (!selectedAddressId) {
       toast.error("Vui lòng chọn địa chỉ giao hàng");
+      setShowAddressForm(true);
       return;
     }
-    if (!cartItems.length) {
+    if (checkoutItems.length === 0) {
       toast.error("Giỏ hàng trống");
       return;
     }
-    setSubmitting(true);
+
     try {
-      // Xác định danh sách cartItemIds gửi lên server
-      // - Nếu user chọn sẵn ở Giỏ hàng → dùng selectedItemIds
-      // - Nếu không chọn sẵn → đặt toàn bộ cartItems
-      const idsForCheckout = (selectedItemIds.length > 0)
-        ? selectedItemIds.map((id) => Number(id)).filter((n) => !isNaN(n))
-        : cartItems.map((i) => Number(i.id));
-      const payload = {
-        addressId: Number(addressId),
+      setSubmitting(true);
+      const cartItemIds = checkoutItems.map((item) => item.id);
+      const res = await createOrder({
+        addressId: selectedAddressId,
         paymentMethod,
-        customerNote: customerNote?.trim() || undefined,
-        cartItemIds: idsForCheckout,
-      };
-      // Gọi API tạo đơn với payload tối giản BE yêu cầu
-      const res = await createOrder(payload);
-      
-      // B7 - Refresh giỏ hàng để chỉ còn lại các item chưa đặt (BE đã xoá theo cartItemIds)
+        customerNote: customerNote.trim() || undefined,
+        cartItemIds,
+      });
+
       await fetchCart();
-      
+      toast.success("Đặt hàng thành công!");
       const orderId = res.data?.order?.id;
-      
-      // Nếu thanh toán bằng MoMo, tạo payment URL và redirect
-      if (paymentMethod === "MOMO" && orderId) {
-        try {
-          toast.info("Đang tạo liên kết thanh toán MoMo...");
-          
-          // Đợi một chút để backend xử lý xong order và payment
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          console.log("🔄 Gọi API createMoMoPayment với orderId:", orderId);
-          const paymentRes = await createMoMoPayment(orderId);
-          
-          console.log("📦 Payment Response full:", paymentRes);
-          console.log("📦 Payment Response data:", paymentRes.data);
-          
-          // Kiểm tra nhiều format response có thể có
-          const paymentUrl = paymentRes.data?.data?.paymentUrl || 
-                            paymentRes.data?.paymentUrl ||
-                            paymentRes.data?.payUrl;
-          
-          const isSuccess = paymentRes.data?.success === true || paymentRes.data?.success === undefined;
-          
-          console.log("🔍 Payment URL found:", paymentUrl);
-          console.log("🔍 Is Success:", isSuccess);
-          console.log("🔍 Full response.data:", JSON.stringify(paymentRes.data, null, 2));
-          
-          if (paymentUrl && typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
-            // Redirect đến MoMo payment page
-            console.log("✅ Redirecting to MoMo:", paymentUrl);
-            
-            // Hiển thị toast và redirect ngay
-            toast.info("Đang chuyển đến trang thanh toán MoMo...", {
-              autoClose: 1000
-            });
-            
-            // Dùng window.location.replace để redirect (không giữ history)
-            setTimeout(() => {
-              window.location.replace(paymentUrl);
-            }, 500); // Đợi 500ms để user thấy toast message
-            
-            // Set submitting = false và return ngay
-            setSubmitting(false);
-            return;
-          } else {
-            console.error("❌ Payment URL không hợp lệ:", {
-              paymentUrl: paymentUrl,
-              type: typeof paymentUrl,
-              startsWithHttp: paymentUrl?.startsWith?.('http'),
-              success: paymentRes.data?.success,
-              fullResponse: paymentRes.data
-            });
-            throw new Error(paymentRes.data?.message || "Không thể tạo liên kết thanh toán");
-          }
-        } catch (paymentError) {
-          console.error("❌ Lỗi tạo payment URL:", paymentError);
-          console.error("📋 Error details:", {
-            message: paymentError.message,
-            status: paymentError.response?.status,
-            statusText: paymentError.response?.statusText,
-            data: paymentError.response?.data,
-            orderId: orderId
-          });
-          
-          const errorMessage = paymentError.response?.data?.message || 
-                              paymentError.response?.data?.error ||
-                              paymentError.message || 
-                              "Không thể tạo liên kết thanh toán MoMo";
-          
-          toast.error(errorMessage);
-          setSubmitting(false);
-          
-          // Vẫn redirect đến order success với orderId để user có thể xem đơn
-          if (orderId) {
-            setTimeout(() => {
-              navigate(`/order-success?orderId=${orderId}`);
-            }, 1500);
-          } else {
-            setTimeout(() => {
-              navigate(`/order-success`);
-            }, 1500);
-          }
-          return;
-        }
-      }
-      
-      // Nếu không phải MoMo hoặc không có payment URL, redirect đến order success
-      toast.success("Đặt hàng thành công");
-      if (orderId) navigate(`/order-success?orderId=${orderId}`);
-      else navigate(`/order-success`);
-    } catch (e) {
-      toast.error(e.response?.data?.message || "Không thể tạo đơn hàng");
+      navigate(orderId ? `/order-success?orderId=${orderId}` : "/order-success");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Không thể đặt hàng");
     } finally {
       setSubmitting(false);
     }
   };
 
-  /**
-   * Chuyển đến trang quản lý địa chỉ
-   */
-  const handleManageAddress = () => {
-    navigate('/profile-manager?section=address');
-  };
-
-  // =======================
-  // RETURN
-  // =======================
   return {
-    // State
-    addresses,
-    addressId,
-    selectedAddress,
-    paymentMethod,
-    customerNote,
-    submitting,
-    openAddressDialog,
-    selectedItems,
-    summary,
-    cartLoading,
-    
-    // Setters
-    setAddressId,
-    setPaymentMethod,
-    setCustomerNote,
-    setOpenAddressDialog,
-    
-    // Handlers
-    onSubmit,
-    handleManageAddress,
+    // Data
+    addresses,//danh sách địa chỉ
+    selectedAddress,//địa chỉ được chọn
+    selectedAddressId,//id địa chỉ được chọn
+    checkoutItems,//sản phẩm được chọn
+    summary,//tổng tiền
+    paymentMethod,//phương thức thanh toán
+    customerNote,//ghi chú khách hàng
+    submitting,//trạng thái đang đặt hàng
+
+    // Form địa chỉ
+    showAddressForm,//hiện form địa chỉ
+    addressForm,//form địa chỉ
+    selectedCodes,//mã tỉnh, quận, phường
+    provinces,//danh sách tỉnh
+    districts,//danh sách quận
+    wards,//danh sách phường
+    savingAddress,//trạng thái đang lưu địa chỉ
+
+    // Actions
+    setSelectedAddressId,//set id địa chỉ được chọn
+    setPaymentMethod,//set phương thức thanh toán
+    setCustomerNote,//set ghi chú khách hàng
+    handleAddressChange,//xử lý thay đổi địa chỉ
+    handleProvinceChange,//xử lý thay đổi tỉnh
+    handleDistrictChange,//xử lý thay đổi quận
+    handleWardChange,//xử lý thay đổi phường
+    handleSaveAddress,//xử lý lưu địa chỉ
+    handlePlaceOrder,//xử lý đặt hàng
+    setShowAddressForm,//set hiện form địa chỉ
   };
 }
-

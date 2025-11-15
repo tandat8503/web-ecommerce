@@ -3,6 +3,20 @@ import logger from '../utils/logger.js';
 import { emitOrderStatusUpdate } from '../config/socket.js';
 
 /**
+ * Helper: Convert status code sang label tiếng Việt
+ */
+const getStatusLabel = (status) => {
+  const labels = {
+    PENDING: 'Chờ xác nhận',
+    CONFIRMED: 'Đã xác nhận',
+    PROCESSING: 'Đang giao',
+    DELIVERED: 'Đã giao',
+    CANCELLED: 'Đã hủy'
+  };
+  return labels[status] || status;
+};
+
+/**
  * Lấy danh sách đơn hàng cho admin
  * - Phân trang: page, limit
  * - Lọc theo trạng thái: status
@@ -58,7 +72,20 @@ export const listOrders = async (req, res) => {
       prisma.order.count({ where }) // Đếm tổng số đơn
     ]);
 
-    const payload = { items, total, page: Number(page), limit: Number(limit) };
+    // ✅ Parse shippingAddress từ JSON string thành object cho mỗi order
+    const itemsWithParsedAddress = items.map(order => {
+      let parsedShippingAddress = order.shippingAddress;
+      try {
+        if (typeof order.shippingAddress === 'string') {
+          parsedShippingAddress = JSON.parse(order.shippingAddress);
+        }
+      } catch (e) {
+        logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
+      }
+      return { ...order, shippingAddress: parsedShippingAddress };
+    });
+
+    const payload = { items: itemsWithParsedAddress, total, page: Number(page), limit: Number(limit) };
     logger.success('Orders fetched', { total });
     logger.end(context.path, { total });
     return res.json(payload);
@@ -142,8 +169,19 @@ export const getOrder = async (req, res) => {
       })
     );
 
+    // ✅ Parse shippingAddress từ JSON string thành object
+    let parsedShippingAddress = order.shippingAddress;
+    try {
+      if (typeof order.shippingAddress === 'string') {
+        parsedShippingAddress = JSON.parse(order.shippingAddress);
+      }
+    } catch (e) {
+      logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
+    }
+
     const orderWithSafeItems = {
       ...order,
+      shippingAddress: parsedShippingAddress, // Parse shippingAddress
       orderItems: orderItemsWithProducts
     };
     
@@ -258,7 +296,8 @@ export const updateOrder = async (req, res) => {
     emitOrderStatusUpdate(currentOrder.userId, {
       orderId: updated.id,
       orderNumber: updated.orderNumber,
-      status: updated.status
+      status: updated.status,
+      statusLabel: getStatusLabel(updated.status) // ✅ Thêm statusLabel
     });
 
     logger.success('Order status updated', { id, oldStatus: currentOrder.status, newStatus: updated.status });
@@ -376,7 +415,8 @@ export const cancelOrder = async (req, res) => {
     emitOrderStatusUpdate(currentOrder.userId, {
       orderId: updated.id,
       orderNumber: updated.orderNumber,
-      status: 'CANCELLED'
+      status: 'CANCELLED',
+      statusLabel: getStatusLabel('CANCELLED') // ✅ Thêm statusLabel
     });
 
     logger.success('Order cancelled', { id, oldStatus: currentOrder.status });

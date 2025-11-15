@@ -65,6 +65,8 @@ export function useUserHeader() {
           localStorage.removeItem("user");
           localStorage.removeItem("token");
         }
+      } else {
+        setUser(null); // Nếu không có user data → set null
       }
     };
 

@@ -89,7 +89,7 @@ export default function CartButton({
   // Size variants
   const sizeClasses = {
     sm: "h-8 px-2 text-xs",//kích thước button sm
-    md: "h-10 px-3 text-sm", //kích thước button md
+    md: "h-10 px-4 text-sm", //kích thước button md
     lg: "h-12 px-4 text-base"//kích thước button lg
   };
 
@@ -99,12 +99,16 @@ export default function CartButton({
     lg: "w-5 h-5"//kích thước icon lg
   };
 
+  // Kiểm tra xem className có chứa height custom không
+  const hasCustomHeight = className.includes('h-');
+  const buttonClasses = hasCustomHeight ? className : `${sizeClasses[size]} ${className}`;
+
   return (
     <div className="relative">
       <Button
         onClick={handleAddToCart}
         disabled={isAdding || loading || disabled}
-        className={`${sizeClasses[size]} ${className}`}
+        className={buttonClasses}
         variant="default"
       >
         {isAdding || loading ? (

@@ -7,6 +7,13 @@ import {
 } from '../controller/adminBrandController.js';
 
 const router = Router();
+
+/**
+ * ✅ API PUBLIC - Cho phép user frontend lấy danh sách brands (không cần đăng nhập)
+ */
+router.get('/public', listBrands);
+
+// Tất cả route dưới đây đều cần auth và admin
 router.use(authenticateToken, requireAdmin);
 
 router.get('/', listBrands);

@@ -7,6 +7,17 @@ import { Badge } from "../ui/badge";
 import WishlistButton from "./WishlistButton";
 import { formatPrice } from "@/lib/utils";
 
+/**
+ * ProductCard Component - Card sản phẩm
+ * 
+ * @param {Object} props
+ * @param {Object} props.product - Sản phẩm
+ * @param {boolean} props.showActions - Hiển thị nút yêu thích và xem nhanh
+ * @param {boolean} props.showBrand - Hiển thị thương hiệu
+ * @param {boolean} props.showStock - Hiển thị tồn kho
+ * @param {string} props.className - CSS class tùy chỉnh
+ */
+
 const ProductCard = ({
   product,
   showActions = true,//hiển thị nút yêu thích và xem nhanh

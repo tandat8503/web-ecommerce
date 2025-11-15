@@ -149,7 +149,12 @@ export function useAdminCategories() {
    * @param {Object} record - Record cần edit
    */
   const openEditModal = (record) => {
-    setEditingRecord(record);
+    // Normalize record để đảm bảo image field là array rỗng (không phải undefined)
+    const normalizedRecord = {
+      ...record,
+      image: [], // Upload component cần array, không phải imageUrl string
+    };
+    setEditingRecord(normalizedRecord);
     setModalOpen(true);
   };
 
