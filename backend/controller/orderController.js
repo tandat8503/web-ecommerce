@@ -81,10 +81,10 @@ export const createOrder = async (req, res) => {
     const stockUpdates = [];          // danh sách cần trừ kho
 
     for (const item of cartItems) {
-      // tồn kho: ưu tiên variant, nếu không có thì tính tổng từ variants
+      // tồn kho: ưu tiên variant, 
       let stock = 0;
       if (item.variant?.stockQuantity !== undefined) {
-        stock = item.variant.stockQuantity;
+        stock = item.variant.stockQuantity;//lấy tồn kho của variant
       } else {
         // Tính tổng stock từ tất cả variants active
         stock = item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
@@ -94,8 +94,8 @@ export const createOrder = async (req, res) => {
         return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
       }
 
-      // đơn giá: ưu tiên variant.price, fallback product.price
-      const unitPrice = Number(item.variant?.price ?? item.product.price);//đơn giá của sản phẩm
+      // đơn giá: chỉ lấy từ product (variant không có price)
+      const unitPrice = Number(item.product.price);//đơn giá của sản phẩm
       const totalPrice = unitPrice * item.quantity; // tổng tiền của sản phẩm = đơn giá × số lượng
       //  tổng tiền tạm tính của đơn hàng: subtotal = subtotal tổng tiền của đơn hàng  hiện tại + tổng tiền sản phẩm
       subtotal = subtotal + totalPrice;//vd sp1: 100000, sp2: 200000, sp3: 300000 => subtotal = 100000 + 200000 + 300000 = 600000
@@ -109,9 +109,9 @@ export const createOrder = async (req, res) => {
         variantName: item.variant ? 
           `${item.variant.color || ''} ${item.variant.width ? `${item.variant.width}x${item.variant.depth}x${item.variant.height}mm` : ''}`.trim() 
           : null,
-        quantity: item.quantity,
-        unitPrice,
-        totalPrice
+        quantity: item.quantity,//số lượng sản phẩm
+        unitPrice,//đơn giá của sản phẩm
+        totalPrice,//tổng tiền của sản phẩm
       });
 
       // ghi lại để trừ kho sau khi tạo đơn thành công
@@ -137,6 +137,18 @@ export const createOrder = async (req, res) => {
     // BƯỚC 6: Tạo đơn trong transaction (đảm bảo tính toàn vẹn)
     const created = await prisma.$transaction(async (tx) => {
       // 6.1 Tạo Order
+      // Format shippingAddress thành string (schema là String, không phải object)
+      const shippingAddressString = JSON.stringify({
+        fullName: shippingAddress.fullName,
+        phone: shippingAddress.phone,
+        streetAddress: shippingAddress.streetAddress,
+        ward: shippingAddress.ward,
+        district: shippingAddress.district,
+        city: shippingAddress.city,
+        addressType: shippingAddress.addressType,
+        note: shippingAddress.note
+      });
+      
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -147,16 +159,7 @@ export const createOrder = async (req, res) => {
           shippingFee,
           discountAmount,
           totalAmount,
-          shippingAddress: {
-            fullName: shippingAddress.fullName,
-            phone: shippingAddress.phone,
-            streetAddress: shippingAddress.streetAddress,
-            ward: shippingAddress.ward,
-            district: shippingAddress.district,
-            city: shippingAddress.city,
-            addressType: shippingAddress.addressType,
-            note: shippingAddress.note
-          },
+          shippingAddress: shippingAddressString,
           paymentMethod,
           customerNote
         }
@@ -268,7 +271,20 @@ export const getUserOrders = async (req, res) => {
       prisma.order.count({ where })
     ]);
 
-    return res.json({ items, total, page: Number(page), limit: Number(limit) });
+    // ✅ Parse shippingAddress từ JSON string thành object cho mỗi order
+    const itemsWithParsedAddress = items.map(order => {
+      let parsedShippingAddress = order.shippingAddress;
+      try {
+        if (typeof order.shippingAddress === 'string') {
+          parsedShippingAddress = JSON.parse(order.shippingAddress);
+        }
+      } catch (e) {
+        logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
+      }
+      return { ...order, shippingAddress: parsedShippingAddress };
+    });
+
+    return res.json({ items: itemsWithParsedAddress, total, page: Number(page), limit: Number(limit) });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
@@ -327,7 +343,25 @@ export const getOrderById = async (req, res) => {
       //thời gian thanh toán đơn hàng
       paymentConfirmedAt: paidPayment?.paidAt || null
     };
-    return res.status(200).json({ message: "Lấy chi tiết đơn hàng thành công", order: { ...order, timeline } });
+
+    // ✅ Parse shippingAddress từ JSON string thành object
+    let parsedShippingAddress = order.shippingAddress;
+    try {
+      if (typeof order.shippingAddress === 'string') {
+        parsedShippingAddress = JSON.parse(order.shippingAddress);
+      }
+    } catch (e) {
+      logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
+    }
+
+    return res.status(200).json({ 
+      message: "Lấy chi tiết đơn hàng thành công", 
+      order: { 
+        ...order, 
+        shippingAddress: parsedShippingAddress, // Parse shippingAddress
+        timeline 
+      } 
+    });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi server", error: error.message });
   }
@@ -356,18 +390,16 @@ export const cancelOrder = async (req, res) => {
       });
 
       // Hoàn trả tồn kho (User chỉ được hủy khi PENDING)
+      // Chỉ hoàn trả stock cho variant (product không có stockQuantity)
       for (const item of order.orderItems) {
         if (item.variantId) {
           await tx.productVariant.update({
             where: { id: item.variantId },
             data: { stockQuantity: { increment: item.quantity } }
           });
-        } else {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: { increment: item.quantity } }
-          });
         }
+        // Nếu không có variantId, không thể hoàn trả stock vì product không có field stockQuantity
+        // Trường hợp này không nên xảy ra vì đã bắt buộc chọn variant khi thêm vào giỏ
       }
     });
 

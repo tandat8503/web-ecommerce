@@ -1,79 +1,93 @@
 import prisma from "../config/prisma.js";
 import logger from "../utils/logger.js";
 
-// ===========================
-// SHOPPING CART CONTROLLER
-// ===========================
 
-// Lấy giỏ hàng của user - hiển thị tất cả sản phẩm đã thêm vào giỏ
+
+/**
+ *  GET CART - Lấy giỏ hàng của user
+ */
 export const getCart = async (req, res) => {
   try {
-    const userId = req.user.id; // Lấy ID user từ token đã xác thực
-
-    // Include: lấy thêm thông tin product và variant để hiển thị đầy đủ
+    
+    const user_id = req.user.id;
     const cartItems = await prisma.shoppingCart.findMany({
-      where: { userId }, // Chỉ lấy giỏ hàng của user hiện tại
-      include: {
+      where: { userId: user_id }, // Lọc theo user_id
+      include: { 
         product: {
           include: {
             images: {
-              where: { isPrimary: true }, // Chỉ lấy ảnh chính của sản phẩm
+              where: { isPrimary: true },
               take: 1
             }
           }
         },
-        variant: true // Lấy thông tin biến thể (size, color, giá riêng)
+        variant: true
       },
-      orderBy: { createdAt: 'desc' } // Sắp xếp theo thời gian thêm mới nhất
+      orderBy: { createdAt: 'desc' } // Sắp xếp mới nhất trước
     });
 
-    // Tính toán giá cả và tổng tiền cho từng sản phẩm
-    let totalAmount = 0; // Tổng tiền của toàn bộ giỏ hàng
-    const processedCartItems = cartItems.map(item => {
-      // Logic tính giá: ưu tiên giá variant, nếu không có thì dùng giá product
-      const unitPrice = item.variant?.price || item.product.price;
-      const salePrice = item.product.salePrice; // Giá khuyến mãi
-      const finalPrice = salePrice || unitPrice; // Giá cuối cùng (ưu tiên sale price)
-      const itemTotalPrice = finalPrice * item.quantity; // Tổng tiền của item này
-      totalAmount += itemTotalPrice; // Cộng vào tổng tiền giỏ hàng
+    // ========================================
+    // Tính toán giá và format response
+    // ========================================
+    let total_amount = 0; // Tổng tiền toàn bộ giỏ hàng
+    
+    const processedItems = cartItems.map(item => {
+      const unit_price = item.product.price;//giá gốc
+      const sale_price = item.product.salePrice;//giá khuyến mãi
+      const final_price = sale_price || unit_price;//giá cuối cùng ưu tiên giá khuyến mãi,không có thì dùng unit_price
+      const item_total = final_price * item.quantity; // Tổng tiền của item này = giá cuối cùng * số lượng
+      total_amount += item_total; // Cộng dồn vào tổng tiền
 
-      // Trả về object đã được format sẵn cho frontend
+      // Format response theo chuẩn snake_case (giống DB)
       return {
-        id: item.id, // ID của cart item
-        productId: item.productId,
-        variantId: item.variantId,
-        quantity: item.quantity,
-        unitPrice: Number(unitPrice), // Giá đơn vị
-        salePrice: salePrice ? Number(salePrice) : null, // Giá sale (nếu có)
-        finalPrice: Number(finalPrice), // Giá cuối cùng
-        totalPrice: Number(itemTotalPrice), // Tổng tiền của item này
+        id: item.id, // ID của cart item (bảng shopping_cart)
+        product_id: item.productId, // ID sản phẩm
+        variant_id: item.variantId, // ID biến thể
+        quantity: item.quantity, // Số lượng
+        unit_price: Number(unit_price), // Giá đơn vị
+        sale_price: sale_price ? Number(sale_price) : null, // Giá sale (nếu có)
+        final_price: Number(final_price), // Giá cuối cùng
+        total_price: Number(item_total), // Tổng tiền của item này
+        
+        // Thông tin sản phẩm (từ bảng products)
         product: {
-          id: item.product.id,
-          name: item.product.name,
-          imageUrl: item.product.imageUrl,
-          primaryImage: item.product.images[0]?.imageUrl, // Ảnh chính
-          // Tính tổng stock từ variants (nếu có) hoặc 0
-          stockQuantity: item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0
+          id: item.product.id,//ID sản phẩm
+          name: item.product.name,//Tên sản phẩm
+          slug: item.product.slug,//Slug sản phẩm
+          image_url: item.product.imageUrl,//URL ảnh sản phẩm
+          primary_image: item.product.images[0]?.imageUrl, // Ảnh chính
+          price: Number(item.product.price),//Giá gốc
+          sale_price: sale_price ? Number(sale_price) : null//Giá khuyến mãi
         },
+        
+        // Thông tin biến thể (từ bảng product_variants)
         variant: item.variant ? {
           id: item.variant.id,
-          width: item.variant.width,
-          depth: item.variant.depth,
-          height: item.variant.height,
-          color: item.variant.color,
-          material: item.variant.material,
-          stockQuantity: item.variant.stockQuantity // Tồn kho của variant
+          width: item.variant.width, // Chiều rộng (cm)
+          depth: item.variant.depth, // Chiều sâu (cm)
+          height: item.variant.height, // Chiều cao (cm)
+          height_max: item.variant.heightMax, // Chiều cao tối đa (cm) - cho ghế điều chỉnh
+          color: item.variant.color, // Màu sắc
+          material: item.variant.material, // Chất liệu
+          warranty: item.variant.warranty, // Bảo hành
+          weight_capacity: item.variant.weightCapacity ? Number(item.variant.weightCapacity) : null, // Tải trọng (kg)
+          dimension_note: item.variant.dimensionNote, // Ghi chú kích thước
+          stock_quantity: item.variant.stockQuantity, // Tồn kho
+          min_stock_level: item.variant.minStockLevel, // Mức tồn kho tối thiểu
+          is_active: item.variant.isActive // Trạng thái active
         } : null
       };
     });
 
-    // Trả về response với dữ liệu đã được xử lý
+    // Trả về response
     res.status(200).json({
       message: "Lấy giỏ hàng thành công",
-      cart: processedCartItems, // Danh sách sản phẩm đã format
-      totalAmount: Number(totalAmount.toFixed(2)) // Tổng tiền (làm tròn 2 chữ số)
+      cart: processedItems,
+      total_amount: Number(total_amount.toFixed(2)) // Làm tròn 2 chữ số thập phân
     });
+    
   } catch (error) {
+    logger.error('Get cart error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
@@ -81,118 +95,155 @@ export const getCart = async (req, res) => {
   }
 };
 
-// Thêm sản phẩm vào giỏ hàng - kiểm tra tồn kho và merge nếu đã có
+/**
+ * ➕ ADD TO CART - Thêm sản phẩm vào giỏ hàng
+ 
+ */
 export const addToCart = async (req, res) => {
   try {
-    const userId = req.user.id; // Lấy ID user từ token
-    const { productId, variantId, quantity = 1 } = req.body; // Lấy dữ liệu từ request body
+    // Lấy user_id từ token
+    const user_id = req.user.id;
+    
+    // Lấy dữ liệu từ request body
+    // Frontend gửi: { productId, variantId, quantity }
+    // Backend map sang: { product_id, variant_id, quantity }
+    const { productId: product_id, variantId: variant_id, quantity = 1 } = req.body;
 
-   
+    logger.info('Add to cart:', { user_id, product_id, variant_id, quantity });
 
-    // Bước 1: Kiểm tra sản phẩm có tồn tại và còn active không
+    // ========================================
+    // BƯỚC 1: Validate - variant_id BẮT BUỘC
+    // ========================================
+    // Tại sao BẮT BUỘC?
+    // - Trong DB schema: shopping_cart.variant_id có thể NULL
+    // - NHƯNG trong thực tế: Mỗi sản phẩm PHẢI có biến thể cụ thể
+    // - VD: Ghế phải chọn màu sắc, kích thước cụ thể
+    if (!variant_id) {
+      return res.status(400).json({ 
+        message: "Vui lòng chọn biến thể sản phẩm (màu sắc, kích thước)" 
+      });
+    }
+
+    // ========================================
+    // BƯỚC 2: Kiểm tra sản phẩm và variant tồn tại
+    // ========================================
+    // Query bảng products JOIN với product_variants
     const product = await prisma.product.findUnique({
       where: { 
-        id: Number(productId),
-        status: 'ACTIVE' // Chỉ lấy sản phẩm đang bán
+        id: Number(product_id),
+        status: 'ACTIVE' // Chỉ lấy sản phẩm đang bán 
       },
       include: {
-        variants: variantId ? {
+        variants: {
           where: { 
-            id: Number(variantId), 
-            isActive: true 
-          }
-        } : {
-          where: { 
-            isActive: true // Lấy tất cả variants active để tính tổng stock
+            id: Number(variant_id),
+            isActive: true // Chỉ lấy variant đang active
           }
         }
       }
     });
 
-    
-
+    // Kiểm tra sản phẩm có tồn tại không
     if (!product) {
-      return res.status(404).json({ message: "Không tìm thấy sản phẩm hoặc sản phẩm đã ngừng bán" });
-    }
-
-    // Bước 2: Kiểm tra variant và tồn kho
-    let availableStock = 0;
-    
-    if (variantId) {
-      logger.debug('Checking variant', { variantId });
-      if (!product.variants || product.variants.length === 0) {
-        logger.warn('Variant not found', { variantId });
-        return res.status(400).json({ message: "Biến thể sản phẩm không tồn tại hoặc đã ngừng bán" });
-      }
-      availableStock = product.variants[0].stockQuantity || 0; // Dùng tồn kho của variant
-      logger.debug('Variant stock', { variantId, stock: availableStock });
-    } else {
-      // Nếu không có variant, tính tổng stock từ tất cả variants active
-      availableStock = product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
-      logger.debug('Using total product stock from variants', { stock: availableStock });
-    }
-
-    // Bước 3: Kiểm tra tồn kho có đủ không
-    logger.debug('Stock availability check', { availableStock, requestedQuantity: quantity });
-    if (availableStock < quantity) {
-      logger.warn('Not enough stock', { availableStock, requestedQuantity: quantity });
-      return res.status(400).json({ 
-        message: `Chỉ còn ${availableStock} sản phẩm trong kho`,
-        availableStock 
+      return res.status(404).json({ 
+        message: "Sản phẩm không tồn tại hoặc đã ngừng bán" 
       });
     }
 
-    // Bước 4: Kiểm tra sản phẩm đã có trong giỏ hàng chưa (để merge)
+    // Kiểm tra variant có tồn tại không
+    if (!product.variants || product.variants.length === 0) {
+      return res.status(400).json({ 
+        message: "Biến thể sản phẩm không tồn tại hoặc đã ngừng bán" 
+      });
+    }
+
+    // Lấy variant và tồn kho
+    const variant = product.variants[0];//lấy variant đầu tiên trong mảng variants vì mỗi sản phẩm chỉ có 1 variant
+    const stock_quantity = variant.stockQuantity; // Column: stock_quantity trong bảng product_variants
+
+    // ========================================
+    // BƯỚC 3: Kiểm tra tồn kho
+    // ========================================
+    // ✅ ĐÚNG: CHỈ kiểm tra tồn kho của variant CỤ THỂ này
+    // VD: Ghế màu đỏ có 10 cái → stock_quantity = 10
+    if (stock_quantity < quantity) {
+      return res.status(400).json({ 
+        message: `Chỉ còn ${stock_quantity} sản phẩm trong kho`,
+        available_stock: stock_quantity 
+      });
+    }
+
+    // ========================================
+    // BƯỚC 4: Kiểm tra đã có trong giỏ chưa
+    // ========================================
+    // Query bảng shopping_cart với unique constraint: [user_id, product_id, variant_id]
     const existingCartItem = await prisma.shoppingCart.findFirst({
       where: {
-        userId,
-        productId: Number(productId),
-        variantId: variantId ? Number(variantId) : null // Tìm theo cả productId và variantId
+        userId: user_id,
+        productId: Number(product_id),
+        variantId: Number(variant_id)
       }
     });
 
     let cartItem;
+
     if (existingCartItem) {
-      // Nếu đã có trong giỏ: cộng dồn số lượng
-      const newQuantity = existingCartItem.quantity + quantity;
+      // ========================================
+      // Trường hợp 1: ĐÃ CÓ trong giỏ → Cộng dồn số lượng
+      // ========================================
+      const new_quantity = existingCartItem.quantity + quantity;
       
       // Kiểm tra tổng số lượng không vượt quá tồn kho
-      if (newQuantity > availableStock) {
+      if (new_quantity > stock_quantity) {
         return res.status(400).json({ 
-          message: `Tổng số lượng không được vượt quá ${availableStock}`,
-          availableStock,
-          currentQuantity: existingCartItem.quantity
+          message: `Tổng số lượng không được vượt quá ${stock_quantity}`,
+          available_stock: stock_quantity,
+          current_quantity: existingCartItem.quantity
         });
       }
 
-      // Cập nhật số lượng trong database
+      // UPDATE bảng shopping_cart: Cập nhật quantity
       cartItem = await prisma.shoppingCart.update({
         where: { id: existingCartItem.id },
-        data: { quantity: newQuantity }
+        data: { quantity: new_quantity }
       });
+
+      logger.info('Updated cart item:', { id: cartItem.id, new_quantity });
+      
     } else {
-      // Nếu chưa có trong giỏ: tạo mới cart item
+      // ========================================
+      // Trường hợp 2: CHƯA CÓ trong giỏ → Tạo mới
+      // ========================================
+      // INSERT vào bảng shopping_cart
       cartItem = await prisma.shoppingCart.create({
         data: {
-          userId,
-          productId: Number(productId),
-          variantId: variantId ? Number(variantId) : null,
-          quantity
+          userId: user_id,        // FK → users.id
+          productId: Number(product_id),   // FK → products.id
+          variantId: Number(variant_id),   // FK → product_variants.id
+          quantity                // Số lượng
         }
       });
+
+      logger.info('Created cart item:', { id: cartItem.id });
     }
 
-    // Trả về kết quả với thông tin cart item đã tạo/cập nhật
+    // ========================================
+    // BƯỚC 5: Trả về response
+    // ========================================
     res.status(201).json({
-      message: existingCartItem ? "Đã cập nhật số lượng sản phẩm trong giỏ hàng" : "Đã thêm sản phẩm vào giỏ hàng",
-      cartItem: {
+      message: existingCartItem 
+        ? "Đã cập nhật số lượng sản phẩm trong giỏ hàng" 
+        : "Đã thêm sản phẩm vào giỏ hàng",
+      cart_item: {
         id: cartItem.id,
-        productId: cartItem.productId,
-        variantId: cartItem.variantId,
+        product_id: cartItem.productId,
+        variant_id: cartItem.variantId,
         quantity: cartItem.quantity
       }
     });
+
   } catch (error) {
+    logger.error('Add to cart error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
@@ -200,72 +251,94 @@ export const addToCart = async (req, res) => {
   }
 };
 
-// Cập nhật số lượng sản phẩm trong giỏ hàng - thay đổi số lượng của 1 item cụ thể
+/**
+ * 🔄 UPDATE CART ITEM - Cập nhật số lượng sản phẩm
+ * Route: PUT /api/cart/update/:cartItemId
+ * Body: { quantity }
+ */
 export const updateCartItem = async (req, res) => {
   try {
-    const userId = req.user.id; // Lấy ID user từ token
-    const { cartItemId } = req.params; // Lấy ID cart item từ URL params
-    const { quantity } = req.body; // Lấy số lượng mới từ request body
+    const userId = req.user.id;
+    const { cartItemId } = req.params;
+    const { quantity } = req.body;
 
-    // Validation: Kiểm tra cartItemId có hợp lệ không
+    // Validation
     if (!cartItemId || isNaN(cartItemId)) {
       return res.status(400).json({ message: "ID giỏ hàng không hợp lệ" });
     }
 
-    // Validation: Kiểm tra quantity có hợp lệ không
     if (!quantity || quantity <= 0 || !Number.isInteger(quantity)) {
       return res.status(400).json({ message: "Số lượng phải là số nguyên dương" });
     }
 
-    // Bước 1: Kiểm tra cart item có tồn tại và thuộc về user này không
-    const existingCartItem = await prisma.shoppingCart.findFirst({
+    // Lấy cart item
+    const cartItem = await prisma.shoppingCart.findFirst({
       where: {
         id: Number(cartItemId),
-        userId // Đảm bảo chỉ user này mới có thể sửa giỏ hàng của mình
+        userId
       },
       include: {
-        product: true, // Lấy thông tin product để kiểm tra tồn kho
-        variant: true  // Lấy thông tin variant để kiểm tra tồn kho
+        product: {
+          include: {
+            variants: { where: { isActive: true } }
+          }
+        },
+        variant: true
       }
     });
 
-    if (!existingCartItem) {
+    if (!cartItem) {
       return res.status(404).json({ message: "Không tìm thấy sản phẩm trong giỏ hàng" });
     }
 
-    // Bước 2: Kiểm tra tồn kho có đủ cho số lượng mới không
-    let availableStock = 0;
-    if (existingCartItem.variant?.stockQuantity !== undefined) {
-      availableStock = existingCartItem.variant.stockQuantity;
-    } else {
-      // Tính tổng stock từ variants
-      availableStock = existingCartItem.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
-    }
+    // ========================================
+    // Kiểm tra tồn kho (stock_quantity từ bảng product_variants)
+    // ========================================
+    let stock_quantity = 0;
     
-    if (quantity > availableStock) {
+    if (cartItem.variantId && cartItem.variant) {
+      // ✅ ĐÚNG: Cart item có variant_id cụ thể
+      // → CHỈ kiểm tra tồn kho của variant ĐÓ
+      // VD: Ghế màu đỏ có 10 cái → stock_quantity = 10
+      stock_quantity = cartItem.variant.stockQuantity;
+      logger.debug('Check stock for specific variant:', { 
+        variant_id: cartItem.variantId, 
+        stock: stock_quantity 
+      });
+    } else {
+      // ❌ LỖI LOGIC CŨ: Không nên tính tổng tất cả variants
+      // ✅ ĐÚNG: Nếu cart item KHÔNG có variant_id → Báo lỗi
+      // Vì trong DB schema, mỗi cart item PHẢI có variant_id cụ thể
       return res.status(400).json({ 
-        message: `Chỉ còn ${availableStock} sản phẩm trong kho`,
-        availableStock 
+        message: "Sản phẩm phải có biến thể cụ thể (màu sắc, kích thước)" 
       });
     }
 
-    // Bước 3: Cập nhật số lượng trong database
-    const updatedCartItem = await prisma.shoppingCart.update({
+    if (quantity > stock_quantity) {
+      return res.status(400).json({ 
+        message: `Chỉ còn ${stock_quantity} sản phẩm trong kho`,
+        available_stock: stock_quantity 
+      });
+    }
+
+    // Cập nhật số lượng
+    const updatedItem = await prisma.shoppingCart.update({
       where: { id: Number(cartItemId) },
-      data: { quantity } // Thay đổi số lượng thành giá trị mới
+      data: { quantity }
     });
 
-    // Trả về kết quả với thông tin đã cập nhật
     res.status(200).json({
-      message: "Đã cập nhật số lượng sản phẩm trong giỏ hàng",
+      message: "Đã cập nhật số lượng sản phẩm",
       cartItem: {
-        id: updatedCartItem.id,
-        productId: updatedCartItem.productId,
-        variantId: updatedCartItem.variantId,
-        quantity: updatedCartItem.quantity
+        id: updatedItem.id,
+        productId: updatedItem.productId,
+        variantId: updatedItem.variantId,
+        quantity: updatedItem.quantity
       }
     });
+
   } catch (error) {
+    logger.error('Update cart item error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
@@ -273,51 +346,49 @@ export const updateCartItem = async (req, res) => {
   }
 };
 
-// Xóa sản phẩm khỏi giỏ hàng - xóa 1 item cụ thể
+/**
+ * 🗑️ REMOVE FROM CART - Xóa sản phẩm khỏi giỏ hàng
+ * Route: DELETE /api/cart/remove/:cartItemId
+ */
 export const removeFromCart = async (req, res) => {
   try {
-    const userId = req.user.id; // Lấy ID user từ token
-    const { cartItemId } = req.params; // Lấy ID cart item từ URL params
+    const userId = req.user.id;
+    const { cartItemId } = req.params;
 
-    // Validation: Kiểm tra cartItemId có hợp lệ không
     if (!cartItemId || isNaN(cartItemId)) {
       return res.status(400).json({ message: "ID giỏ hàng không hợp lệ" });
     }
 
-    // Bước 1: Kiểm tra cart item có tồn tại và thuộc về user này không
-    const existingCartItem = await prisma.shoppingCart.findFirst({
+    const cartItem = await prisma.shoppingCart.findFirst({
       where: {
         id: Number(cartItemId),
-        userId // Đảm bảo chỉ user này mới có thể xóa giỏ hàng của mình
+        userId
       },
       include: {
         product: {
-          select: {
-            id: true,
-            name: true // Chỉ lấy tên để hiển thị trong response
-          }
+          select: { id: true, name: true }
         }
       }
     });
 
-    if (!existingCartItem) {
+    if (!cartItem) {
       return res.status(404).json({ message: "Không tìm thấy sản phẩm trong giỏ hàng" });
     }
 
-    // Bước 2: Xóa cart item khỏi database
     await prisma.shoppingCart.delete({
       where: { id: Number(cartItemId) }
     });
 
-    // Trả về thông báo với tên sản phẩm đã xóa
     res.status(200).json({
-      message: `Đã xóa "${existingCartItem.product.name}" khỏi giỏ hàng`,
+      message: `Đã xóa "${cartItem.product.name}" khỏi giỏ hàng`,
       removedItem: {
-        id: existingCartItem.id,
-        productName: existingCartItem.product.name
+        id: cartItem.id,
+        productName: cartItem.product.name
       }
     });
+
   } catch (error) {
+    logger.error('Remove from cart error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
@@ -325,31 +396,33 @@ export const removeFromCart = async (req, res) => {
   }
 };
 
-// Xóa tất cả sản phẩm trong giỏ hàng - làm trống hoàn toàn giỏ hàng
+/**
+ * 🧹 CLEAR CART - Xóa tất cả sản phẩm trong giỏ hàng
+ * Route: DELETE /api/cart/clear
+ */
 export const clearCart = async (req, res) => {
   try {
-    const userId = req.user.id; // Lấy ID user từ token
+    const userId = req.user.id;
 
-    // Bước 1: Đếm số lượng sản phẩm trước khi xóa (để báo cáo)
     const cartCount = await prisma.shoppingCart.count({
-      where: { userId } // Đếm tất cả cart items của user này
+      where: { userId }
     });
 
     if (cartCount === 0) {
       return res.status(400).json({ message: "Giỏ hàng đã trống" });
     }
 
-    // Bước 2: Xóa tất cả sản phẩm trong giỏ hàng của user này
     await prisma.shoppingCart.deleteMany({
-      where: { userId } // Xóa tất cả cart items của user này
+      where: { userId }
     });
 
-    // Trả về thông báo với số lượng đã xóa
     res.status(200).json({
       message: `Đã xóa ${cartCount} sản phẩm khỏi giỏ hàng`,
       removedCount: cartCount
     });
+
   } catch (error) {
+    logger.error('Clear cart error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
@@ -357,24 +430,29 @@ export const clearCart = async (req, res) => {
   }
 };
 
-// Lấy số lượng sản phẩm trong giỏ hàng - API cho icon giỏ hàng hiển thị số
+/**
+ * 🔢 GET CART COUNT - Lấy số lượng sản phẩm trong giỏ hàng
+ * Route: GET /api/cart/count
+ */
 export const getCartCount = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Đếm số lượng UNIQUE sản phẩm trong giỏ hàng
-    const uniqueProductCount = await prisma.shoppingCart.count({
+    const count = await prisma.shoppingCart.count({
       where: { userId }
     });
 
     res.status(200).json({
       message: "Lấy số lượng giỏ hàng thành công",
-      totalQuantity: uniqueProductCount
+      totalQuantity: count
     });
+
   } catch (error) {
+    logger.error('Get cart count error:', error);
     res.status(500).json({
       message: "Server error",
       error: error.message
     });
   }
 };
+

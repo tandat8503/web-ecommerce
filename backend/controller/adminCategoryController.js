@@ -17,7 +17,10 @@ export const listCategories = async (req, res) => {
     const { page = 1, limit = 10, q } = req.query;
     
     // Xây dựng điều kiện WHERE
-    const where = q ? { name: { contains: q } } : undefined;
+    // Nếu là public route (không có user), chỉ lấy categories active
+    const where = {};
+    if (q) where.name = { contains: q };
+    if (!req.user) where.isActive = true; // Public route chỉ lấy active categories
 
     logger.debug('Query params', { page, limit, q, where });
 

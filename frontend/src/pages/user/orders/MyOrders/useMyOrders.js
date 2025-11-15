@@ -1,7 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { message } from "antd";
 import { getUserOrders } from "@/api/orders";
-import { initializeSocket, onOrderStatusUpdate } from "@/utils/socket";
 
 export const STATUS_TABS = [
   { key: "", label: "Tất cả" },
@@ -52,23 +50,20 @@ export const useMyOrders = () => {
     fetchOrders(); 
   }, [fetchOrders]);
 
-  // Socket.IO logic
+  // ✅ Lắng nghe custom event từ InitUserSocket để tự động reload danh sách
+  // Khi admin update đơn hàng → InitUserSocket hiện toast → Dispatch event → Reload danh sách
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    const userId = userStr ? JSON.parse(userStr).id : null;
-
-    if (!userId) return;
-
-    const socket = initializeSocket(userId);
-
-    const unsubscribe = onOrderStatusUpdate((data) => {
-      message.success(`Đơn hàng ${data.orderNumber} đã được cập nhật: ${data.statusLabel}`);
+    const handleOrderUpdate = () => {
+      // Reload danh sách đơn hàng để hiển thị trạng thái mới
       fetchOrders();
-    });
+    };
 
+    // Listen custom event 'order:status:updated'
+    window.addEventListener('order:status:updated', handleOrderUpdate);
+
+    // Cleanup
     return () => {
-      unsubscribe();
-      // Không disconnect socket vì có thể đang dùng ở component khác
+      window.removeEventListener('order:status:updated', handleOrderUpdate);
     };
   }, [fetchOrders]);
 

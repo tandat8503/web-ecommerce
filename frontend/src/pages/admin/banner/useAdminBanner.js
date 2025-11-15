@@ -127,7 +127,17 @@ export function useAdminBanner() {
    * @param {Object} record - Record cần edit
    */
   const openEditModal = (record) => {
-    setEditingRecord(record);
+    // Convert imageUrl thành fileList format cho Upload component
+    const recordWithFileList = {
+      ...record,
+      image: record.imageUrl ? [{
+        uid: '-1',
+        name: 'image.png',
+        status: 'done',
+        url: record.imageUrl,
+      }] : []
+    };
+    setEditingRecord(recordWithFileList);
     setModalOpen(true);
   };
 

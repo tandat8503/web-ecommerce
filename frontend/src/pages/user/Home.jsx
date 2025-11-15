@@ -4,8 +4,10 @@ import Navbar from "../../components/user/Navbar";
 import Categories from "../../components/user/Categories";
 import About from "../../components/user/About";
 import Collection from "../../components/user/Collection";
-import CategoryProducts from "../../components/user/CategoryProducts";
 import FeaturedProductsSection from "../../components/user/FeaturedProductsSection";
+import NewProductsSection from "../../components/user/NewProductsSection";
+import SaleProductsSection from "../../components/user/SaleProductsSection";
+
 const { Title, Paragraph } = Typography;
 
 export default function Home() {
@@ -17,28 +19,30 @@ export default function Home() {
         <div className="mb-8">
           <BannerSlider />
         </div>
+        
+        {/* Sản phẩm đang sale */}
+        <div className="my-16">
+          <SaleProductsSection limit={9} />
+        </div>
 
+        {/* Sản phẩm nổi bật */}
+        <div className="my-16">
+          <FeaturedProductsSection limit={9} />
+        </div>
        
         {/* Trang giới thiệu */}
         <div className="mb-8">
           <About />
         </div>
 
-          {/* Sản phẩm nổi bật */}
-          <div className="my-16">
-          <FeaturedProductsSection />
-        </div>
-
-        {/* Danh mục sản phẩm */}
+           {/* Danh mục sản phẩm */}
         <div className="mt-5">
           <Categories />
         </div>
 
-      
-
-        {/* Sản phẩm theo danh mục */}
+        {/* Sản phẩm mới */}
         <div className="my-16">
-          <CategoryProducts />
+          <NewProductsSection limit={9} />
         </div>
       
         {/* Bộ sưu tập */}

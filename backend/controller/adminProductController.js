@@ -35,7 +35,7 @@ export const listProducts = async (req, res) => {
     });
     
     // Lấy các tham số từ query string với giá trị mặc định
-    const { page = 1, limit = 10, q, categoryId, brandId, status } = req.query;
+    const { page = 1, limit = 10, q, categoryId, brandId, status, isFeatured, onSale, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
@@ -43,7 +43,7 @@ export const listProducts = async (req, res) => {
     // Detect public/admin route
     const isPublicRoute = !req.user;
     
-    logger.debug('Query params', { page, limit, q, categoryId, brandId, status, isPublicRoute });
+    logger.debug('Query params', { page, limit, q, categoryId, brandId, status, isFeatured, onSale, sortBy, sortOrder, isPublicRoute });
 
     let items, total;
 
@@ -55,6 +55,7 @@ export const listProducts = async (req, res) => {
         categoryId: categoryId ? Number(categoryId) : undefined,
         brandId: brandId ? Number(brandId) : undefined,
         status: status ? status.toUpperCase() : undefined,
+        isFeatured: isFeatured,
         isPublicRoute,
         skip,
         limit: limitNum
@@ -69,6 +70,19 @@ export const listProducts = async (req, res) => {
       if (brandId) and.push({ brandId: Number(brandId) });
       if (status) and.push({ status: status.toUpperCase() });
       
+      // Filter theo isFeatured nếu có
+      if (isFeatured !== undefined) {
+        and.push({ isFeatured: isFeatured === 'true' || isFeatured === true });
+      }
+      
+      // Filter theo onSale nếu có (sản phẩm có salePrice và salePrice < price)
+      if (onSale !== undefined && (onSale === 'true' || onSale === true)) {
+        // Sản phẩm sale: có salePrice và salePrice < price
+        // Prisma không hỗ trợ so sánh 2 field trực tiếp, nên filter salePrice !== null
+        // Frontend sẽ kiểm tra salePrice < price
+        and.push({ salePrice: { not: null } });
+      }
+      
       // Public route chỉ lấy ACTIVE products
       if (isPublicRoute) {
         and.push({ status: 'ACTIVE' });
@@ -80,7 +94,7 @@ export const listProducts = async (req, res) => {
       [items, total] = await Promise.all([
         prisma.product.findMany({
           where,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { [sortBy]: sortOrder },
           skip,
           take: limitNum,
           include: includeBasic

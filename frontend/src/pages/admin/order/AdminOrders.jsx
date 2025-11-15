@@ -218,7 +218,12 @@ export default function AdminOrders() {
           label: "Địa chỉ giao hàng",
           render: (v) => {
             if (!v) return "-";
-            return `${v.fullName} • ${v.phone}\n${v.streetAddress}, ${v.ward}, ${v.district}, ${v.city}`;
+            return (
+              <div>
+                <div className="font-medium">{v.fullName} • {v.phone}</div>
+                <div className="text-gray-600">{v.streetAddress}, {v.ward}, {v.district}, {v.city}</div>
+              </div>
+            );
           },
         },
         { name: "customerNote", label: "Ghi chú khách hàng", render: (v) => v || "-" },

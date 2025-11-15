@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FaStar, FaCrown } from "react-icons/fa";
+import { FaStar } from "react-icons/fa";
 import ProductCard from "./ProductCard";
-import { getProductsByCategory } from "../../api/adminProducts";
-import { getPublicCategories } from "../../api/adminCategories";
+import { getPublicProducts } from "../../api/adminProducts";
 
 /**
  * FeaturedProductsSection Component - Section sản phẩm nổi bật cho trang chủ
@@ -16,20 +15,14 @@ import { getPublicCategories } from "../../api/adminCategories";
  * 
  * @param {Object} props - Props của component
  * @param {number} [props.limit=6] - Số lượng sản phẩm hiển thị
- * @param {boolean} [props.showActions=true] - Hiển thị các nút action
- * @param {Function} [props.onAddToCart] - Callback khi click "Thêm vào giỏ"
- * @param {Function} [props.onAddToWishlist] - Callback khi click "Yêu thích"
- * @param {Function} [props.onQuickView] - Callback khi click "Xem nhanh"
+ * @param {boolean} [props.showActions=true] - Hiển thị các nút yêu thích và xem chi tiết
  * @param {string} [props.className=""] - CSS class tùy chỉnh
  * 
  * @returns {JSX.Element} Component FeaturedProductsSection
  */
 const FeaturedProductsSection = ({ 
-  limit = 6,
+  limit = 9,
   showActions = true,
-  onAddToCart,
-  onAddToWishlist,
-  onQuickView,
   className = ""
 }) => {
   // ================================
@@ -59,39 +52,21 @@ const FeaturedProductsSection = ({
       
       console.log("⭐ Bắt đầu tải sản phẩm nổi bật cho trang chủ...");
       
-      // Lấy tất cả sản phẩm từ các danh mục
-      const allProducts = [];
+      // Backend tự động sắp xếp theo createdAt desc (mới nhất trước)
+      // và filter isFeatured: true để lấy sản phẩm nổi bật
+      const response = await getPublicProducts({
+        page: 1,
+        limit: limit,
+        isFeatured: true
+      });
       
-      // Lấy danh mục trước
-      const categoriesResponse = await getPublicCategories();
-      const categories = categoriesResponse.data?.items || categoriesResponse.data || [];
+      console.log("⭐ Response sản phẩm nổi bật:", response);
       
-      // Lấy sản phẩm từ mỗi danh mục
-      for (const category of categories) {
-        try {
-          const productsResponse = await getProductsByCategory(category.id, {
-            page: 1,
-            limit: 10, // Lấy ít hơn vì chỉ cần cho trang chủ
-            sortBy: 'createdAt',
-            sortOrder: 'desc'
-          });
-          
-          if (productsResponse.data?.success) {
-            const products = productsResponse.data.data.products || [];
-            allProducts.push(...products);
-          }
-        } catch (err) {
-          console.error(`❌ Lỗi tải sản phẩm cho danh mục ${category.name}:`, err);
-        }
-      }
+      // Backend trả về đúng số lượng cần thiết
+      const products = response.data?.items || [];
       
-      // Lọc sản phẩm nổi bật (isFeatured = true)
-      const featured = allProducts
-        .filter(product => product.isFeatured === true)
-        .slice(0, limit);
-      
-      console.log(`⭐ Đã tải ${featured.length} sản phẩm nổi bật cho trang chủ`);
-      setFeaturedProducts(featured);
+      console.log(`⭐ Đã tải ${products.length} sản phẩm nổi bật cho trang chủ`);
+      setFeaturedProducts(products);
       
     } catch (err) {
       console.error("❌ Lỗi tải sản phẩm nổi bật:", err);
@@ -101,26 +76,21 @@ const FeaturedProductsSection = ({
     }
   };
 
-  // ================================
-  // HELPER FUNCTIONS
-  // ================================
+  // Debug log
+  console.log("⭐ FeaturedProductsSection render - Số sản phẩm:", featuredProducts.length, "Loading:", loading, "Error:", error);
   
-  // Default callbacks cho ProductCard
-  const defaultCallbacks = {
-    onAddToCart: (product) => console.log('🛒 Thêm vào giỏ:', product.name),
-    onAddToWishlist: (product) => console.log('❤️ Thêm vào yêu thích:', product.name),
-    onQuickView: (product) => console.log('👁️ Xem nhanh:', product.name)
-  };
-
   // ================================
-  // LOADING & ERROR STATES
+  // RENDER UI
   // ================================
   
   if (loading) {
     return (
-      <div className="py-16">
-        <div className="flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <span className="ml-4 text-gray-600">Đang tải sản phẩm nổi bật...</span>
+          </div>
         </div>
       </div>
     );
@@ -154,77 +124,45 @@ const FeaturedProductsSection = ({
       </div>
     );
   }
-
-  // ================================
-  // RENDER COMPONENTS
-  // ================================
   
-  const renderHeader = () => (
-    <div className="text-center mb-12">
-      <div className="inline-block">
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <div className="p-3 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full text-white shadow-lg">
-            <FaCrown className="text-xl" />
-          </div>
-          <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-yellow-600 via-orange-600 to-red-600 bg-clip-text text-transparent">
-            SẢN PHẨM NỔI BẬT
-          </h2>
-        </div>
-        <div className="w-24 h-1 bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 mx-auto rounded-full mb-4"></div>
-        <p className="text-gray-600 text-lg max-w-2xl mx-auto leading-relaxed">
-          Những sản phẩm được yêu thích nhất từ bộ sưu tập nội thất cao cấp
-        </p>
-      </div>
-    </div>
-  );
-
-  const renderProducts = () => {
-    if (featuredProducts.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <Card className="max-w-md mx-auto">
-            <CardContent className="py-6">
-              <FaStar className="text-4xl text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-gray-500 mb-2">Chưa có sản phẩm nổi bật</h3>
-              <p className="text-gray-400">Hiện tại chưa có sản phẩm nào được đánh dấu là nổi bật</p>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-
-    return (
-      <div 
-        className="grid gap-6"
-        style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(3, 1fr)', 
-          gap: '1.5rem',
-          gridAutoRows: 'auto'
-        }}
-      >
-        {featuredProducts.map((product) => (
-          <ProductCard 
-            key={product.id}
-            product={product} 
-            showActions={showActions}
-            onAddToCart={onAddToCart || defaultCallbacks.onAddToCart}
-            onAddToWishlist={onAddToWishlist || defaultCallbacks.onAddToWishlist}
-            onQuickView={onQuickView || defaultCallbacks.onQuickView}
-          />
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div className={`py-16 bg-white ${className}`}>
       <div className="max-w-7xl mx-auto px-4">
         {/* Header */}
-        {renderHeader()}
+        <div className="text-center mb-12">
+          <div className="inline-block">
+            <h2 className="text-4xl md:text-5xl font-bold text-black mb-4">
+              SẢN PHẨM NỔI BẬT
+            </h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 mx-auto rounded-full mb-4"></div>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto leading-relaxed">
+              Những sản phẩm được yêu thích nhất từ bộ sưu tập nội thất cao cấp
+            </p>
+          </div>
+        </div>
         
         {/* Sản phẩm nổi bật */}
-        {renderProducts()}
+        {featuredProducts.length === 0 ? (
+          <div className="text-center py-12">
+            <Card className="max-w-md mx-auto">
+              <CardContent className="py-6">
+                <FaStar className="text-4xl text-gray-300 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-gray-500 mb-2">Chưa có sản phẩm nổi bật</h3>
+                <p className="text-gray-400">Hiện tại chưa có sản phẩm nào được đánh dấu là nổi bật</p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredProducts.map((product) => (
+              <ProductCard 
+                key={product.id}
+                product={product} 
+                showActions={showActions}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

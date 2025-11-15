@@ -19,20 +19,14 @@ const BreadcrumbNav = () => {
   const [productName, setProductName] = useState('');
 
   // Object mapping URL path với tên hiển thị tiếng Việt
-  // Ví dụ: '/san-pham' -> 'Tất cả sản phẩm'
   const routeMap = {
-    '/san-pham': 'Tất cả sản phẩm',
     '/wishlist': 'Danh sách yêu thích',
     '/cart': 'Giỏ hàng',
     '/checkout': 'Đặt hàng',
     '/order-success': 'Đặt hàng thành công',
     '/orders': 'Danh sách đơn hàng',
     '/orders/:id': 'Chi tiết đơn hàng',
-    '/ban': 'Bàn',
-    '/ghe': 'Ghế',
-    '/tu': 'Tủ',
-    '/sofa': 'Sofa',
-    '/gioi-thieu': 'Giới thiệu',
+    
   };
 
   // Kiểm tra nếu đang ở trang chi tiết sản phẩm / chi tiết đơn hàng
@@ -82,31 +76,6 @@ const BreadcrumbNav = () => {
         
         {/* Dấu phân cách giữa các item */}
         <BreadcrumbSeparator />
-        
-        {/* Item 2: Link "Tất cả sản phẩm" - chỉ hiển thị khi ở trang chi tiết */}
-        {isProductDetail && (
-          <>
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link 
-                  to="/san-pham" 
-                  className="hover:text-blue-600 transition-colors duration-200 font-medium"
-                >
-                  Tất cả sản phẩm
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            
-            {/* Item 3: "Chi tiết sản phẩm" - không click được */}
-            <BreadcrumbItem>
-              <BreadcrumbPage className="text-gray-600 font-medium">
-                Chi tiết sản phẩm
-              </BreadcrumbPage>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-          </>
-        )}
         
         {/* Nếu là chi tiết đơn hàng: thêm link về danh sách đơn */}
         {isOrderDetail && (

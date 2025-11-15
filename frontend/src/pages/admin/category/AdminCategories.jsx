@@ -134,9 +134,20 @@ export default function AdminCategories() {
       name: "image",
       label: "Hình ảnh",
       valuePropName: "fileList",
-      getValueFromEvent: (e) => (Array.isArray(e) ? e : e?.fileList),
+      getValueFromEvent: (e) => {
+        if (Array.isArray(e)) {
+          return e;
+        }
+        return e?.fileList || [];
+      },
       component: (
-        <Upload name="image" listType="picture" maxCount={1} beforeUpload={() => false}>
+        <Upload 
+          name="image" 
+          listType="picture" 
+          maxCount={1} 
+          beforeUpload={() => false}
+          defaultFileList={[]}
+        >
           <AntButton icon={<UploadOutlined />}>Chọn ảnh</AntButton>
         </Upload>
       ),

@@ -3,151 +3,100 @@ import { useNavigate } from "react-router-dom";
 import useCartStore from "@/stores/cartStore";
 
 /**
- * ========================================
- * USE CART HOOK - XỬ LÝ LOGIC GIỎ HÀNG ✨
- * =======================================
- * 
- * Hook này chứa TẤT CẢ logic cho trang Cart
- * Component Cart.jsx chỉ cần import và sử dụng
+ * 🛒 USE CART HOOK - Logic xử lý giỏ hàng
  */
 export function useCart() {
   const navigate = useNavigate();
-  
-  // =======================
-  // STATE TỪ CART STORE
-  // =======================
   const { 
-    items: cartItems, //danh sách sản phẩm trong giỏ hàng từ cartStore.js
-    totalQuantity: cartCount, //số lượng sản phẩm trong giỏ hàng từ store cartStore.js
-    loading, //trạng thái loading từ store cartStore.js
-    fetchCart, //hàm lấy danh sách sản phẩm trong giỏ hàng từ store cartStore.js
-    updateCartItem, //hàm cập nhật số lượng sản phẩm trong giỏ hàng từ store cartStore.js
-    removeFromCart, //hàm xóa sản phẩm khỏi giỏ hàng từ store cartStore.js
-    clearCart //hàm xóa tất cả sản phẩm khỏi giỏ hàng từ store cartStore.js
+    items: cartItems,
+    totalQuantity: cartCount,
+    loading,
+    fetchCart,
+    updateCartItem,
+    removeFromCart,
+    clearCart,
+    selectedIds,
+    setSelectedIds,
+    addSelectedId,
+    removeSelectedId,
+    clearSelected
   } = useCartStore();
   
-  // =======================
-  // LOCAL STATE
-  // =======================
-  const [updatingItems, setUpdatingItems] = useState(new Set()); // Set các item IDs đang được cập nhật
-  const [selectedItems, setSelectedItems] = useState(new Set()); // Set các item IDs đã được chọn bằng checkbox
+  const [updatingItems, setUpdatingItems] = useState(new Set());
 
-  // =======================
-  // EFFECTS
-  // =======================
-  // Fetch giỏ hàng khi component mount
   useEffect(() => {
-    fetchCart(); //gọi hàm fetchCart từ cartStore.js để lấy danh sách sản phẩm trong giỏ hàng
+    fetchCart();
   }, [fetchCart]);
 
-  // =======================
-  // HANDLERS
-  // =======================
-  
-  /**
-   * Cập nhật số lượng sản phẩm trong giỏ hàng
-   */
+//hàm cập nhật số lượng sản phẩm
   const handleUpdateQuantity = async (cartItemId, newQuantity) => {
-    if (newQuantity < 1) return; // Không cho phép số lượng < 1
-    setUpdatingItems(prev => new Set(prev).add(cartItemId)); // thêm cartItemId vào danh sách "đang cập nhật"
+    if (newQuantity < 1) return;
+    setUpdatingItems(prev => new Set(prev).add(cartItemId));
     try {
-      await updateCartItem({ cartItemId, quantity: newQuantity }); //gọi hàm updateCartItem từ cartStore.js để cập nhật số lượng sản phẩm trong giỏ hàng
+      await updateCartItem({ cartItemId, quantity: newQuantity });
     } finally {
-      setUpdatingItems(prev => new Set([...prev].filter(id => id !== cartItemId))); //xóa cartItemId khỏi danh sách "đang cập nhật"
+      setUpdatingItems(prev => new Set([...prev].filter(id => id !== cartItemId)));
     }
   };
-
-  /**
-   * Xóa một sản phẩm khỏi giỏ hàng
-   */
+//hàm xóa sản phẩm
   const handleRemoveItem = async (cartItemId) => {
-    await removeFromCart(cartItemId); // Gọi API xóa
+    await removeFromCart(cartItemId);
   };
-
-  /**
-   * Xóa tất cả sản phẩm khỏi giỏ hàng
-   */
+//hàm xóa tất cả sản phẩm
   const handleClearAll = async () => {
-    await clearCart(); // Gọi API xóa tất cả
+    await clearCart();
+    clearSelected();
   };
-
-  /**
-   * Chọn/bỏ chọn tất cả sản phẩm
-   */
+//hàm chọn tất cả sản phẩm
   const handleSelectAll = (checked) => {
-    setSelectedItems(checked ? new Set(cartItems.map(item => item.id)) : new Set()); //nếu checked = true thì thêm tất cả item IDs vào selectedItems, nếu checked = false thì xóa tất cả IDs khỏi selectedItems (Set rỗng)
-  };
-
-  /**
-   * Chọn/bỏ chọn một sản phẩm cụ thể
-   */
-  const handleSelectItem = (itemId, checked) => {
-    const newSelectedItems = new Set(selectedItems); // Tạo bản sao
-    if (checked) newSelectedItems.add(itemId); // Thêm vào Set
-    else newSelectedItems.delete(itemId); // Xóa khỏi Set
-    setSelectedItems(newSelectedItems); // Cập nhật state
-  };
-
-  /**
-   * Xóa tất cả sản phẩm đã chọn
-   */
-  const handleDeleteSelected = async () => {
-    for (const itemId of selectedItems) { // Lặp qua các item đã chọn
-      await removeFromCart(itemId); // Xóa từng item
+    if (checked) {
+      setSelectedIds(cartItems.map(item => item.id));
+    } else {
+      clearSelected();
     }
-    setSelectedItems(new Set()); // Xóa tất cả selection
   };
-
-  /**
-   * Chuyển đến trang checkout với các sản phẩm đã chọn
-   */
+//hàm chọn sản phẩm
+  const handleSelectItem = (itemId, checked) => {
+    if (checked) {
+      addSelectedId(itemId);
+    } else {
+      removeSelectedId(itemId);
+    }
+  };
+//hàm xóa sản phẩm đã chọn
+  const handleDeleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    for (const itemId of ids) {
+      await removeFromCart(itemId);
+      removeSelectedId(itemId);
+    }
+  };
+//hàm chuyển hướng đến trang thanh toán
   const handleCheckout = () => {
-    const ids = Array.from(selectedItems);
-    //nếu có sản phẩm đã chọn thì chuyển đến trang checkout với các sản phẩm đã chọn, nếu không thì chuyển đến trang sản phẩm
+    const ids = Array.from(selectedIds);
     navigate(`/checkout${ids.length ? `?selected=${ids.join(',')}` : ''}`);
   };
-
-  /**
-   * Chuyển đến trang sản phẩm
-   */
+//hàm chuyển hướng đến trang sản phẩm
   const handleContinueShopping = () => {
-    navigate("/san-pham");
+    navigate("/");
   };
-
-  // =======================
-  // HELPER FUNCTIONS
-  // =======================
-  
-  /**
-   * Tính tổng tiền của các sản phẩm đã chọn
-   */
+//hàm lấy tổng tiền của sản phẩm đã chọn
   const getSelectedTotalAmount = () => {
     return cartItems
-      .filter(item => selectedItems.has(item.id)) // Chỉ lấy item đã chọn
-      .reduce((total, item) => total + (item.finalPrice * item.quantity), 0); // Tính tổng tiền
+      .filter(item => selectedIds.has(item.id))
+      .reduce((total, item) => total + (item.final_price * item.quantity), 0);
   };
-
-  /**
-   * Đếm số loại sản phẩm đã chọn
-   */
+//hàm lấy số lượng sản phẩm đã chọn
   const getSelectedCount = () => {
-    return cartItems
-      .filter(item => selectedItems.has(item.id)) // Chỉ lấy item đã chọn
-      .length; // Đếm số loại sản phẩm đã chọn, không phải tổng quantity
+    return Array.from(selectedIds).length;
   };
 
-  // =======================
-  // RETURN
-  // =======================
   return {
-    // State
     cartItems,
     cartCount,
     loading,
     updatingItems,
-    selectedItems,
-    
-    // Handlers
+    selectedItems: selectedIds,
     handleUpdateQuantity,
     handleRemoveItem,
     handleClearAll,
@@ -156,8 +105,6 @@ export function useCart() {
     handleDeleteSelected,
     handleCheckout,
     handleContinueShopping,
-    
-    // Helpers
     getSelectedTotalAmount,
     getSelectedCount,
   };

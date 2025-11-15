@@ -37,10 +37,12 @@ const CategoryDropdown = ({ categories, loading }) => {
       {categories.map((cat) => (
         <Link
           key={cat.id}
-          to={`/category/${cat.slug}`}
-          className="block px-4 py-2 text-gray-800 hover:bg-blue-100 hover:text-blue-600 transition-colors text-sm font-medium"
+          to={`/danh-muc/${cat.slug}`}
+          className="block px-4 py-2.5 text-black hover:!bg-blue-100 hover:font-semibold transition-all duration-200 ease-in-out text-sm font-medium rounded-md mx-1 relative group no-underline"
         >
-          {cat.name}
+          <span className="relative z-10 text-black">{cat.name}</span>
+          {/* Thanh màu xanh bên trái  */}
+          <span className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-r-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
         </Link>
       ))}
     </div>
@@ -167,7 +169,7 @@ export default function UserHeader() {
           <Col xs={24} md={12}>
             <div className="flex items-center gap-3">
              <Dropdown
-            dropdownRender={() => (
+            popupRender={() => (
               <CategoryDropdown
                 categories={categories}
                 loading={loadingCategories}
@@ -176,7 +178,7 @@ export default function UserHeader() {
             trigger={["hover"]}     
             placement="bottomLeft"
           >
-            <Button className="flex items-center gap-2 bg-white hover:bg-gray-100 text-blue-600 rounded-lg font-medium cursor-pointer shadow-md border-0">
+            <Button className="flex items-center gap-2 bg-white hover:bg-gray-100 text-indigo-600 rounded-lg font-medium cursor-pointer shadow-md border-0">
               <FaBars /> Danh mục
             </Button>
           </Dropdown>
