@@ -4,10 +4,22 @@ export const createProductSchema = Joi.object({
     name: Joi.string().min(2).max(200).required(),
     slug: Joi.string().min(2).max(220).optional(),
     price: Joi.number().min(0).precision(2).required(),
-    salePrice: Joi.number().min(0).precision(2).optional(),
-    costPrice: Joi.number().min(0).precision(2).optional(),
-    stock: Joi.number().integer().min(0).default(0),
-    minStockLevel: Joi.number().integer().min(0).default(5),
+    salePrice: Joi.alternatives().try(
+      Joi.number().min(0).precision(2),
+      Joi.allow(null, '')
+    ).optional(),
+    costPrice: Joi.alternatives().try(
+      Joi.number().min(0).precision(2),
+      Joi.allow(null, '')
+    ).optional(),
+    stock: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.allow(null, '')
+    ).optional().default(0),
+    minStockLevel: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.allow(null, '')
+    ).optional().default(5),
     description: Joi.string().allow('', null),
     metaTitle: Joi.string().max(200).allow('', null),
     metaDescription: Joi.string().max(500).allow('', null),
@@ -59,14 +71,16 @@ export const createProductSchema = Joi.object({
       Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
         const num = parseInt(value);
         return isNaN(num) ? helpers.error('number.base') : num;
-      })
+      }),
+      Joi.allow(null, '')
     ).optional(),
     minStockLevel: Joi.alternatives().try(
       Joi.number().integer().min(0),
       Joi.string().pattern(/^\d+$/).custom((value, helpers) => {
         const num = parseInt(value);
         return isNaN(num) ? helpers.error('number.base') : num;
-      })
+      }),
+      Joi.allow(null, '')
     ).optional(),
     description: Joi.string().allow('', null),
     metaTitle: Joi.string().max(200).allow('', null),

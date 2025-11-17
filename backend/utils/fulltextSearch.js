@@ -3,13 +3,11 @@ import prisma from '../config/prisma.js';
 
 /**
  * Tạo FullText index cho bảng products (nếu chưa có)
- * Nên chạy khi server khởi động
  */
 export async function ensureFullTextIndex() {
   try {
     console.log('Đang kiểm tra FullText index cho bảng products...');
     
-    // Kiểm tra xem index đã tồn tại chưa
     const checkIndex = await prisma.$queryRawUnsafe(`
       SHOW INDEX FROM products WHERE Key_name = 'ft_product_search'
     `);
@@ -19,47 +17,37 @@ export async function ensureFullTextIndex() {
       return true;
     }
     
-    // Thêm FullText index
     await prisma.$executeRawUnsafe(`
       ALTER TABLE products 
       ADD FULLTEXT INDEX ft_product_search (name, description)
     `);
     
     console.log('Đã tạo FullText index thành công!');
-    console.log('Index: ft_product_search trên các cột (name, description)');
     return true;
     
   } catch (error) {
     console.error('Lỗi khi tạo FullText index:', error.message);
-    
-    // Nếu lỗi do index đã tồn tại
     if (error.message.includes('Duplicate key name') || error.message.includes('already exists')) {
       console.log('FullText index đã tồn tại!');
       return true;
     }
-    
-    // Log lỗi nhưng không throw để server vẫn chạy được
     console.warn('FullText index chưa được tạo, search có thể chậm hơn');
     return false;
   }
 }
 
 /**
- * Sanitize search term để tránh SQL injection và chuẩn hóa cho FullText search
- * @param {string} searchTerm - Từ khóa tìm kiếm
- * @returns {string} - Search term đã được sanitize
+ * Sanitize search term
  */
 function sanitizeSearchTerm(searchTerm) {
   if (!searchTerm || typeof searchTerm !== 'string') {
     return '';
   }
   
-  // Loại bỏ các ký tự đặc biệt có thể gây lỗi SQL
-  // Giữ lại khoảng trắng và chữ cái, số
   let sanitized = searchTerm
     .trim()
-    .replace(/[+\-><()~*\"@]/g, ' ') // Loại bỏ ký tự đặc biệt của FullText
-    .replace(/\s+/g, ' ') // Chuẩn hóa khoảng trắng
+    .replace(/[+\-><()~*\"@]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
   
   return sanitized;
@@ -67,22 +55,15 @@ function sanitizeSearchTerm(searchTerm) {
 
 /**
  * Tạo search pattern cho MySQL FullText BOOLEAN MODE
- * @param {string} searchTerm - Từ khóa tìm kiếm đã được sanitize
- * @returns {string} - Search pattern cho BOOLEAN MODE
  */
 function createSearchPattern(searchTerm) {
   if (!searchTerm) return '';
   
-  // Tách thành các từ
   const words = searchTerm.split(' ').filter(w => w.length > 0);
   
   if (words.length === 0) return '';
   
-  // Tạo pattern: +word* để tìm từ bắt đầu bằng word
-  // + nghĩa là từ này PHẢI xuất hiện
-  // * nghĩa là tìm từ bắt đầu bằng (wildcard)
   const pattern = words.map(word => {
-    // Nếu từ quá ngắn (< 3 ký tự), không dùng wildcard
     if (word.length < 3) {
       return `+${word}`;
     }
@@ -93,16 +74,7 @@ function createSearchPattern(searchTerm) {
 }
 
 /**
- * Tìm kiếm sản phẩm bằng FullText Search
- * @param {Object} options - Tùy chọn tìm kiếm
- * @param {string} options.searchTerm - Từ khóa tìm kiếm
- * @param {number} options.categoryId - ID danh mục (optional)
- * @param {number} options.brandId - ID thương hiệu (optional)
- * @param {string} options.status - Trạng thái sản phẩm (optional)
- * @param {boolean} options.isPublicRoute - Có phải public route không (chỉ lấy ACTIVE)
- * @param {number} options.skip - Số bản ghi bỏ qua (pagination)
- * @param {number} options.limit - Số bản ghi lấy về
- * @returns {Promise<{items: Array, total: number}>} - Kết quả tìm kiếm
+ * ✅ FIXED VERSION - Tìm kiếm sản phẩm bằng FullText Search
  */
 export async function searchProductsWithFullText({
   searchTerm,
@@ -111,8 +83,14 @@ export async function searchProductsWithFullText({
   status,
   isPublicRoute = false,
   skip = 0,
-  limit = 10
-}) {
+  limit = 10,
+  minPrice,
+  maxPrice,
+  inStock = false,
+  color,
+  material,
+  sortBy = 'relevance',
+}) { 
   try {
     // Sanitize search term
     const sanitizedTerm = sanitizeSearchTerm(searchTerm);
@@ -121,53 +99,141 @@ export async function searchProductsWithFullText({
       throw new Error('Search term is empty after sanitization');
     }
     
-    // Tạo search pattern
+    // Tạo search pattern cho BOOLEAN MODE
     const searchPattern = createSearchPattern(sanitizedTerm);
     
-    // Escape single quotes để tránh SQL injection
-    const safeSearchPattern = searchPattern.replace(/'/g, "''");
+    // ✅ Escape single quotes cho LIKE queries
+    const escapedTerm = sanitizedTerm.replace(/'/g, "''");
     
     // Xây dựng điều kiện WHERE
     const whereConditions = [];
-    
-    // FullText search condition
-    whereConditions.push(`MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE)`);
-    
-    // Các điều kiện filter khác
+
+    // ✅ Fulltext search condition - FIXED
+    whereConditions.push(`(
+      MATCH(p.name, p.description) AGAINST('${searchPattern}' IN BOOLEAN MODE)
+      OR c.name LIKE '%${escapedTerm}%'
+      OR b.name LIKE '%${escapedTerm}%'
+    )`);
+   
+    // Filter theo category
     if (categoryId) {
       whereConditions.push(`p.category_id = ${Number(categoryId)}`);
     }
-    
+
+    // Filter theo brand
     if (brandId) {
       whereConditions.push(`p.brand_id = ${Number(brandId)}`);
     }
     
+    // Filter theo status
     if (status) {
-      const safeStatus = status.toUpperCase().replace(/'/g, "''");
-      whereConditions.push(`p.status = '${safeStatus}'`);
+      whereConditions.push(`p.status = '${status}'`);
     }
     
+    // ✅ Filter theo price range - FIXED typo
+    if (minPrice !== undefined && minPrice !== null) {
+      whereConditions.push(`p.price >= ${Number(minPrice)}`);
+    }
+    if (maxPrice !== undefined && maxPrice !== null) {
+      whereConditions.push(`p.price <= ${Number(maxPrice)}`);
+    }
+   
+    // Filter sản phẩm còn hàng
+    if (inStock) {
+      whereConditions.push(`EXISTS(
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = p.id
+        AND pv.stock_quantity > 0
+        AND pv.is_active = true
+      )`);
+    }
+
+    // Filter theo color
+    if (color && color.trim()) {
+      const safeColor = color.replace(/'/g, "''");
+      whereConditions.push(`EXISTS(
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = p.id
+        AND pv.color = '${safeColor}'
+        AND pv.is_active = true
+      )`);
+    }
+    
+    // Filter theo material
+    if (material && material.trim()) {
+      const safeMaterial = material.replace(/'/g, "''");
+      whereConditions.push(`EXISTS(
+        SELECT 1 FROM product_variants pv
+        WHERE pv.product_id = p.id
+        AND pv.material = '${safeMaterial}'
+        AND pv.is_active = true
+      )`);
+    }
+
     // Public route chỉ lấy ACTIVE products
     if (isPublicRoute) {
       whereConditions.push(`p.status = 'ACTIVE'`);
     }
+
+    const whereClause = whereConditions.length > 0 
+      ? `WHERE ${whereConditions.join(' AND ')}` 
+      : '';
+
+    // ✅ Tính relevance score với trọng số - FIXED
+    const relevanceScore = `(
+      MATCH(p.name, p.description) AGAINST('${searchPattern}' IN BOOLEAN MODE) * 3 +
+      IF(c.name LIKE '%${escapedTerm}%', 2, 0) +
+      IF(b.name LIKE '%${escapedTerm}%', 1.5, 0) +
+      IF(p.name LIKE '%${escapedTerm}%', 1, 0)
+    )`;
+
+    // Xây dựng ORDER BY clause
+    let orderByClause = '';
+    switch(sortBy) {
+      case 'price_asc':
+        orderByClause = 'ORDER BY p.price ASC';
+        break;
+      case 'price_desc':
+        orderByClause = 'ORDER BY p.price DESC';
+        break;
+      case 'newest':
+        orderByClause = 'ORDER BY p.created_at DESC';
+        break;
+      case 'oldest':
+        orderByClause = 'ORDER BY p.created_at ASC';
+        break;
+      case 'name_asc':
+        orderByClause = 'ORDER BY p.name ASC';
+        break;
+      case 'name_desc':
+        orderByClause = 'ORDER BY p.name DESC';
+        break;
+      case 'relevance':
+      default:
+        orderByClause = `ORDER BY ${relevanceScore} DESC, p.created_at DESC`;
+        break;
+    }
     
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-    
-    // Query để lấy items với FullText search và relevance score
+    // Query để lấy items với JOIN
     const itemsQuery = `
-      SELECT p.*, 
-             MATCH(p.name, p.description) AGAINST('${safeSearchPattern}' IN BOOLEAN MODE) as relevance
+      SELECT DISTINCT p.*, 
+            c.name as category_name,
+            b.name as brand_name,
+            ${relevanceScore} as relevance
       FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN brands b ON p.brand_id = b.id
       ${whereClause}
-      ORDER BY relevance DESC, p.created_at DESC
-      LIMIT ${limit} OFFSET ${skip}
+      ${orderByClause}
+      LIMIT ${Number(limit)} OFFSET ${Number(skip)}
     `;
-    
+
     // Query để đếm total
     const countQuery = `
-      SELECT COUNT(*) as total
+      SELECT COUNT(DISTINCT p.id) as total
       FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN brands b ON p.brand_id = b.id
       ${whereClause}
     `;
     
@@ -204,21 +270,41 @@ export async function searchProductsWithFullText({
       stockByProductId[variant.productId] += variant.stockQuantity || 0;
     });
     
-    // Thêm stockQuantity vào mỗi item
-    const items = rawItems.map(item => ({
-      ...item,
-      stockQuantity: stockByProductId[item.id] || 0
-    }));
+    // ✅ Convert snake_case sang camelCase
+    const items = rawItems.map(item => {
+      return {
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        description: item.description,
+        categoryId: item.category_id,
+        brandId: item.brand_id,
+        status: item.status,
+        isFeatured: Boolean(item.is_featured),
+        price: Number(item.price),
+        salePrice: item.sale_price ? Number(item.sale_price) : null,
+        costPrice: item.cost_price ? Number(item.cost_price) : null,
+        imageUrl: item.image_url,
+        imagePublicId: item.image_public_id,
+        metaTitle: item.meta_title,
+        metaDescription: item.meta_description,
+        viewCount: item.view_count,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+        stockQuantity: stockByProductId[item.id] || 0,
+        relevance: Number(item.relevance || 0)
+      };
+    });
     
     // Include category và brand cho mỗi item
     const itemsWithRelations = await Promise.all(items.map(async (item) => {
       const [category, brand] = await Promise.all([
         prisma.category.findUnique({ 
-          where: { id: item.category_id },
+          where: { id: item.categoryId },
           select: { id: true, name: true, slug: true }
         }),
         prisma.brand.findUnique({ 
-          where: { id: item.brand_id },
+          where: { id: item.brandId },
           select: { id: true, name: true }
         })
       ]);

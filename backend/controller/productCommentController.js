@@ -83,7 +83,7 @@ export const createComment = async (req, res) => {
         productId: Number(productId),
         parentId: parentId ? Number(parentId) : null,
         content: content.trim(),
-        isApproved: false // Mặc định chưa duyệt, admin sẽ approve
+        isApproved: true // ✅ Tự động approve, không cần admin duyệt
       },
       include: {
         user: {
@@ -106,7 +106,7 @@ export const createComment = async (req, res) => {
     logger.end(context.path, { commentId: comment.id });
 
     return res.status(201).json({
-      message: 'Bình luận của bạn đã được gửi và đang chờ duyệt',
+      message: 'Bình luận đã được đăng thành công',
       data: comment
     });
 
@@ -128,7 +128,7 @@ export const createComment = async (req, res) => {
  * ===========================
  * PUBLIC: Lấy danh sách bình luận của sản phẩm
  * ===========================
- * Chỉ hiển thị comments đã được approve
+ * ✅ Hiển thị TẤT CẢ comments (không cần approve)
  * Hỗ trợ phân trang
  */
 export const getProductComments = async (req, res) => {
@@ -150,12 +150,11 @@ export const getProductComments = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
     }
 
-    // Lấy comments (chỉ approved, sắp xếp theo thời gian mới nhất)
+    // Lấy comments (tất cả, không filter isApproved)
     const [comments, total] = await Promise.all([
       prisma.productComment.findMany({
         where: {
           productId: Number(productId),
-          isApproved: true,
           parentId: null // Chỉ lấy comments gốc (không phải reply)
         },
         include: {
@@ -169,7 +168,6 @@ export const getProductComments = async (req, res) => {
           },
           // Lấy luôn các reply (nếu có)
           replies: {
-            where: { isApproved: true },
             include: {
               user: {
                 select: {
@@ -190,7 +188,6 @@ export const getProductComments = async (req, res) => {
       prisma.productComment.count({
         where: {
           productId: Number(productId),
-          isApproved: true,
           parentId: null
         }
       })
@@ -300,7 +297,7 @@ export const getMyComments = async (req, res) => {
  * ===========================
  * USER: Cập nhật bình luận của mình
  * ===========================
- * Chỉ cho phép sửa nếu chưa được approve
+ * ✅ Cho phép sửa BẤT CỨ LÚC NÀO (không check isApproved)
  */
 export const updateMyComment = async (req, res) => {
   const context = { path: 'user.productComment.update' };
@@ -343,14 +340,8 @@ export const updateMyComment = async (req, res) => {
       });
     }
 
-    // Không cho phép sửa nếu đã được approve
-    if (comment.isApproved) {
-      logger.warn('Cannot edit approved comment', { commentId: id });
-      return res.status(400).json({ 
-        message: 'Không thể chỉnh sửa bình luận đã được duyệt' 
-      });
-    }
-
+    // ✅ REMOVED: Không kiểm tra isApproved nữa
+    
     // Cập nhật
     const updated = await prisma.productComment.update({
       where: { id: Number(id) },
@@ -396,7 +387,7 @@ export const updateMyComment = async (req, res) => {
  * ===========================
  * USER: Xóa bình luận của mình
  * ===========================
- * Chỉ cho phép xóa nếu chưa được approve
+ * ✅ Cho phép xóa BẤT CỨ LÚC NÀO (không check isApproved)
  */
 export const deleteMyComment = async (req, res) => {
   const context = { path: 'user.productComment.delete' };
@@ -424,13 +415,7 @@ export const deleteMyComment = async (req, res) => {
       });
     }
 
-    // Không cho phép xóa nếu đã được approve
-    if (comment.isApproved) {
-      logger.warn('Cannot delete approved comment', { commentId: id });
-      return res.status(400).json({ 
-        message: 'Không thể xóa bình luận đã được duyệt. Vui lòng liên hệ admin.' 
-      });
-    }
+    // ✅ REMOVED: Không kiểm tra isApproved nữa
 
     // Xóa comment và các reply của nó
     await prisma.$transaction(async (tx) => {
@@ -761,4 +746,3 @@ export const adminGetCommentStats = async (req, res) => {
     });
   }
 };
-

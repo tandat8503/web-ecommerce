@@ -8,6 +8,7 @@ import ProductImages from './components/ProductImages'; // Component hiển th�
 import ProductInfo from './components/ProductInfo'; // Component hiển thị thông tin sản phẩm và nút hành động
 import ProductDetails from './components/ProductDetails'; // Component hiển thị thông tin chi tiết sản phẩm
 import FeaturedProducts from './components/FeaturedProducts'; // Component hiển thị sản phẩm nổi bật
+import ProductComments from './components/ProductComment'; // Component hiển thị bình luận sản phẩm
 
 /**
  * Component nội dung - Hiển thị chi tiết sản phẩm
@@ -117,6 +118,9 @@ const ProductDetailContent = () => {
           <div className="lg:col-span-9">
             {/* Component tự lấy data từ Context - Không cần truyền props */}
             <ProductDetails />
+            
+            {/* 🆕 Component bình luận sản phẩm */}
+            <ProductComments productId={product.id} />
           </div>
 
           {/* Cột phải - Sản phẩm nổi bật (chiếm 3/12 cột trên desktop) */}
