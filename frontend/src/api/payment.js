@@ -17,4 +17,3 @@ export const createMoMoPayment = async (orderId) => {
 export const getPaymentStatus = async (orderId) => {
   return await axiosClient.get(`/payment/status/${orderId}`);
 };
-

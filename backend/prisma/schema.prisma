@@ -485,7 +485,6 @@ enum OrderStatus {
 enum PaymentMethod {
   COD
   MOMO
-  VNPAY
 }
 
 enum PaymentStatus {
@@ -503,3 +502,6 @@ enum LoginMethod {
   EMAIL_PASSWORD
   GOOGLE
 }
+
+
+

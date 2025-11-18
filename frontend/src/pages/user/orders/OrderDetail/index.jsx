@@ -3,7 +3,7 @@ import { Steps, Card, Descriptions, Tag, List, Space, Skeleton } from "antd";
 import { Button } from "@/components/ui/button";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
-import { useOrderDetail, getStatusLabel, getStatusTagColor } from "./useOrderDetail";
+import { useOrderDetail, getStatusLabel, getStatusTagColor, getPaymentStatusLabel, getPaymentStatusTagColor } from "./useOrderDetail";
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -56,15 +56,25 @@ export default function OrderDetail() {
                 <Descriptions.Item label="Phương thức thanh toán">
                   <span className="font-semibold text-gray-900">{order.paymentMethod}</span>
                 </Descriptions.Item>
+                {/* Trạng thái thanh toán */}
+                {order.paymentSummary && (
+                  <>
+                    <Descriptions.Item label="Trạng thái thanh toán">
+                      <Tag color={getPaymentStatusTagColor(order.paymentSummary.status)}>
+                        {getPaymentStatusLabel(order.paymentSummary)}
+                      </Tag>
+                    </Descriptions.Item>
+                  </>
+                )}
               </Descriptions>
 
               {/* Thông tin nhận hàng */}
               <Descriptions column={1} bordered title="Thông tin nhận hàng">
                 <Descriptions.Item label="Họ tên">
-                  <span className="font-semibold text-gray-900">{order.shippingAddress.fullName}</span>
+                  <span className="font-semibold text-gray-900">{order.shippingAddress?.fullName || "-"}</span>
                 </Descriptions.Item>
                 <Descriptions.Item label="Số điện thoại">
-                  <span className="font-semibold text-gray-900">{order.shippingAddress.phone}</span>
+                  <span className="font-semibold text-gray-900">{order.shippingAddress?.phone || "-"}</span>
                 </Descriptions.Item>
                 {order.user?.email && (
                   <Descriptions.Item label="Email">
@@ -73,7 +83,9 @@ export default function OrderDetail() {
                 )}
                 <Descriptions.Item label="Địa chỉ">
                   <span className="font-semibold text-gray-900">
-                    {`${order.shippingAddress.streetAddress}, ${order.shippingAddress.ward}, ${order.shippingAddress.district}, ${order.shippingAddress.city}`}
+                    {order.shippingAddress
+                      ? `${order.shippingAddress.streetAddress || ""}, ${order.shippingAddress.ward || ""}, ${order.shippingAddress.district || ""}, ${order.shippingAddress.city || ""}`
+                      : "-"}
                   </span>
                 </Descriptions.Item>
               </Descriptions>

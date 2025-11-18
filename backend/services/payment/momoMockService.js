@@ -1,23 +1,18 @@
 import crypto from 'crypto';
 import axios from 'axios';
 
-// ============================================
-// MOMO SERVICE - Code ngắn gọn, hardcode test keys
-// Dùng cho demo luận văn - KHÔNG cần file .env
-// ============================================
-
-// Test keys từ tài liệu MoMo (hardcode - chỉ dùng cho demo)
-// KHÔNG cần file .env, tất cả đều hardcode
+// MoMo config (hardcode cho demo)
 const partnerCode = "MOMO";
 const accessKey = "F8BBA842ECF85";
 const secretkey = "K951B6PE1waDMi640xX08PD3vg6EkVlz";
 const apiUrl = "https://test-payment.momo.vn/v2/gateway/api/create";
-const redirectUrl = "http://localhost:5173/payment/result";
-const ipnUrl = "http://localhost:5000/api/payment/momo/callback";
+// Redirect URL: Backend sẽ xử lý và redirect về frontend
+const redirectUrl = "http://localhost:5000/api/payment/momo/result";
+// IPN URL: Dùng localhost nếu test với MoMo Developer App (không cần ngrok)
+// Nếu dùng app MoMo thông thường, vẫn cần ngrok: https://xxx.ngrok-free.dev/api/payment/momo/callback
+const ipnUrl ="http://localhost:5000/api/payment/momo/callback";
 
-// ============================================
-// TẠO CHỮ KÝ SỐ
-// ============================================
+// Tạo chữ ký
 export const createSignature = (params) => {
   const { signature, lang, ...paramsForSignature } = params;
   const rawData = Object.keys(paramsForSignature)
@@ -27,28 +22,21 @@ export const createSignature = (params) => {
   return crypto.createHmac('sha256', secretkey).update(rawData).digest('hex');
 };
 
-// ============================================
-// XÁC THỰC CHỮ KÝ
-// ============================================
+// Xác thực chữ ký
 export const verifySignature = (params, signature) => {
   return createSignature(params) === signature;
 };
 
-// ============================================
-// TẠO PAYMENT URL
-// ============================================
+// Tạo payment URL từ MoMo
 export const createPayment = async (orderNumber, amount, orderInfo) => {
-  // Tạo ID
   const requestId = partnerCode + Date.now();
   const momoOrderId = `${orderNumber}_${Date.now()}`;
-  const amountInt = Math.round(Number(amount));
   
-  // Tạo request body (tất cả hardcode, không dùng .env)
   const requestBody = {
     partnerCode,
     accessKey,
     requestId,
-    amount: amountInt,
+    amount: Math.round(Number(amount)),
     orderId: momoOrderId,
     orderInfo: orderInfo || "pay with MoMo",
     redirectUrl,
@@ -58,51 +46,56 @@ export const createPayment = async (orderNumber, amount, orderInfo) => {
     lang: "vi"
   };
   
-  // Tạo signature
   requestBody.signature = createSignature(requestBody);
   
-  // Gọi API MoMo - Đúng đường dẫn như trong hình: https://test-payment.momo.vn/v2/gateway/api/create
-  console.log('📡 Gọi MoMo API:', apiUrl);
-  console.log('📦 Request body:', JSON.stringify(requestBody, null, 2));
+  console.log('📡 Gọi MoMo API:', {
+    partnerCode,
+    orderId: momoOrderId,
+    amount: Math.round(Number(amount)),
+    ipnUrl,
+    orderInfo: orderInfo || "pay with MoMo"
+  });
   
   const response = await axios.post(apiUrl, requestBody, {
     headers: { 'Content-Type': 'application/json' }
   });
   
-  console.log('📥 MoMo API Response:', {
+  console.log('📥 Response từ MoMo:', {
     resultCode: response.data.resultCode,
     message: response.data.message,
     hasPayUrl: !!response.data.payUrl
   });
   
   if (response.data.resultCode !== 0) {
-    throw new Error(`MoMo Error: ${response.data.message}`);
+    console.error('❌ MoMo API Error:', {
+      resultCode: response.data.resultCode,
+      message: response.data.message,
+      orderId: momoOrderId
+    });
+    throw new Error(`MoMo Error: ${response.data.message} (Code: ${response.data.resultCode})`);
   }
   
-  // payUrl từ MoMo - đây chính là URL để frontend redirect đến giao diện quét QR
-  const payUrl = response.data.payUrl;
-  
-  if (!payUrl) {
+  if (!response.data.payUrl) {
+    console.error('❌ MoMo không trả về payment URL');
     throw new Error('MoMo không trả về payment URL');
   }
   
-  console.log('✅ MoMo payUrl:', payUrl);
-  
-  // Tính thời gian hết hạn (15 phút)
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 15);
   
+  console.log('✅ Tạo payment thành công:', {
+    orderId: momoOrderId,
+    payUrl: response.data.payUrl.substring(0, 60) + '...',
+    expiresAt: expiresAt.toISOString()
+  });
+  
   return {
-    paymentUrl: payUrl, // URL này frontend sẽ redirect để hiển thị giao diện QR của MoMo
+    paymentUrl: response.data.payUrl,
     requestId,
     momoOrderId,
-    expiresAt,
+    expiresAt
   };
 };
 
-export default {
-  createPayment,
-  verifySignature,
-  createSignature,
-};
+export default { createPayment, verifySignature, createSignature };
 

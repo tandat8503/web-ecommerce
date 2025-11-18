@@ -263,8 +263,8 @@ export default function Checkout() {
               <CardTitle>Phương thức thanh toán</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-3">
-                {["COD", "MOMO", "VNPAY"].map((method) => (
+              <div className="grid grid-cols-2 gap-3">
+                {["COD", "MOMO"].map((method) => (
                   <label
                     key={method}
                     className={`border rounded p-3 cursor-pointer text-sm flex items-center gap-2 ${
@@ -277,7 +277,7 @@ export default function Checkout() {
                       checked={paymentMethod === method}
                       onChange={() => setPaymentMethod(method)}
                     />
-                    {method === "COD" ? "COD" : method === "MOMO" ? "Ví MoMo" : "VNPAY"}
+                    {method === "COD" ? "COD" : "Ví MoMo"}
                   </label>
                 ))}
               </div>
@@ -321,6 +321,8 @@ export default function Checkout() {
                 <span>Tổng cộng</span>
                 <span className="text-orange-600 text-lg">{formatPrice(summary.total)}</span>
               </div>
+
+              {/* Nút đặt hàng - Tự động xử lý theo payment method */}
               <Button
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                 disabled={submitting || !selectedAddress}
@@ -328,6 +330,7 @@ export default function Checkout() {
               >
                 {submitting ? "Đang xử lý..." : "Đặt hàng"}
               </Button>
+
               {!selectedAddress && (
                 <p className="text-xs text-orange-600 text-center">Vui lòng nhập địa chỉ giao hàng</p>
               )}

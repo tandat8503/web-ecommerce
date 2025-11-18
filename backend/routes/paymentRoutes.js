@@ -3,6 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import {
   createMoMoPayment,
   handleMoMoCallback,
+  handleMoMoRedirect,
   getPaymentStatus
 } from '../controller/paymentController.js';
 
@@ -31,6 +32,14 @@ router.post('/momo/create', authenticateToken, createMoMoPayment);
 // Yêu cầu: KHÔNG cần đăng nhập (MoMo sẽ gọi trực tiếp)
 // Chức năng: Nhận callback từ MoMo sau khi user thanh toán xong
 router.post('/momo/callback', handleMoMoCallback);
+
+// ============================================
+// REDIRECT TỪ MOMO (KHI USER HỦY HOẶC THANH TOÁN XONG)
+// ============================================
+// GET /api/payment/momo/result
+// Yêu cầu: KHÔNG cần đăng nhập (MoMo sẽ redirect về đây)
+// Chức năng: Xử lý redirect từ MoMo, update payment status nếu user hủy
+router.get('/momo/result', handleMoMoRedirect);
 
 // ============================================
 // KIỂM TRA TRẠNG THÁI THANH TOÁN
