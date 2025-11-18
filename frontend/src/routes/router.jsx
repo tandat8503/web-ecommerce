@@ -21,7 +21,7 @@ import Wishlist from "@/pages/user/wishlist/Wishlist";
 import Cart from "@/pages/user/cart/Cart";
 import Checkout from "@/pages/user/checkout/Checkout";
 import OrderSuccess from "@/pages/user/OrderSuccess";
-import PaymentResult from "@/pages/user/PaymentResult";
+import { PaymentResult } from "@/features/payment";
 import MyOrders from "@/pages/user/orders/MyOrders";
 import OrderDetail from "@/pages/user/orders/OrderDetail";
 import ProfileManager from "@/pages/user/profile/ProfileManager";

@@ -59,6 +59,35 @@ export default function AdminOrders() {
     closeDetailModal,// Hàm đóng modal chi tiết đơn hàng
   } = useAdminOrders();
 
+  const getPaymentStatusInfo = (order) => {
+    if (!order) {
+      return { label: "Không xác định", color: "default" };
+    }
+
+    if (order.paymentMethod === "COD") {
+      if (order.status === "DELIVERED") {
+        return { label: "Đã thanh toán COD", color: "green" };
+      }
+      if (order.status === "CANCELLED") {
+        return { label: "Đơn đã hủy", color: "red" };
+      }
+      return { label: "Chưa thanh toán", color: "orange" };
+    }
+
+    if (order.paymentStatus === "PAID") {
+      return { label: "Đã thanh toán MoMo", color: "green" };
+    }
+    if (order.paymentStatus === "FAILED") {
+      return { label: "Thanh toán thất bại", color: "red" };
+    }
+    return { label: "Chưa thanh toán", color: "orange" };
+  };
+
+  const renderPaymentStatusTag = (order) => {
+    const info = getPaymentStatusInfo(order);
+    return <Tag color={info.color}>{info.label}</Tag>;
+  };
+
   // ========== TABLE COLUMNS ==========
   const columns = [
     {
@@ -208,10 +237,7 @@ export default function AdminOrders() {
         {
           name: "paymentStatus",
           label: "Trạng thái thanh toán",
-          render: (v) => {
-            const colors = { PENDING: "orange", PAID: "green", FAILED: "red" };
-            return <Tag color={colors[v] || "default"}>{v}</Tag>;
-          },
+          render: (_, record) => renderPaymentStatusTag(record),
         },
         {
           name: "shippingAddress",

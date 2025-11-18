@@ -5,6 +5,7 @@ import useCartStore from "@/stores/cartStore";
 import { getAddresses, addAddress } from "@/api/address";
 import { createOrder } from "@/api/orders";
 import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
+import { createMoMoPayment } from "@/api/payment";
 
 /**
  * ========================================
@@ -173,6 +174,8 @@ export function useCheckout() {
     try {
       setSubmitting(true);
       const cartItemIds = checkoutItems.map((item) => item.id);
+      
+      // Tạo order
       const res = await createOrder({
         addressId: selectedAddressId,
         paymentMethod,
@@ -181,9 +184,30 @@ export function useCheckout() {
       });
 
       await fetchCart();
-      toast.success("Đặt hàng thành công!");
       const orderId = res.data?.order?.id;
-      navigate(orderId ? `/order-success?orderId=${orderId}` : "/order-success");
+
+      // Xử lý theo payment method
+      if (paymentMethod === 'COD') {
+        // COD: Chuyển đến trang success
+        toast.success("Đặt hàng thành công!");
+        navigate(orderId ? `/order-success?orderId=${orderId}` : "/order-success");
+      } else if (paymentMethod === 'MOMO') {
+        // MoMo: Tạo payment URL và redirect
+        try {
+          const response = await createMoMoPayment(orderId);
+          const paymentData = response.data;
+          if (paymentData?.success && paymentData?.data?.paymentUrl) {
+            // Redirect đến MoMo (MoMo sẽ hiển thị QR)
+            window.location.href = paymentData.data.paymentUrl;
+          } else {
+            throw new Error(paymentData?.message || 'Không tạo được payment URL');
+          }
+        } catch (paymentError) {
+          toast.error(paymentError.response?.data?.message || "Không thể tạo thanh toán MoMo");
+          // Redirect về trang orders để user có thể thử lại
+          navigate('/orders');
+        }
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || "Không thể đặt hàng");
     } finally {

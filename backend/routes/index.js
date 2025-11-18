@@ -24,7 +24,6 @@ import adminUserRoutes from "./adminUserRoutes.js"; // Routes quản lý ngườ
 import adminBannerRoutes from "./adminBannerRouters.js"; // Routes quản lý banner quảng cáo
 import adminProductVariantRoutes from "./adminProductVariantRoutes.js"; // Routes quản lý biến thể sản phẩm
 import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã giảm giá (admin)
-import couponRoutes from "./couponRoutes.js"; // Routes mã giảm giá (user)
 import notificationRoutes from "./notificationRoutes.js"; // Routes quản lý thông báo
 import productCommentRoutes from "./productCommentRoutes.js"; // Routes bình luận sản phẩm
 
@@ -43,7 +42,6 @@ const routes = (app) => {
   app.use("/api/cart", shoppingCartRouter); // Shopping cart management endpoints
   app.use("/api/orders", orderRouter); // Order management endpoints
   app.use("/api/payment", paymentRouter); // Payment endpoints (MoMo)
-  app.use("/api/coupons", couponRoutes); // Coupon endpoints (user)
   app.use("/api/notifications", notificationRoutes); // Notification endpoints
   app.use("/api/products", adminProductRoutes); // Product endpoints (public + admin)
   app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public + admin)

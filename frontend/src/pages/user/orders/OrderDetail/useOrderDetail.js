@@ -22,6 +22,27 @@ export const getStatusTagColor = (s) => {
     default: return 'default';
   }
 };
+//thanh toán momo
+export const getPaymentStatusTagColor = (status) => {
+  switch (String(status)) {
+    case 'PAID': return 'green';
+    case 'FAILED': return 'red';
+    default: return 'orange';
+  }
+};
+//thanh toán momo
+export const getPaymentStatusLabel = (summary) => {
+  if (!summary) return 'Đang xử lý';
+  if (summary.method === 'COD') {
+    if (summary.status === 'PAID') return 'Đã thanh toán COD';
+    if (summary.status === 'FAILED') return 'Đơn đã hủy';
+    return 'Chưa thanh toán';
+  }
+
+  if (summary.status === 'PAID') return 'Đã thanh toán MoMo';
+  if (summary.status === 'FAILED') return 'Thanh toán thất bại';
+  return 'Chưa thanh toán';
+};
 
 export const useOrderDetail = (id) => {
   const [order, setOrder] = useState(null);
@@ -32,7 +53,24 @@ export const useOrderDetail = (id) => {
     try {
       setLoading(true);
       const { data } = await getOrderById(id);
-      setOrder(data.order || null);
+      if (!data.order) {
+        setOrder(null);
+        return;
+      }
+
+      let parsedAddress = data.order.shippingAddress;
+      if (parsedAddress && typeof parsedAddress === "string") {
+        try {
+          parsedAddress = JSON.parse(parsedAddress);
+        } catch {
+          parsedAddress = null;
+        }
+      }
+
+      setOrder({
+        ...data.order,
+        shippingAddress: parsedAddress || data.order.shippingAddress || {}
+      });
     } finally {
       setLoading(false);
     }

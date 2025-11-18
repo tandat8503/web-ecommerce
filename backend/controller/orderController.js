@@ -354,12 +354,47 @@ export const getOrderById = async (req, res) => {
       logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
     }
 
+    const payment = order.payments.find((p) => p.paymentMethod === order.paymentMethod) || order.payments[0] || null;
+    const paymentSummary = (() => {
+      if (!payment) {
+        return {
+          method: order.paymentMethod,
+          status: order.paymentStatus || "PENDING",
+          paidAt: null
+        };
+      }
+//thanh toán cod
+      if (order.paymentMethod === "COD") {
+        const status =
+          order.status === "DELIVERED"
+            ? "PAID"
+            : order.status === "CANCELLED"
+              ? "FAILED"
+              : "PENDING";
+        return {
+          method: "COD",
+          status,
+          paidAt: status === "PAID" ? (payment.paidAt || timeline.deliveredAt || null) : null,
+          transactionId: payment.transactionId
+        };
+      }
+//thanh toán momo
+      return {
+        method: "MOMO",
+        status: payment.paymentStatus || order.paymentStatus || "PENDING",
+        paidAt: payment.paidAt || null,
+        transactionId: payment.transactionId || null,
+        paymentUrl: payment.paymentUrl || null
+      };
+    })();
+
     return res.status(200).json({ 
       message: "Lấy chi tiết đơn hàng thành công", 
       order: { 
         ...order, 
         shippingAddress: parsedShippingAddress, // Parse shippingAddress
-        timeline 
+        timeline,
+        paymentSummary
       } 
     });
   } catch (error) {
@@ -388,6 +423,15 @@ export const cancelOrder = async (req, res) => {
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "CANCELLED" }
       });
+    //thanh toán momo hủy đơn hàng
+      await tx.payment.updateMany({
+        where: { orderId: order.id },
+        data: {
+          paymentStatus: "FAILED",
+          paidAt: null
+        }
+      });
+    
 
       // Hoàn trả tồn kho (User chỉ được hủy khi PENDING)
       // Chỉ hoàn trả stock cho variant (product không có stockQuantity)
