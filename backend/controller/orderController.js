@@ -355,12 +355,13 @@ export const getOrderById = async (req, res) => {
     }
 
     const payment = order.payments.find((p) => p.paymentMethod === order.paymentMethod) || order.payments[0] || null;
+  //tạo summary thanh toán
     const paymentSummary = (() => {
       if (!payment) {
         return {
-          method: order.paymentMethod,
-          status: order.paymentStatus || "PENDING",
-          paidAt: null
+          method: order.paymentMethod,//phương thức thanh toán
+          status: order.paymentStatus || "PENDING",//trạng thái thanh toán
+          paidAt: null//thời gian thanh toán
         };
       }
 //thanh toán cod
@@ -375,16 +376,16 @@ export const getOrderById = async (req, res) => {
           method: "COD",
           status,
           paidAt: status === "PAID" ? (payment.paidAt || timeline.deliveredAt || null) : null,
-          transactionId: payment.transactionId
+          transactionId: payment.transactionId//mã giao dịch thanh toán
         };
       }
 //thanh toán momo
       return {
-        method: "MOMO",
-        status: payment.paymentStatus || order.paymentStatus || "PENDING",
-        paidAt: payment.paidAt || null,
-        transactionId: payment.transactionId || null,
-        paymentUrl: payment.paymentUrl || null
+        method: "MOMO",//phương thức thanh toán
+        status: payment.paymentStatus || order.paymentStatus || "PENDING",//trạng thái thanh toán
+        paidAt: payment.paidAt || null,//thời gian thanh toán
+        transactionId: payment.transactionId || null,//mã giao dịch thanh toán
+        paymentUrl: payment.paymentUrl || null//url thanh toán momo
       };
     })();
 
@@ -423,15 +424,17 @@ export const cancelOrder = async (req, res) => {
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "CANCELLED" }
       });
-    //thanh toán momo hủy đơn hàng
-      await tx.payment.updateMany({
-        where: { orderId: order.id },
-        data: {
-          paymentStatus: "FAILED",
-          paidAt: null
-        }
-      });
-    
+      
+      // Chỉ cập nhật payment status cho COD (MoMo đã được xử lý trong paymentController.js)
+      if (order.paymentMethod === "COD") {
+        await tx.payment.updateMany({
+          where: { orderId: order.id },
+          data: {
+            paymentStatus: "FAILED",
+            paidAt: null
+          }
+        });
+      }
 
       // Hoàn trả tồn kho (User chỉ được hủy khi PENDING)
       // Chỉ hoàn trả stock cho variant (product không có stockQuantity)
