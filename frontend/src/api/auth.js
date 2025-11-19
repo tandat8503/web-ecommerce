@@ -38,3 +38,16 @@ export async function logout() {
 export async function googleLogin(token) {
   return await axiosClient.post("auth/google", { token });
 }
+
+//yêu cầu quên mật khẩu
+export async function requestPasswordReset(email) {
+  return await axiosClient.post("auth/forgot-password", { email });
+}
+//xác thực OTP
+export async function verifyPasswordOTP(payload) {
+  return await axiosClient.post("auth/verify-otp", payload);
+}
+//đặt lại mật khẩu
+export async function resetPassword(payload) {
+  return await axiosClient.post("auth/reset-password", payload);
+}

@@ -5,12 +5,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { login } from "@/api/auth";
 import { toast } from "@/lib/utils";
 import LoginGoogle from "./LoginGoogle";
+import ForgotPasswordCard from "./ForgotPassword/ForgotPasswordCard";
 
 const { Title, Text } = Typography;
 
 export default function LoginForm({ onSwitchToRegister }) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const [form] = Form.useForm();
   const [formValues, setFormValues] = useState({});
 
@@ -153,7 +155,11 @@ export default function LoginForm({ onSwitchToRegister }) {
                   <span className="font-medium">Ghi nhớ đăng nhập</span>
                 </Checkbox>
               </Form.Item>
-              <Button type="link" className="p-0 h-auto text-orange-500 hover:text-orange-600 font-medium text-sm">
+              <Button
+                type="link"
+                className="p-0 h-auto text-orange-500 hover:text-orange-600 font-medium text-sm"
+                onClick={() => setForgotOpen(true)}// mở card quên mật khẩu
+              >
                 Quên mật khẩu?
               </Button>
             </div>
@@ -213,6 +219,11 @@ export default function LoginForm({ onSwitchToRegister }) {
           </div>
         </div>
       </Card>
+
+      <ForgotPasswordCard
+        open={forgotOpen}
+        onClose={() => setForgotOpen(false)}
+      />
     </div>
   );
 }
