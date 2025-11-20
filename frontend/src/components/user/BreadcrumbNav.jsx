@@ -32,11 +32,14 @@ const BreadcrumbNav = () => {
   // Kiểm tra nếu đang ở trang chi tiết sản phẩm / chi tiết đơn hàng
   const isProductDetail = location.pathname.startsWith('/san-pham/') && location.pathname !== '/san-pham';
   const isOrderDetail = location.pathname.startsWith('/orders/') && location.pathname !== '/orders';
+  const isOrderReview = location.pathname.includes('/orders/') && location.pathname.endsWith('/review');
 
   // Lấy tên trang hiện tại từ routeMap, nếu không có thì dùng 'Trang'
-  const currentPage = isOrderDetail
-    ? 'Chi tiết đơn hàng'
-    : (routeMap[location.pathname] || 'Trang');
+  const currentPage = isOrderReview
+    ? 'Đánh giá sản phẩm'
+    : (isOrderDetail
+      ? 'Chi tiết đơn hàng'
+      : (routeMap[location.pathname] || 'Trang'));
 
   // Effect để load tên sản phẩm khi ở trang chi tiết
   useEffect(() => {
@@ -77,8 +80,8 @@ const BreadcrumbNav = () => {
         {/* Dấu phân cách giữa các item */}
         <BreadcrumbSeparator />
         
-        {/* Nếu là chi tiết đơn hàng: thêm link về danh sách đơn */}
-        {isOrderDetail && (
+        {/* Nếu là chi tiết đơn hàng hoặc review: thêm link về danh sách đơn */}
+        {(isOrderDetail || isOrderReview) && (
           <>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
@@ -87,6 +90,23 @@ const BreadcrumbNav = () => {
                   className="hover:text-blue-600 transition-colors duration-200 font-medium"
                 >
                   Danh sách đơn hàng
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+          </>
+        )}
+        
+        {/* Nếu là review: thêm link về chi tiết đơn hàng */}
+        {isOrderReview && (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link 
+                  to={location.pathname.replace('/review', '')}
+                  className="hover:text-blue-600 transition-colors duration-200 font-medium"
+                >
+                  Chi tiết đơn hàng
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>

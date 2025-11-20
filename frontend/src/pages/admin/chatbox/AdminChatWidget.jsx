@@ -11,6 +11,8 @@ import {
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { aiChatbotAPI, aiUtils, AIWebSocketClient } from "../../../api/aiChatbotAPI";
+import ReportProgressCard from "../../../components/reports/ReportProgressCard";
+import ReportCard from "../../../components/reports/ReportCard";
 
 const { Text } = Typography;
 
@@ -34,6 +36,9 @@ export default function AdminChatWidget() {
   const [connectionStatus, setConnectionStatus] = useState("checking");
   const [wsClient, setWsClient] = useState(null);
   const [streaming, setStreaming] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportProgress, setReportProgress] = useState([]);
+  const [completedReport, setCompletedReport] = useState(null);
   const scrollRef = useRef(null);
 
   // Initialize session and check connection
@@ -125,12 +130,87 @@ export default function AdminChatWidget() {
     setStreaming(false);
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || typing) return;
+  // Detect report generation request
+  const isReportRequest = (text) => {
+    const reportKeywords = [
+      "báo cáo",
+      "report",
+      "xuất báo cáo",
+      "tạo báo cáo",
+      "phân tích sentiment",
+      "phân tích doanh thu",
+      "phân tích sản phẩm",
+      "phân tích khách hàng",
+    ];
+    const lowerText = text.toLowerCase();
+    return reportKeywords.some((keyword) => lowerText.includes(keyword));
+  };
 
+  // Extract report type from request
+  const extractReportType = (text) => {
+    const lowerText = text.toLowerCase();
+    if (lowerText.includes("sentiment") || lowerText.includes("cảm xúc")) {
+      return "sentiment";
+    }
+    if (lowerText.includes("revenue") || lowerText.includes("doanh thu")) {
+      return "revenue";
+    }
+    if (lowerText.includes("product") || lowerText.includes("sản phẩm")) {
+      return "product";
+    }
+    if (lowerText.includes("customer") || lowerText.includes("khách hàng")) {
+      return "customer";
+    }
+    return "business";
+  };
+
+  const handleGenerateReport = async (reportType, userInput) => {
+    setGeneratingReport(true);
+    setReportProgress([]);
+    setCompletedReport(null);
+
+    const progressEvents = [];
+
+    try {
+      await aiChatbotAPI.generateReport(
+        {
+          report_type: reportType,
+          period: "Tháng hiện tại",
+        },
+        (event) => {
+          progressEvents.push(event);
+          setReportProgress([...progressEvents]);
+
+          // If completed, show report card
+          if (event.step_name === "COMPLETED") {
+            setCompletedReport({
+              id: event.details.report_id,
+              report_type: reportType,
+              title: `Báo cáo ${reportType}`,
+              period: "Tháng hiện tại",
+              created_at: new Date().toISOString(),
+              file_size: event.details.file_size,
+              report_url: event.details.report_url,
+            });
+            setGeneratingReport(false);
+            message.success("Báo cáo đã được tạo thành công!");
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error generating report:", error);
+      message.error("Lỗi khi tạo báo cáo: " + aiUtils.getErrorMessage(error));
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || typing || generatingReport) return;
+
+    const userInput = input.trim();
     const userMsg = { 
       from: "user", 
-      text: input,
+      text: userInput,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, userMsg]);
@@ -138,13 +218,34 @@ export default function AdminChatWidget() {
     setTyping(true);
 
     try {
+      // Check if this is a report generation request
+      if (isReportRequest(userInput)) {
+        const reportType = extractReportType(userInput);
+        
+        const botMsg = {
+          from: "bot",
+          text: `Đang tạo báo cáo ${reportType}...`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            isReportGeneration: true,
+            reportType: reportType,
+          }
+        };
+        setMessages(prev => [...prev, botMsg]);
+        setTyping(false);
+        
+        // Start report generation
+        await handleGenerateReport(reportType, userInput);
+        return;
+      }
+
       if (isConnected && wsClient) {
         // Use WebSocket for real-time communication
-        wsClient.sendMessage(input);
+        wsClient.sendMessage(userInput);
         setStreaming(true);
       } else {
         // Fallback to HTTP API - Admin chatbot for business intelligence
-        const response = await aiChatbotAPI.sendAdminMessage(input);
+        const response = await aiChatbotAPI.sendAdminMessage(userInput);
         
         const botMsg = {
           from: "bot",
@@ -262,6 +363,20 @@ export default function AdminChatWidget() {
               ref={scrollRef}
               className="flex-1 overflow-y-auto p-4 space-y-3"
             >
+              {/* Report Progress Card */}
+              {generatingReport && reportProgress.length > 0 && (
+                <div className="mb-4">
+                  <ReportProgressCard progressEvents={reportProgress} />
+                </div>
+              )}
+
+              {/* Completed Report Card */}
+              {completedReport && (
+                <div className="mb-4">
+                  <ReportCard report={completedReport} />
+                </div>
+              )}
+
               {messages.map((msg, index) => (
                 <motion.div
                   key={index}

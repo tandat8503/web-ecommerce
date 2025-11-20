@@ -27,9 +27,9 @@ export default function ProductsPage() {
 
   // ✅ FETCH PRODUCTS (với hoặc không có search)
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setLoading(true);
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
         
         const params = {
           page,
@@ -42,7 +42,7 @@ export default function ProductsPage() {
         if (searchQuery.trim()) {
           params.q = searchQuery;
         }
-        
+      
         const response = await getPublicProducts(params);
         const items = response.data?.items || [];
         setProducts(items);
@@ -62,13 +62,13 @@ export default function ProductsPage() {
           }
         }
         
-      } catch (error) {
-        console.error("Lỗi tải sản phẩm:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
+    } catch (error) {
+      console.error("Lỗi tải sản phẩm:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
     fetchProducts();
   }, [searchQuery, page, sortBy, sortOrder]);
 
@@ -381,9 +381,9 @@ export default function ProductsPage() {
                                             HOT
                                           </Tag>
                                         )}
-                                      </div>
-                                    }
-                                  >
+                </div>
+              }
+            >
                                     <Meta
                                       title={
                                         <div className="line-clamp-2 text-sm" title={product.name}>
@@ -422,11 +422,11 @@ export default function ProductsPage() {
                   
                   {/* Back to Home Button */}
                   <div className="mt-6">
-                    <Link to="/">
-                      <button className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                        Về trang chủ
-                      </button>
-                    </Link>
+              <Link to="/">
+                <button className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                  Về trang chủ
+                </button>
+              </Link>
                   </div>
                 </div>
               }

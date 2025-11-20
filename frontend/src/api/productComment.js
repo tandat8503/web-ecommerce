@@ -7,19 +7,19 @@ export const getProductComments = (productId, params = {}) => {
 
 // ===== USER API (cần AUTH) =====
 export const createComment = (data) => {
-  return axiosClient.post('/product-comments', data);
+    return axiosClient.post('/product-comments', data);
 };
 
 export const getMyComments = (params = {}) => {
-  return axiosClient.get('/product-comments/my-comments', { params });
+    return axiosClient.get('/product-comments/my-comments', { params });
 };
 
 export const updateMyComment = (id, data) => {
-  return axiosClient.put(`/product-comments/${id}`, data);
+    return axiosClient.put(`/product-comments/${id}`, data);
 };
 
 export const deleteMyComment = (id) => {
-  return axiosClient.delete(`/product-comments/${id}`);
+    return axiosClient.delete(`/product-comments/${id}`);
 };
 
 // ===== ADMIN API =====

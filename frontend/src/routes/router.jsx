@@ -24,6 +24,7 @@ import OrderSuccess from "@/pages/user/OrderSuccess";
 import { PaymentResult } from "@/features/payment";
 import MyOrders from "@/pages/user/orders/MyOrders";
 import OrderDetail from "@/pages/user/orders/OrderDetail";
+import OrderReview from "@/pages/user/orders/OrderReview";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: "order-success", element: <OrderSuccess /> },
       { path: "payment/result", element: <PaymentResult /> },
       { path: "orders", element: <MyOrders /> },
+      { path: "orders/:id/review", element: <OrderReview /> },
       { path: "orders/:id", element: <OrderDetail /> },
       { path: "profile-manager", element: <ProfileManager /> },
     ],

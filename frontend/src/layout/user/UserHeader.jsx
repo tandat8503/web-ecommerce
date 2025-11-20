@@ -117,7 +117,7 @@ const SearchHistoryDropdown = ({ history, onSelect, onRemove, onClear, visible }
   if (!visible || history.length === 0) return null;
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border z-50 max-h-80 overflow-y-auto">
+    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border z-[120] max-h-80 overflow-y-auto">
       <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
         <div className="flex items-center gap-2 text-gray-700 font-medium">
           <FaHistory className="text-blue-500" />
@@ -179,7 +179,7 @@ const SearchSuggestionsDropdown = ({
   };
 
   return (
-    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border z-50 max-h-96 overflow-y-auto">
+    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl border z-[120] max-h-96 overflow-y-auto">
       {loading ? (
         <div className="flex justify-center items-center py-8">
           <Spin size="small" />
@@ -363,8 +363,18 @@ export default function UserHeader() {
 
   // Handle select product from suggestions
   const handleSelectProduct = (product) => {
-    // Navigate đến product detail
-    navigate(`/san-pham/${product.slug || product.id}`);
+    // Luôn ưu tiên dùng product.id (API public nhận ID số)
+    const targetId = product?.id ?? product?.productId;
+
+    if (!targetId) {
+      console.warn("Không tìm thấy ID sản phẩm trong kết quả search", product);
+      return;
+    }
+
+    // Có thể đính kèm slug dưới dạng query để giữ SEO nếu cần
+    const slugSuffix = product.slug ? `?slug=${product.slug}` : "";
+
+    navigate(`/san-pham/${targetId}${slugSuffix}`);
     setSearchValue("");
     setShowSuggestions(false);
   };
@@ -431,7 +441,7 @@ export default function UserHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 text-white shadow-xl">
+    <header className="sticky top-0 z-[130] w-full bg-gradient-to-r from-slate-800 via-blue-800 to-indigo-800 text-white shadow-xl">
       {/* Thanh chạy quảng cáo */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-2 text-sm overflow-hidden whitespace-nowrap">
         <marquee
@@ -491,7 +501,7 @@ export default function UserHeader() {
           </Dropdown>
 
               {/* Search box với History & Suggestions */}
-              <div ref={searchWrapperRef} className="relative flex-1">
+              <div ref={searchWrapperRef} className="relative flex-1 z-[110]">
                 <Input.Search
                   placeholder="Tìm kiếm sản phẩm (FullText search)..."
                   allowClear

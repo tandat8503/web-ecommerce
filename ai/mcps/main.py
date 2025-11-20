@@ -37,6 +37,14 @@ product_search_service = ProductSearchService()
 sentiment_service = SentimentService()
 analyst_service = AnalystService()
 
+# Import ModerationService (will be used by moderate_content tool)
+from services.moderation.service import ModerationService
+moderation_service = ModerationService()
+
+# Import ReportGeneratorService
+from services.report.service import ReportGeneratorService
+report_generator_service = ReportGeneratorService()
+
 
 def trace_tool(resource=None, trace_args=True, trace_return=True):
     """Simple trace decorator"""
@@ -490,6 +498,82 @@ async def _sql_product_search(
     except Exception as e:
         logger.error(f"Error in SQL product search: {e}")
         return []
+
+
+@mcp.tool(description="Generate comprehensive HTML visual report with AI insights and recommendations")
+@trace_tool("generate_html_report")
+async def generate_html_report(
+    report_type: Annotated[str, "Type of report: sentiment, revenue, product, customer, business"],
+    data: Annotated[str, "JSON string containing report data from analytics tools"],
+    title: Annotated[Optional[str], "Custom report title"] = None,
+    period: Annotated[Optional[str], "Time period description (e.g. 'Tháng 11/2024')"] = None
+) -> str:
+    try:
+        logger.info(f"Generating {report_type} HTML report for period: {period}")
+        
+        # Parse data JSON
+        data_dict = safe_json_parse(data) if isinstance(data, str) else data
+        
+        result = await report_generator_service.generate_html_report(
+            report_type=report_type,
+            data=data_dict,
+            title=title,
+            period=period
+        )
+        
+        logger.info(f"HTML report generated successfully, insights: {len(result.get('insights', []))}")
+        
+        return json.dumps(result, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error(f"Error in generate_html_report tool: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "html": f"<html><body><h1>Lỗi: {str(e)}</h1></body></html>",
+            "summary": f"Lỗi tạo báo cáo: {str(e)}",
+            "insights": [],
+            "recommendations": [],
+            "charts_data": {},
+            "generated_at": ""
+        }, ensure_ascii=False)
+
+
+@mcp.tool(description="Moderate user-generated content for inappropriate language and violations")
+@trace_tool("moderate_content")
+async def moderate_content(
+    content: Annotated[str, "The content to moderate (comment, review, etc.)"],
+    content_type: Annotated[str, "Type of content: comment, review, chat"] = "comment",
+    product_id: Annotated[Optional[int], "Associated product ID for context"] = None,
+    user_id: Annotated[Optional[int], "User ID who created the content"] = None
+) -> str:
+    try:
+        logger.info(f"Moderating {content_type} content, length: {len(content)}")
+        
+        result = await moderation_service.moderate_content(
+            content=content,
+            content_type=content_type,
+            product_id=product_id,
+            user_id=user_id
+        )
+        
+        logger.info(f"Moderation result: {result.get('suggested_action')}, violations: {result.get('violations')}")
+        
+        return json.dumps(result, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error(f"Error in moderate_content tool: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "is_appropriate": True,  # Default to allow if moderation fails
+            "violations": [],
+            "severity": "low",
+            "confidence": 0.0,
+            "suggested_action": "review",
+            "explanation": f"Lỗi kiểm duyệt: {str(e)}",
+            "moderated_content": content
+        }, ensure_ascii=False)
 
 
 # =============================================================================

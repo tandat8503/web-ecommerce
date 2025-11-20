@@ -262,6 +262,7 @@ model ProductReview {
   @@unique([productId, userId])
   @@index([orderId], map: "product_reviews_order_id_fkey")
   @@index([userId], map: "product_reviews_user_id_fkey")
+  @@index([productId], map: "product_reviews_product_id_fkey")
   @@map("product_reviews")
 }
 

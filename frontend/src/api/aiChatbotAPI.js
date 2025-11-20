@@ -206,6 +206,115 @@ export const aiChatbotAPI = {
       console.error("Get system stats failed:", error);
       throw error;
     }
+  },
+
+  /**
+   * Generate report với SSE progress tracking
+   * @param {Object} params - Report generation parameters
+   * @param {Function} onProgress - Callback for progress events
+   * @returns {Promise<Object>} Final report info
+   */
+  generateReport: async (params, onProgress) => {
+    try {
+      const response = await fetch(`${AI_API_URL}/api/ai/reports/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (onProgress) {
+                onProgress(event);
+              }
+            } catch (e) {
+              console.error("Error parsing SSE event:", e);
+            }
+          }
+        }
+      }
+
+      // Return final result (last event)
+      return { success: true };
+    } catch (error) {
+      console.error("Generate report failed:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get report by ID
+   */
+  getReport: async (reportId) => {
+    try {
+      const response = await aiAxiosClient.get(`/api/ai/reports/${reportId}`);
+      return response.data;
+    } catch (error) {
+      console.error("Get report failed:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Download report as file
+   */
+  downloadReport: async (reportId) => {
+    try {
+      const response = await aiAxiosClient.get(`/api/ai/reports/${reportId}/download`, {
+        responseType: "blob",
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `report_${reportId}.html`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true };
+    } catch (error) {
+      console.error("Download report failed:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * List all reports
+   */
+  listReports: async (reportType = null, limit = 50) => {
+    try {
+      const params = { limit };
+      if (reportType) params.report_type = reportType;
+      
+      const response = await aiAxiosClient.get("/api/ai/reports", { params });
+      return response.data;
+    } catch (error) {
+      console.error("List reports failed:", error);
+      throw error;
+    }
   }
 };
 

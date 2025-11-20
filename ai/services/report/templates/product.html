@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <!-- Tailwind CSS CDN (như ai-native-todo-task-agent) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN (như ai-native-todo-task-agent) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'product-purple': '#8b5cf6',
+                        'product-dark': '#7c3aed'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 1s ease-in-out',
+                        'slide-up': 'slideUp 0.8s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-100 via-white to-violet-50 min-h-screen">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-product-purple via-product-dark to-purple-700 text-white rounded-2xl shadow-2xl mb-8 p-8 md:p-12 text-center animate-fade-in">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4 animate-slide-up">{{TITLE}}</h1>
+            <p class="text-lg md:text-xl opacity-90 animate-slide-up">Được tạo bởi AI · {{PERIOD}}</p>
+            <p class="text-sm md:text-base opacity-75 mt-2">Ngày tạo: {{GENERATED_DATE}}</p>
+        </header>
+
+        <!-- Content Container -->
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div class="p-6 md:p-10">
+                <!-- Summary Section -->
+                <section class="mb-10 animate-slide-up">
+                    <h2 class="text-3xl font-bold text-product-purple mb-6 pb-3 border-b-4 border-product-purple">Tóm tắt điều hành</h2>
+                    <div class="bg-purple-50 border-l-4 border-product-purple p-6 rounded-lg">
+                        <p class="text-gray-700 leading-relaxed">{{SUMMARY}}</p>
+                    </div>
+                </section>
+
+                <!-- Metrics Section -->
+                {{METRICS_HTML}}
+
+                <!-- Charts Section -->
+                {{CHARTS_HTML}}
+
+                <!-- Insights Section -->
+                <section class="mb-10 animate-slide-up">
+                    <h2 class="text-3xl font-bold text-product-purple mb-6 pb-3 border-b-4 border-product-purple">Thông tin chi tiết</h2>
+                    <ul class="space-y-3">
+                        {{INSIGHTS_LIST}}
+                    </ul>
+                </section>
+
+                <!-- Recommendations Section -->
+                <section class="mb-10 animate-slide-up">
+                    <h2 class="text-3xl font-bold text-product-purple mb-6 pb-3 border-b-4 border-product-purple">Khuyến nghị hành động</h2>
+                    <ul class="space-y-3">
+                        {{RECOMMENDATIONS_LIST}}
+                    </ul>
+                </section>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-8 text-center text-gray-600 text-sm">
+            <p>© 2025 Web-ecommerce AI System · Powered by Gemini Pro</p>
+        </footer>
+    </div>
+
+    <!-- Chart Scripts -->
+    {{CHART_SCRIPTS}}
+
+    <!-- Interactive JavaScript (như ai-native-todo-task-agent) -->
+    <script>
+        // Smooth scrolling và animations
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Scroll animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'slideUp 0.8s ease-out';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // Card hover effects
+        document.querySelectorAll('.bg-white.rounded-xl, .bg-gradient-to-br').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-4px)';
+                this.style.transition = 'all 0.3s ease';
+                this.style.boxShadow = '0 20px 40px rgba(0,0,0,0.15)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = '';
+            });
+        });
+    </script>
+</body>
+</html>

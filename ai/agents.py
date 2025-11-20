@@ -18,6 +18,8 @@ from prompts import (
     ADMIN_CHATBOT_SYSTEM_PROMPT,
     SENTIMENT_ANALYZER_SYSTEM_PROMPT,
     BUSINESS_ANALYST_SYSTEM_PROMPT,
+    CONTENT_MODERATION_SYSTEM_PROMPT,
+    REPORT_GENERATOR_SYSTEM_PROMPT,
     ERROR_HANDLING_PROMPT
 )
 
@@ -41,7 +43,9 @@ class MCPToolClient:
                 get_revenue_analytics,
                 get_sales_performance,
                 get_product_metrics,
-                generate_report
+                generate_report,
+                generate_html_report,
+                moderate_content
             )
             
             self.tools = {
@@ -51,7 +55,9 @@ class MCPToolClient:
                 "get_revenue_analytics": get_revenue_analytics,
                 "get_sales_performance": get_sales_performance,
                 "get_product_metrics": get_product_metrics,
-                "generate_report": generate_report
+                "generate_report": generate_report,
+                "generate_html_report": generate_html_report,
+                "moderate_content": moderate_content
             }
         except ImportError as e:
             logger.error(f"Failed to load MCP tools: {e}")
@@ -290,6 +296,144 @@ class BusinessAnalystAgent(BaseAgent):
             return {"success": True, "message": "Bạn cần phân tích kinh doanh gì?"}
 
 
+class ReportGeneratorAgent(BaseAgent):
+    """Agent for generating comprehensive HTML visual reports"""
+    
+    def __init__(self):
+        super().__init__(
+            agent_type="report_generator",
+            system_prompt=REPORT_GENERATOR_SYSTEM_PROMPT
+        )
+    
+    async def _classify_intent(self, user_message: str) -> str:
+        """Classify report generation intent"""
+        message = user_message.lower()
+        
+        if any(word in message for word in ["sentiment", "cảm xúc", "đánh giá"]):
+            return "generate_sentiment_report"
+        elif any(word in message for word in ["revenue", "doanh thu", "tài chính"]):
+            return "generate_revenue_report"
+        elif any(word in message for word in ["product", "sản phẩm", "hiệu suất"]):
+            return "generate_product_report"
+        elif any(word in message for word in ["customer", "khách hàng"]):
+            return "generate_customer_report"
+        else:
+            return "generate_business_report"
+    
+    async def _call_tools(self, intent: str, user_message: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Call report generation tool"""
+        try:
+            # Determine report type
+            if "sentiment" in intent:
+                report_type = "sentiment"
+            elif "revenue" in intent:
+                report_type = "revenue"
+            elif "product" in intent:
+                report_type = "product"
+            elif "customer" in intent:
+                report_type = "customer"
+            else:
+                report_type = "business"
+            
+            # Get data from context or fetch it
+            data = context.get("data", {})
+            if not data:
+                # If no data provided, fetch it based on report type
+                data = await self._fetch_report_data(report_type, context)
+            
+            # Generate HTML report
+            import json
+            result = await self.tool_client.call_tool(
+                "generate_html_report",
+                report_type=report_type,
+                data=json.dumps(data, ensure_ascii=False),
+                title=context.get("title"),
+                period=context.get("period")
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error calling report generation tool: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "html": f"<html><body><h1>Lỗi: {str(e)}</h1></body></html>",
+                "summary": f"Lỗi tạo báo cáo: {str(e)}",
+                "insights": [],
+                "recommendations": []
+            }
+    
+    async def _fetch_report_data(self, report_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Fetch data for report if not provided"""
+        try:
+            if report_type == "sentiment":
+                # Fetch sentiment data
+                result = await self.tool_client.call_tool("summarize_sentiment_by_product")
+                return result
+            elif report_type == "revenue":
+                # Fetch revenue data
+                result = await self.tool_client.call_tool("get_revenue_analytics")
+                return result
+            elif report_type == "product":
+                # Fetch product metrics
+                result = await self.tool_client.call_tool("get_product_metrics")
+                return result
+            else:
+                # Default data
+                return {"message": "Dữ liệu không khả dụng"}
+        except Exception as e:
+            logger.error(f"Error fetching report data: {e}")
+            return {"error": str(e)}
+
+
+class ContentModerationAgent(BaseAgent):
+    """Agent for content moderation"""
+    
+    def __init__(self):
+        super().__init__(
+            agent_type="content_moderation",
+            system_prompt=CONTENT_MODERATION_SYSTEM_PROMPT
+        )
+    
+    async def _classify_intent(self, user_message: str) -> str:
+        """Always moderate intent"""
+        return "moderate_content"
+    
+    async def _call_tools(self, intent: str, user_message: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Call moderation tool"""
+        try:
+            # Get content from context or use message as content
+            content = context.get("content", user_message)
+            content_type = context.get("content_type", "comment")
+            product_id = context.get("product_id")
+            user_id = context.get("user_id")
+            
+            # Call moderate_content tool
+            result = await self.tool_client.call_tool(
+                "moderate_content",
+                content=content,
+                content_type=content_type,
+                product_id=product_id,
+                user_id=user_id
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error calling moderation tool: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "is_appropriate": True,  # Default to allow on error
+                "violations": [],
+                "severity": "low",
+                "confidence": 0.0,
+                "suggested_action": "review",
+                "explanation": f"Lỗi kiểm duyệt: {str(e)}"
+            }
+
+
 class OrchestratorAgent:
     """Orchestrator Agent to coordinate all sub-agents"""
     
@@ -299,7 +443,9 @@ class OrchestratorAgent:
             "user_chatbot": UserChatbotAgent(),
             "admin_chatbot": AdminChatbotAgent(),
             "sentiment_analyzer": SentimentAnalyzerAgent(),
-            "business_analyst": BusinessAnalystAgent()
+            "business_analyst": BusinessAnalystAgent(),
+            "report_generator": ReportGeneratorAgent(),
+            "content_moderation": ContentModerationAgent()
         }
     
     async def process_request(self, user_message: str, user_type: str = "user", context: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -340,7 +486,9 @@ class OrchestratorAgent:
         """Select the best admin agent based on message content"""
         message = user_message.lower()
         
-        if any(keyword in message for keyword in ["sentiment", "cảm xúc", "feedback", "đánh giá"]):
+        if any(keyword in message for keyword in ["báo cáo", "report", "xuất báo cáo", "tạo báo cáo"]):
+            return self.agents["report_generator"]
+        elif any(keyword in message for keyword in ["sentiment", "cảm xúc", "feedback", "đánh giá"]):
             return self.agents["sentiment_analyzer"]
         elif any(keyword in message for keyword in ["doanh thu", "revenue", "kpi", "hiệu suất", "performance"]):
             return self.agents["business_analyst"]
