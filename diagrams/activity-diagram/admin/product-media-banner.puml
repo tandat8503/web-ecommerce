@@ -1,0 +1,52 @@
+@startuml
+title Activity Diagram – Quản lý hình ảnh & banner
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở modal quản lý ảnh;
+repeat
+  if (Upload ảnh mới?) then (Yes)
+    :Chọn file / kéo thả;
+    :UI gửi lên API -> Cloudinary;
+    if (Quá giới hạn số ảnh?) then (Yes)
+      :Hiển thị cảnh báo;
+    else (No)
+      :Nhận URL -> thêm vào gallery;
+    endif
+  else (No)
+    if (Đặt ảnh primary / reorder?) then (Yes)
+      :Chọn ảnh -> gửi PATCH;
+      :API xác thực ảnh thuộc sản phẩm;
+    else (No)
+      if (Xóa ảnh?) then (Yes)
+        :Confirm -> API DELETE + xóa cloud;
+      endif
+    endif
+  endif
+repeat while (Tiếp tục?) is (Yes)
+
+partition "Banner / Collection" {
+  :Admin chuyển qua trang Banner;
+  repeat
+    if (Tạo/Chỉnh sửa banner?) then (Yes)
+      :Nhập Title, link, lịch hiển thị;
+      :Upload ảnh -> Cloudinary;
+      :API lưu DB -> cập nhật sort order;
+    else (Xóa banner)
+      :Confirm -> API DELETE;
+    endif
+  repeat while (Quản lý banner?) is (Yes)
+}
+
+stop
+
+@enduml
+

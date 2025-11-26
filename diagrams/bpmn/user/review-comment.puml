@@ -1,0 +1,111 @@
+@startuml
+title BPMN – Đánh giá và bình luận sản phẩm (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User xem chi tiết sản phẩm;
+
+|#LightGray|Viết đánh giá|
+if (Viết đánh giá?) then (Có)
+  :Nhập rating (1-5 sao);
+  :Nhập nội dung đánh giá;
+  :Gửi POST /api/product-reviews;
+  |#LightGray|Backend API|
+  :Kiểm tra user đã mua sản phẩm?;
+  if (Chưa mua hàng?) then (Có)
+    :Trả về 400 Not allowed;
+    |#Web/Mobile UI|
+    :Thông báo "Cần mua hàng để đánh giá";
+    stop
+  else (Đã mua)
+    :Kiểm tra đã đánh giá chưa?;
+    if (Đã đánh giá?) then (Có)
+      :Trả về 409 Conflict;
+      |#Web/Mobile UI|
+      :Thông báo "Bạn đã đánh giá sản phẩm này";
+      stop
+    else (Chưa)
+      :Tạo review trong DB (pending moderation);
+      :Trả về 201 Created;
+      |#Web/Mobile UI|
+      :Hiển thị trạng thái "Đang chờ duyệt";
+    endif
+  endif
+endif
+
+|#LightGray|Sửa đánh giá|
+if (Sửa đánh giá?) then (Có)
+  :Chọn đánh giá của mình;
+  :Cập nhật rating/nội dung;
+  :Gửi PUT /api/product-reviews/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra quyền sở hữu;
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật hiển thị;
+endif
+
+|#LightGray|Xóa đánh giá|
+if (Xóa đánh giá?) then (Có)
+  :Chọn đánh giá cần xóa;
+  :Gửi DELETE /api/product-reviews/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra quyền sở hữu;
+  :Xóa khỏi DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật danh sách đánh giá;
+endif
+
+|#LightGray|Bình luận sản phẩm|
+if (Viết bình luận?) then (Có)
+  :Gõ nội dung bình luận;
+  :Gửi POST /api/product-comments;
+  |#LightGray|Backend API|
+  :Gửi tới Moderation Service;
+  |#LightGray|Moderation Service|
+  :Kiểm duyệt nội dung;
+  :Trả về pass/flag;
+  |#Backend API|
+  if (Flag nội dung xấu?) then (Có)
+    :Lưu với status = PENDING;
+    :Trả về 202 Pending moderation;
+    |#Web/Mobile UI|
+    :Hiển thị "Đang chờ duyệt";
+  else (Pass)
+    :Tạo comment trong DB;
+    :Trả về 201 OK;
+    |#Web/Mobile UI|
+    :Hiển thị bình luận ngay;
+  endif
+endif
+
+|#LightGray|Trả lời bình luận|
+if (Trả lời bình luận?) then (Có)
+  :Chọn bình luận cần trả lời;
+  :Gõ nội dung trả lời;
+  :Gửi POST /api/product-comments {parentId};
+  |#LightGray|Backend API|
+  :Kiểm duyệt nội dung;
+  :Tạo reply trong DB;
+  :Trả về 201 OK;
+  |#Web/Mobile UI|
+  :Hiển thị reply;
+endif
+
+stop
+
+@enduml
+
+
+

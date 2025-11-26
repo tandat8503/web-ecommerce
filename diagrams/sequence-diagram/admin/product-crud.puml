@@ -1,0 +1,72 @@
+@startuml
+title Sequence – Admin CRUD sản phẩm & sản phẩm nổi bật
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+  LifeLineBorderColor #000000
+}
+
+actor Admin
+participant "Admin Portal UI" as UI
+participant "Backend API\nproductRouter" as API
+database "MySQL / Prisma" as DB
+
+== Tạo sản phẩm ==
+Admin -> UI : Nhập thông tin cơ bản\n(tên, mô tả, giá, category…)
+UI -> API : POST /api/admin/products
+API -> DB : Validate slug, category, brand
+DB --> API : Validation result
+alt Dữ liệu không hợp lệ
+  API --> UI : 400 Bad Request\nchi tiết lỗi
+  UI --> Admin : Hiển thị cảnh báo
+else Hợp lệ
+  API -> DB : prisma.product.create(data)
+  DB --> API : productId
+  API --> UI : 201 Created
+end
+UI --> Admin : Điều hướng sang trang chi tiết\ntạo biến thể / ảnh
+
+== Cập nhật thông tin ==
+Admin -> UI : Chỉnh sửa sản phẩm
+UI -> API : PUT /api/admin/products/{id}
+API -> DB : Validate state (đang publish?)
+DB --> API : ok/busy
+alt Bị khóa (đang sync)
+  API --> UI : 423 Locked
+  UI --> Admin : Báo cần thử lại
+else Có thể chỉnh sửa
+  API -> DB : prisma.product.update()
+  DB --> API : updatedProduct
+  API --> UI : 200 OK
+  UI --> Admin : Toast thành công
+end
+
+== Đánh dấu featured ==
+Admin -> UI : Toggle "Sản phẩm nổi bật"
+UI -> API : PATCH /api/admin/products/{id}/featured
+API -> DB : update isFeatured flag
+DB --> API : result
+API --> UI : 200 OK
+UI --> Admin : Cập nhật danh sách featured
+
+== Xóa sản phẩm ==
+Admin -> UI : Click delete
+UI -> API : DELETE /api/admin/products/{id}
+API -> DB : Kiểm tra đơn hàng liên quan
+DB --> API : hasOrder?
+alt Đã có đơn hàng
+  API --> UI : 409 Conflict\n"Cannot delete"
+  UI --> Admin : Gợi ý vô hiệu hóa thay vì xóa
+else Không ràng buộc
+  API -> DB : prisma.product.delete() + clean relations
+  DB --> API : result
+  API --> UI : 200 OK
+  UI --> Admin : Refresh bảng
+end
+
+@enduml
+

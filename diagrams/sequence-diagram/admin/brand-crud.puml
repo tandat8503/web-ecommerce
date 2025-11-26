@@ -1,0 +1,59 @@
+@startuml
+title Sequence – Admin quản lý thương hiệu
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor Admin
+participant "Admin Portal UI" as UI
+participant "Backend API\nbrandRouter" as API
+database "MySQL / Prisma" as DB
+
+== Tạo thương hiệu ==
+Admin -> UI : Nhập thông tin thương hiệu\n(tên, quốc gia, logo…)
+UI -> API : POST /api/admin/brands
+API -> DB : Kiểm tra tên thương hiệu trùng?
+DB --> API : exists
+alt Tên đã tồn tại
+  API --> UI : 409 Conflict
+  UI --> Admin : Báo lỗi trùng tên
+else Không trùng
+  API -> DB : prisma.brand.create()
+  DB --> API : brandId
+  API --> UI : 201 Created
+end
+UI --> Admin : Reload bảng thương hiệu
+
+== Cập nhật / kích hoạt ==
+Admin -> UI : Chỉnh sửa, bật/tắt
+UI -> API : PUT /api/admin/brands/{id}
+API -> DB : Validate slug / trạng thái?
+DB --> API : ok
+API -> DB : prisma.brand.update()
+DB --> API : brand updated
+API --> UI : 200 OK
+UI --> Admin : Toast + refresh
+
+== Xóa thương hiệu ==
+Admin -> UI : Click delete
+UI -> API : DELETE /api/admin/brands/{id}
+API -> DB : Kiểm tra sản phẩm gắn brand
+DB --> API : count
+alt count > 0
+  API --> UI : 409 Conflict\n"Brand đang được sử dụng"
+  UI --> Admin : Hiển thị cảnh báo
+else count = 0
+  API -> DB : prisma.brand.delete()
+  DB --> API : result
+  API --> UI : 200 OK
+  UI --> Admin : Hiển thị kết quả
+end
+
+@enduml
+

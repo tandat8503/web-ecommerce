@@ -1,0 +1,302 @@
+@startuml Complete System Class Diagram - Web E-commerce
+
+!define BACKEND_COLOR #E3F2FD
+!define FRONTEND_COLOR #FFF3E0
+!define AI_COLOR #E8F5E9
+!define DATABASE_COLOR #F3E5F5
+
+skinparam class {
+    BackgroundColor BACKEND_COLOR
+    BorderColor #1976D2
+    ArrowColor #1976D2
+}
+
+skinparam class<<Frontend>> {
+    BackgroundColor FRONTEND_COLOR
+    BorderColor #F57C00
+}
+
+skinparam class<<AI>> {
+    BackgroundColor AI_COLOR
+    BorderColor #388E3C
+}
+
+skinparam class<<Database>> {
+    BackgroundColor DATABASE_COLOR
+    BorderColor #7B1FA2
+}
+
+package "Frontend (React)" <<Frontend>> {
+    package "Pages" {
+        class UserPages {
+            +HomePage
+            +ProductPage
+            +ProductDetailPage
+            +CartPage
+            +CheckoutPage
+            +WishlistPage
+            +MyOrdersPage
+        }
+        
+        class AdminPages {
+            +AdminDashboard
+            +AdminProductsPage
+            +AdminOrdersPage
+            +AdminCategoriesPage
+        }
+    }
+    
+    package "State Management" {
+        class CartStore {
+            +items: CartItem[]
+            +fetchCart(): Promise<void>
+            +addToCart(): Promise<void>
+        }
+        
+        class WishlistStore {
+            +items: WishlistItem[]
+            +fetchWishlist(): Promise<void>
+        }
+    }
+    
+    package "API Clients" {
+        class AxiosClient {
+            +get(), post(), put(), delete()
+            +interceptors
+        }
+        
+        class ProductAPI
+        class OrderAPI
+        class CartAPI
+        class PaymentAPI
+    }
+}
+
+package "Backend (Node.js/Express)" {
+    package "Controllers" {
+        class AuthController
+        class OrderController
+        class PaymentController
+        class AdminProductController
+        class ShoppingCartController
+        class ProductReviewController
+    }
+    
+    package "Services" {
+        class MoMoService {
+            +createPayment()
+            +verifySignature()
+        }
+        
+        class EmailService {
+            +sendEmail()
+            +sendOrderConfirmation()
+        }
+    }
+    
+    package "Middleware" {
+        class AuthMiddleware {
+            +authenticateToken()
+            +requireAdmin()
+        }
+    }
+    
+    package "Routes" {
+        class Routes {
+            +configureRoutes()
+        }
+    }
+}
+
+package "AI System (Python/FastAPI)" <<AI>> {
+    package "Agents" {
+        class BaseAgent {
+            +process_request()
+            #_classify_intent()
+            #_call_tools()
+        }
+        
+        class UserChatbotAgent
+        class AdminChatbotAgent
+        class SentimentAnalyzerAgent
+        class BusinessAnalystAgent
+        class ReportGeneratorAgent
+        class Orchestrator
+    }
+    
+    package "MCP Tools" {
+        class MCPToolClient {
+            +call_tool()
+        }
+        
+        class search_products
+        class analyze_sentiment
+        class get_revenue_analytics
+        class moderate_content
+    }
+    
+    package "Services" {
+        class ProductSearchService
+        class SentimentService
+        class AnalystService
+        class ModerationService
+        class ReportGeneratorService
+    }
+}
+
+package "Database (MySQL/Prisma)" <<Database>> {
+    class PrismaClient {
+        +user: UserDelegate
+        +product: ProductDelegate
+        +order: OrderDelegate
+        +payment: PaymentDelegate
+        +$transaction()
+    }
+    
+    class User {
+        +id: Int
+        +email: String
+        +role: UserRole
+    }
+    
+    class Product {
+        +id: Int
+        +name: String
+        +price: Decimal
+        +categoryId: Int
+    }
+    
+    class Order {
+        +id: Int
+        +orderNumber: String
+        +status: OrderStatus
+        +totalAmount: Decimal
+    }
+    
+    class Payment {
+        +id: Int
+        +orderId: Int
+        +paymentStatus: PaymentStatus
+    }
+}
+
+package "External Services" {
+    class MoMoPaymentGateway {
+        +createPayment()
+        +verifyCallback()
+    }
+    
+    class Cloudinary {
+        +uploadImage()
+        +deleteImage()
+    }
+    
+    class EmailProvider {
+        +sendEmail()
+    }
+}
+
+' Frontend to Backend connections
+AxiosClient --> AuthController : HTTP
+AxiosClient --> OrderController : HTTP
+AxiosClient --> PaymentController : HTTP
+AxiosClient --> AdminProductController : HTTP
+
+ProductAPI --> AxiosClient : extends
+OrderAPI --> AxiosClient : extends
+CartAPI --> AxiosClient : extends
+PaymentAPI --> AxiosClient : extends
+
+UserPages --> CartStore : uses
+UserPages --> WishlistStore : uses
+UserPages --> ProductAPI : uses
+UserPages --> OrderAPI : uses
+
+' Backend internal connections
+Routes --> AuthController : routes to
+Routes --> OrderController : routes to
+Routes --> PaymentController : routes to
+
+AuthController --> AuthMiddleware : uses
+OrderController --> AuthMiddleware : uses
+PaymentController --> AuthMiddleware : uses
+
+OrderController --> MoMoService : uses
+PaymentController --> MoMoService : uses
+OrderController --> EmailService : uses
+
+OrderController --> PrismaClient : uses
+PaymentController --> PrismaClient : uses
+AdminProductController --> PrismaClient : uses
+ShoppingCartController --> PrismaClient : uses
+
+MoMoService --> MoMoPaymentGateway : calls
+EmailService --> EmailProvider : calls
+AdminProductController --> Cloudinary : uses
+
+' AI System connections
+Orchestrator --> UserChatbotAgent : routes to
+Orchestrator --> AdminChatbotAgent : routes to
+Orchestrator --> SentimentAnalyzerAgent : routes to
+Orchestrator --> BusinessAnalystAgent : routes to
+
+BaseAgent --> MCPToolClient : uses
+UserChatbotAgent --|> BaseAgent
+AdminChatbotAgent --|> BaseAgent
+SentimentAnalyzerAgent --|> BaseAgent
+
+MCPToolClient --> search_products : calls
+MCPToolClient --> analyze_sentiment : calls
+MCPToolClient --> get_revenue_analytics : calls
+
+search_products --> ProductSearchService : uses
+analyze_sentiment --> SentimentService : uses
+get_revenue_analytics --> AnalystService : uses
+
+ProductSearchService --> PrismaClient : queries
+AnalystService --> PrismaClient : queries
+SentimentService --> PrismaClient : queries
+
+' Database relationships
+User ||--o{ Order : places
+Product ||--o{ Order : in
+Order ||--|| Payment : has
+Product ||--o{ ProductReview : has
+
+note right of PrismaClient
+  **Database Models:**
+  - User, Product, Order, Payment
+  - Cart, Wishlist, Review, Comment
+  - Category, Brand, Variant
+  - 20+ models with relationships
+end note
+
+note right of Orchestrator
+  **AI Agents:**
+  - User Chatbot (product search)
+  - Admin Chatbot (analytics)
+  - Sentiment Analyzer
+  - Business Analyst
+  - Report Generator
+  - Content Moderation
+end note
+
+note right of AxiosClient
+  **Frontend API:**
+  - Auto token injection
+  - Error handling
+  - Request/Response interceptors
+  - RESTful API calls
+end note
+
+note bottom of MoMoService
+  **Payment Flow:**
+  1. Create payment request
+  2. Get payment URL
+  3. User pays on MoMo
+  4. MoMo callback
+  5. Verify & update order
+end note
+
+@enduml
+

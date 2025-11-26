@@ -1,0 +1,45 @@
+@startuml
+title Activity Diagram – User giỏ hàng & wishlist
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User xem sản phẩm;
+repeat
+  if (Thêm vào giỏ?) then (Yes)
+    :Chọn biến thể + số lượng;
+    :Gửi request Add to Cart;
+    if (Số lượng hợp lệ?) then (Yes)
+      :Cart cập nhật, hiển thị badge;
+    else (No)
+      :Thông báo vượt tồn kho;
+    endif
+  endif
+
+  if (Chỉnh sửa giỏ?) then (Yes)
+    :Tăng/giảm số lượng hoặc xóa;
+    :Gửi request update/delete;
+    :Hiển thị tổng tiền mới;
+  endif
+
+  if (Đăng nhập?) then (Yes)
+    :Fetch giỏ server;
+    :Gộp và đồng bộ hai phía;
+  endif
+
+  if (Toggle wishlist?) then (Yes)
+    :Gửi request add/remove wishlist;
+    :Cập nhật icon tim;
+  endif
+repeat while (Tiếp tục mua sắm?) is (Yes)
+stop
+
+@enduml
+

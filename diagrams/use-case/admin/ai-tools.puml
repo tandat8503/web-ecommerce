@@ -1,0 +1,52 @@
+@startuml
+title Use Case – Công cụ AI nội bộ (Chatbot & Báo cáo)
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+left to right direction
+
+actor "Admin / Analyst" as Admin
+actor AI as "AI Service"
+
+rectangle "AI Tools" {
+  usecase UC_Chatbot as "Chatbot tư vấn sản phẩm"
+  usecase UC_SalesInsight as "Phân tích doanh thu"
+  usecase UC_Sentiment as "Phân tích sentiment đánh giá"
+  usecase UC_Report as "Sinh báo cáo tự động"
+  usecase UC_Anomaly as "Cảnh báo bất thường"
+}
+
+Admin --> UC_Chatbot
+Admin --> UC_SalesInsight
+Admin --> UC_Sentiment
+Admin --> UC_Report
+Admin --> UC_Anomaly
+
+UC_Chatbot --> AI
+UC_SalesInsight --> AI
+UC_Sentiment --> AI
+UC_Report --> AI
+UC_Anomaly --> AI
+
+UC_Report ..> UC_SalesInsight : «include»
+UC_Report ..> UC_Sentiment : «include»
+UC_Anomaly ..> UC_SalesInsight : «include»
+
+@enduml
+

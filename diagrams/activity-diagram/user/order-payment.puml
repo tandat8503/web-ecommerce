@@ -1,0 +1,39 @@
+@startuml
+title Activity Diagram – User đặt hàng & thanh toán
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User mở trang checkout;
+:Chọn địa chỉ giao hàng;
+:Chọn phương thức thanh toán;
+:Nhập ghi chú (nếu có);
+:Nhấn "Đặt hàng";
+if (Giỏ hợp lệ?) then (Yes)
+  :Hệ thống tạo order + payment pending;
+  if (Thanh toán COD?) then (Yes)
+    :Hiển thị thông tin đơn COD;
+  else (No - MoMo)
+    :Redirect sang MoMo;
+    :User xác nhận thanh toán;
+    if (MoMo trả kết quả thành công?) then (Yes)
+      :Order cập nhật trạng thái Paid;
+    else (No)
+      :Hiển thị lỗi thanh toán, cho phép thử lại;
+    endif
+  endif
+else (No)
+  :Thông báo lỗi giỏ hàng/địa chỉ;
+endif
+:User nhận email xác nhận;
+stop
+
+@enduml
+

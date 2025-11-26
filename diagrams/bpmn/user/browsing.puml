@@ -1,0 +1,84 @@
+@startuml
+title BPMN – Duyệt và tìm kiếm sản phẩm (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User truy cập trang sản phẩm;
+
+|#LightGray|Duyệt danh mục|
+if (Chọn danh mục?) then (Có)
+  :Click vào danh mục;
+  :Gửi GET /api/products?category=...;
+  |#LightGray|Backend API|
+  :Lọc sản phẩm theo category;
+  :Tìm trong DB;
+  :Trả về JSON + phân trang;
+  |#Web/Mobile UI|
+  :Render grid sản phẩm;
+  :Hiển thị phân trang;
+endif
+
+|#LightGray|Tìm kiếm toàn văn|
+if (Tìm kiếm?) then (Có)
+  :Nhập từ khóa;
+  :Gửi GET /api/search?q=...;
+  |#LightGray|Backend API|
+  :Đảm bảo fulltext index tồn tại;
+  :Chạy MATCH() query;
+  |#LightGray|Search Service|
+  :Tìm kiếm fulltext;
+  :Tính điểm relevance;
+  :Trả về kết quả;
+  |#Backend API|
+  :Sắp xếp theo relevance;
+  :Trả về danh sách;
+  |#Web/Mobile UI|
+  if (Có kết quả?) then (Không)
+    :Hiển thị gợi ý sản phẩm nổi bật;
+  else (Có)
+    :Hiển thị kết quả tìm kiếm;
+  endif
+endif
+
+|#LightGray|Lọc sản phẩm|
+if (Áp dụng bộ lọc?) then (Có)
+  :Chọn bộ lọc (giá, thương hiệu, kích thước);
+  :Gửi GET /api/products?filters=...;
+  |#LightGray|Backend API|
+  :Áp dụng filters;
+  :Tìm trong DB;
+  :Trả về kết quả;
+  |#Web/Mobile UI|
+  :Cập nhật danh sách sản phẩm;
+endif
+
+|#LightGray|Xem chi tiết sản phẩm|
+if (Xem chi tiết?) then (Có)
+  :Click vào sản phẩm;
+  :Gửi GET /api/products/{slug};
+  |#LightGray|Backend API|
+  :Tìm sản phẩm với images, variants;
+  :Lấy reviews, comments;
+  :Trả về JSON;
+  |#Web/Mobile UI|
+  :Render thông tin sản phẩm;
+  :Hiển thị gallery ảnh;
+  :Hiển thị biến thể (size, color);
+  :Hiển thị đánh giá và bình luận;
+endif
+
+stop
+
+@enduml
+
+
+

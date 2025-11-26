@@ -1,0 +1,34 @@
+@startuml
+title Activity Diagram – Theo dõi đơn & nhận thông báo
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User mở trang "Đơn hàng của tôi";
+:Lấy danh sách đơn hàng từ server;
+repeat
+  :Chọn 1 đơn hàng để xem;
+  :Hiển thị timeline trạng thái;
+  if (Đơn đang xử lý?) then (Yes)
+    :Lắng nghe socket/notification;
+    if (Có cập nhật mới?) then (Yes)
+      :Hiển thị banner/thông báo;
+    endif
+  endif
+repeat while (Xem đơn khác?) is (Yes)
+
+:User nhận thông báo khuyến mãi/ hệ thống;
+if (Nhấn vào thông báo?) then (Yes)
+  :Đi tới trang khuyến mãi tương ứng;
+endif
+stop
+
+@enduml
+

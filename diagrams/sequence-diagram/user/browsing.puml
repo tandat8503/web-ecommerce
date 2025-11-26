@@ -1,0 +1,46 @@
+@startuml
+title Sequence – User duyệt & tìm kiếm sản phẩm
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "UI (Catalog Page)" as UI
+participant "Public API\n(productRoutes)" as API
+database "MySQL / Prisma" as DB
+participant "Search Service\n(fulltextSearch.js)" as Search
+
+== Duyệt danh mục ==
+User -> UI : Chọn danh mục
+UI -> API : GET /api/products?category=...
+API -> DB : prisma.product.findMany(filter)
+DB --> API : list
+API --> UI : JSON + paging
+UI --> User : Render grid sản phẩm
+
+== Tìm kiếm toàn văn ==
+User -> UI : Nhập từ khóa
+UI -> API : GET /api/search?q=...
+API -> Search : ensureFullTextIndex\nrun MATCH()
+Search --> API : kết quả kèm điểm
+API --> UI : danh sách theo relevance
+opt Không có kết quả
+  UI --> User : Hiển thị gợi ý sản phẩm nổi bật
+end
+
+== Xem chi tiết ==
+User -> UI : Click vào sản phẩm
+UI -> API : GET /api/products/{slug}
+API -> DB : prisma.product.findUnique({include images, variants})
+DB --> API : product detail
+API --> UI : JSON
+UI --> User : Render thông tin, gallery, biến thể
+
+@enduml
+

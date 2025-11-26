@@ -1,0 +1,56 @@
+@startuml
+title Sequence – Admin quản lý biến thể & kho hàng
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor Admin
+participant "Variant UI" as UI
+participant "Backend API\nvariantRouter" as API
+database "MySQL / Prisma" as DB
+
+== Thêm biến thể ==
+Admin -> UI : Nhập SKU, kích thước, giá, tồn kho
+UI -> API : POST /api/admin/product-variants/{productId}
+API -> DB : Kiểm tra trùng SKU?
+DB --> API : exists?
+alt SKU trùng
+  API --> UI : 409 Conflict
+  UI --> Admin : báo lỗi
+else OK
+  API -> DB : prisma.productVariant.create()
+  DB --> API : variantId
+  API --> UI : 201 Created
+end
+UI --> Admin : Cập nhật bảng biến thể
+
+== Điều chỉnh tồn kho ==
+Admin -> UI : Chọn biến thể -> update stock
+UI -> API : PATCH /api/admin/product-variants/{id}/stock\n{quantity}
+API -> DB : Lấy current stock
+DB --> API : stock value
+opt Kiểm tra âm
+  API --> Admin : Nếu quantity âm vượt quá stock\n=> 400 Bad Request
+  Admin <-- UI : hiển thị lỗi
+end
+API -> DB : prisma.productVariant.update()\nstock_quantity += quantity
+DB --> API : variant updated
+API --> UI : 200 OK
+UI --> Admin : Hiển thị lịch sử điều chỉnh
+
+== Cập nhật thông số kỹ thuật ==
+Admin -> UI : Chỉnh sửa specs / material
+UI -> API : PUT /api/admin/product-variants/{id}
+API -> DB : prisma.productVariant.update(data)
+DB --> API : updatedVariant
+API --> UI : 200 OK
+UI --> Admin : Refresh card chi tiết
+
+@enduml
+

@@ -1,0 +1,59 @@
+@startuml
+title Use Case – Quản lý hình ảnh sản phẩm & banner
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+left to right direction
+
+actor Admin as A
+
+rectangle "Product Image Management" {
+  usecase UC_UploadImg as "Upload hình ảnh"
+  usecase UC_SetPrimary as "Gán ảnh primary"
+  usecase UC_Reorder as "Sắp xếp thứ tự"
+  usecase UC_DeleteImg as "Xóa hình ảnh"
+  usecase UC_SyncCloud as "Đồng bộ Cloudinary"
+}
+
+rectangle "Banner / Collection Management" {
+  usecase UC_CreateBanner as "Tạo banner/bộ sưu tập"
+  usecase UC_UpdateBanner as "Chỉnh sửa nội dung"
+  usecase UC_DeleteBanner as "Xóa banner"
+  usecase UC_Schedule as "Lịch hiển thị & thứ tự"
+}
+
+A --> UC_UploadImg
+A --> UC_SetPrimary
+A --> UC_Reorder
+A --> UC_DeleteImg
+A --> UC_SyncCloud
+A --> UC_CreateBanner
+A --> UC_UpdateBanner
+A --> UC_DeleteBanner
+A --> UC_Schedule
+
+UC_UploadImg ..> UC_SyncCloud : «include»
+UC_DeleteImg ..> UC_SyncCloud : «include»
+UC_SetPrimary ..> UC_Reorder : «include»
+UC_DeleteBanner ..> UC_CreateBanner : «extend»
+UC_UpdateBanner ..> UC_CreateBanner : «include»
+UC_Schedule ..> UC_CreateBanner : «include»
+
+@enduml
+

@@ -1,0 +1,42 @@
+@startuml
+title Activity Diagram – Sử dụng công cụ AI nội bộ
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở AI Console;
+repeat
+  :Chọn loại công cụ (chatbot / báo cáo / sentiment / alert);
+  if (Chatbot tư vấn) then (Yes)
+    :Nhập câu hỏi;
+    :Gửi request tới AI backend;
+    if (Quota đủ?) then (Yes)
+      :LLM trả lời -> hiển thị hội thoại;
+    else (No)
+      :Hiển thị thông báo rate limit;
+    endif
+  else if (Báo cáo doanh thu) then (Yes)
+    :Chọn khoảng thời gian;
+    :AI backend gọi MCP -> DB;
+    :LLM sinh HTML/PDF;
+    :Console hiển thị tiến trình + link tải;
+  else if (Phân tích sentiment) then (Yes)
+    :Chọn sản phẩm;
+    :AI backend lấy review -> LLM tổng hợp;
+    :Trả về biểu đồ cảm xúc, insight;
+  else if (Cảnh báo bất thường) then (Yes)
+    :Yêu cầu dữ liệu realtime;
+    :AI kiểm tra KPI -> nếu vượt ngưỡng thì tạo alert;
+  endif
+repeat while (Tiếp tục dùng AI tool?) is (Yes)
+stop
+
+@enduml
+

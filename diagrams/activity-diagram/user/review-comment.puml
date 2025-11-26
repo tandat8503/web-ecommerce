@@ -1,0 +1,42 @@
+@startuml
+title Activity Diagram – Đánh giá & bình luận sản phẩm
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User đã mua sản phẩm;
+repeat
+  if (Viết đánh giá?) then (Yes)
+    :Nhập rating + nội dung;
+    if (Hệ thống xác nhận đã mua?) then (Yes)
+      :Lưu review (pending);
+      :Chờ phê duyệt/ hiển thị;
+    else (No)
+      :Thông báo cần mua hàng trước;
+    endif
+  else if (Chỉnh sửa / xóa review?) then (Yes)
+    :Chọn review -> Edit/Delete;
+  else if (Đăng bình luận?) then (Yes)
+    :Gõ content;
+    :Hệ thống kiểm duyệt (AI/moderation);
+    if (Hợp lệ?) then (Yes)
+      :Bình luận hiển thị;
+    else (No)
+      :Thông báo bình luận bị giữ lại;
+    endif
+  else if (Trả lời bình luận?) then (Yes)
+    :Nhập nội dung -> gửi reply;
+  endif
+repeat while (Tiếp tục tương tác?) is (Yes)
+
+stop
+
+@enduml
+

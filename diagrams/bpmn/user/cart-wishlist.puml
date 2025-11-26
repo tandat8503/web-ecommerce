@@ -1,0 +1,117 @@
+@startuml
+title BPMN – Quản lý giỏ hàng và wishlist (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User duyệt sản phẩm;
+
+|#LightGray|Thêm vào giỏ hàng|
+if (Thêm vào giỏ?) then (Có)
+  :Chọn biến thể sản phẩm;
+  :Chọn số lượng;
+  :Gửi POST /api/cart {productId, variantId, qty};
+  |#LightGray|Backend API|
+  :Kiểm tra tồn kho;
+  if (Hết hàng?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Web/Mobile UI|
+    :Hiển thị lỗi "Sản phẩm đã hết hàng";
+    stop
+  else (Còn hàng)
+    :Upsert vào giỏ hàng;
+    :Lưu vào DB;
+    :Trả về 200 OK;
+    |#Web/Mobile UI|
+    :Hiển thị toast thành công;
+    :Cập nhật badge số lượng;
+  endif
+endif
+
+|#LightGray|Cập nhật số lượng|
+if (Thay đổi số lượng?) then (Có)
+  :Chọn item trong giỏ;
+  :Tăng/giảm số lượng;
+  :Gửi PATCH /api/cart/{cartItemId};
+  |#LightGray|Backend API|
+  :Kiểm tra tồn kho;
+  if (Vượt quá tồn kho?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Web/Mobile UI|
+    :Hiển thị cảnh báo;
+    stop
+  else (Hợp lệ)
+    :Cập nhật quantity trong DB;
+    :Trả về 200 OK;
+    |#Web/Mobile UI|
+    :Cập nhật tổng tiền;
+    :Refresh giỏ hàng;
+  endif
+endif
+
+|#LightGray|Xóa khỏi giỏ hàng|
+if (Xóa item?) then (Có)
+  :Chọn item cần xóa;
+  :Gửi DELETE /api/cart/{cartItemId};
+  |#LightGray|Backend API|
+  :Xóa khỏi DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật giỏ hàng;
+  :Cập nhật tổng tiền;
+endif
+
+|#LightGray|Đồng bộ giỏ hàng|
+if (User đăng nhập?) then (Có)
+  :Gửi GET /api/cart;
+  |#LightGray|Backend API|
+  :Lấy danh sách cart theo userId;
+  :Trả về JSON;
+  |#Web/Mobile UI|
+  :Merge với giỏ hàng local (nếu có);
+  :Render giỏ hàng đã sync;
+endif
+
+|#LightGray|Quản lý Wishlist|
+if (Thêm vào wishlist?) then (Có)
+  :Click icon tim;
+  :Gửi POST /api/wishlist {productId};
+  |#LightGray|Backend API|
+  :Kiểm tra đã có trong wishlist?;
+  if (Đã có?) then (Có)
+    :Trả về 409 Conflict;
+    |#Web/Mobile UI|
+    :Hiển thị thông báo;
+    stop
+  else (Chưa)
+    :Thêm vào DB;
+    :Trả về 201 Created;
+    |#Web/Mobile UI|
+    :Cập nhật trạng thái tim (đỏ);
+  endif
+endif
+
+if (Xóa khỏi wishlist?) then (Có)
+  :Click icon tim (đã active);
+  :Gửi DELETE /api/wishlist/{productId};
+  |#LightGray|Backend API|
+  :Xóa khỏi DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật trạng thái tim (trắng);
+endif
+
+stop
+
+@enduml
+
+
+

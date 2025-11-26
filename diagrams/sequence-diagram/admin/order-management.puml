@@ -1,0 +1,66 @@
+@startuml
+title Sequence – Admin xử lý đơn hàng
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor Admin
+participant "Order UI" as UI
+participant "Backend API\norderRouter" as API
+database "MySQL / Prisma" as DB
+participant "Payment Service\n(MoMo webhook)" as Pay
+
+== Xem chi tiết ==
+Admin -> UI : Mở Order Detail
+UI -> API : GET /api/admin/orders/{id}
+API -> DB : prisma.order.findUnique({include items, history})
+DB --> API : order data
+API --> UI : JSON
+UI --> Admin : Render timeline, items, payment info
+
+== Cập nhật trạng thái ==
+Admin -> UI : Chọn trạng thái mới + ghi chú
+UI -> API : PATCH /api/admin/orders/{id}/status
+API -> DB : Kiểm tra transition hợp lệ?
+DB --> API : valid?
+alt Trạng thái không hợp lệ
+  API --> UI : 400 Invalid transition
+  UI --> Admin : Hiển thị rule
+else Hợp lệ
+  API -> DB : prisma.order.update({status, adminNote})
+  DB --> API : updated order
+  API --> DB : prisma.orderStatusHistory.create()
+  DB --> API : history saved
+  API --> UI : 200 OK
+  UI --> Admin : Hiển thị toast + broadcast socket
+end
+
+== Theo dõi thanh toán ==
+Pay --> API : Webhook /payment/momo/callback
+API -> DB : Kiểm tra chữ ký / trạng thái trùng?
+DB --> API : valid?
+alt Signature invalid hoặc trùng
+  API --> Pay : 400 Invalid
+else Hợp lệ
+  API -> DB : prisma.payment.update({status})
+  DB --> API : ok
+  API -> UI : (via websocket) emit payment_update
+  UI --> Admin : Cập nhật badge thanh toán
+end
+
+== Ghi chú nội bộ ==
+Admin -> UI : Nhập note nội bộ
+UI -> API : POST /api/admin/orders/{id}/notes
+API -> DB : prisma.orderNote.create()
+DB --> API : note
+API --> UI : 201 OK
+UI --> Admin : Append note list
+
+@enduml
+

@@ -1,0 +1,70 @@
+@startuml
+title BPMN – Quản lý danh mục sản phẩm (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý danh mục;
+:Hiển thị danh sách danh mục;
+
+|#LightGray|Tạo/Cập nhật danh mục|
+if (Tạo mới?) then (Có)
+  :Nhập thông tin (tên, slug, icon);
+  :Gửi POST /api/admin/categories;
+  |#LightGray|Backend API|
+  :Kiểm tra slug đã tồn tại?;
+  if (Slug trùng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Hiển thị lỗi "Slug đã được sử dụng";
+    stop
+  else (Không)
+    :Lưu danh mục vào DB;
+    :Trả về 201 Created;
+    |#Admin Portal|
+    :Hiển thị toast thành công;
+    :Refresh danh sách;
+  endif
+else (Cập nhật)
+  :Chọn danh mục cần sửa;
+  :Cập nhật thông tin;
+  :Gửi PUT /api/admin/categories/{id};
+  |#LightGray|Backend API|
+  :Validate dữ liệu;
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Hiển thị kết quả;
+endif
+
+|#LightGray|Xóa danh mục|
+if (Xóa danh mục?) then (Có)
+  :Chọn danh mục cần xóa;
+  :Gửi DELETE /api/admin/categories/{id};
+  |#LightGray|Backend API|
+  :Đếm sản phẩm thuộc danh mục;
+  if (Còn sản phẩm liên kết?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Thông báo "Danh mục đang được sử dụng";
+    :Yêu cầu gỡ sản phẩm trước;
+  else (Không)
+    :Xóa danh mục khỏi DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật danh sách;
+  endif
+endif
+
+stop
+
+@enduml
+

@@ -1,0 +1,44 @@
+@startuml
+title Activity Diagram – User Authentication Flow
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User mở trang đăng nhập/đăng ký;
+if (Chọn đăng ký?) then (Yes)
+  :Nhập email/password, đồng ý điều khoản;
+  :Gửi request POST /auth/register;
+  if (Email chưa tồn tại?) then (Yes)
+    :API tạo user, gửi mail xác minh;
+    :User nhấn link -> verify thành công;
+  else (No)
+    :Thông báo "Email đã được dùng";
+  endif
+else (No - Login)
+  :Nhập email/password hoặc Google OAuth;
+  :Gửi POST /auth/login;
+  if (Thông tin đúng?) then (Yes)
+    :Nhận JWT, refresh token;
+    :Lưu token cục bộ, chuyển trang chủ;
+  else (No)
+    :Hiển thị lỗi đăng nhập;
+  endif
+endif
+
+if (Chọn quên mật khẩu?) then (Yes)
+  :Nhập email -> API tạo OTP;
+  :User nhập OTP + mật khẩu mới;
+endif
+
+:User có thể nhấn "Đăng xuất" -> xóa token;
+stop
+
+@enduml
+

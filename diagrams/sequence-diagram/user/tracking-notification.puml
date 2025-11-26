@@ -1,0 +1,45 @@
+@startuml
+title Sequence – User theo dõi đơn & nhận thông báo
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "Order History UI" as UI
+participant "Order API\n(orderRouter)" as OrderAPI
+participant "Notification Service\n(socket + push)" as Noti
+database "MySQL / Prisma" as DB
+
+== Xem lịch sử đơn hàng ==
+User -> UI : Mở trang My Orders
+UI -> OrderAPI : GET /api/orders/me
+OrderAPI -> DB : prisma.order.findMany(userId)
+DB --> OrderAPI : danh sách đơn
+OrderAPI --> UI : JSON
+UI --> User : Render list + trạng thái
+
+== Xem chi tiết ==
+User -> UI : Chọn đơn cụ thể
+UI -> OrderAPI : GET /api/orders/{id}
+OrderAPI -> DB : load items, history
+DB --> OrderAPI : detail
+OrderAPI --> UI : JSON
+UI --> User : Timeline trạng thái
+
+== Nhận thông báo ==
+OrderAPI -> Noti : emit order_status_update
+Noti --> UI : socket event
+UI --> User : Badge + toast thông báo
+
+== Nhận khuyến mãi ==
+Noti -> User : Push notification (promo)
+User -> UI : Bấm thông báo -> mở trang promo
+
+@enduml
+

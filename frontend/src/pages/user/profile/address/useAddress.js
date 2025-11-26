@@ -149,6 +149,23 @@ export function useAddress(isActive = true) {
       // Nên phải convert sang uppercase
       const data = { ...formData, addressType: formData.addressType.toUpperCase() };
       
+      // Lấy GHN IDs từ selectedCodes và districts/wards
+      // selectedCodes.districtCode là string code, cần tìm districtId (number)
+      if (selectedCodes.districtCode) {
+        const district = districts.find(d => String(d.code) === String(selectedCodes.districtCode));
+        if (district && district.districtId) {
+          data.ghnDistrictId = district.districtId;
+        }
+      }
+      
+      // selectedCodes.wardCode là string code, cần tìm wardCode (string) từ wards
+      if (selectedCodes.wardCode) {
+        const ward = wards.find(w => String(w.code) === String(selectedCodes.wardCode));
+        if (ward && ward.wardCode) {
+          data.ghnWardCode = ward.wardCode;
+        }
+      }
+      
       // Kiểm tra đang edit hay thêm mới
       if (editing) {
         // Đang sửa: Gọi API PUT /addresses/:id

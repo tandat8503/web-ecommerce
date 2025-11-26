@@ -1,0 +1,58 @@
+@startuml
+title Sequence – User quản lý hồ sơ & địa chỉ
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "Web/Mobile UI" as UI
+participant "User API\n(userRouter / addressRouter)" as API
+database "MySQL / Prisma" as DB
+
+== Xem hồ sơ ==
+User -> UI : Mở trang Profile
+UI -> API : GET /api/users/me
+API -> DB : prisma.user.findUnique()
+DB --> API : user data
+API --> UI : JSON
+UI --> User : Hiển thị form
+
+== Cập nhật hồ sơ ==
+User -> UI : Chỉnh sửa thông tin, avatar
+UI -> API : PUT /api/users/me
+API -> DB : prisma.user.update()
+DB --> API : updated user
+API --> UI : 200 OK
+UI --> User : Hiển thị toast thành công
+
+== Thay đổi mật khẩu ==
+User -> UI : Nhập mật khẩu cũ/mới
+UI -> API : POST /api/users/change-password
+API -> DB : Xác thực mật khẩu cũ
+DB --> API : true/false
+alt Sai mật khẩu cũ
+  API --> UI : 400 Invalid
+  UI --> User : Hiển thị cảnh báo
+else Hợp lệ
+  API -> DB : Update password hash
+  DB --> API : ok
+  API --> UI : 200 OK
+  UI --> User : Toast thành công
+end
+
+== Quản lý địa chỉ ==
+User -> UI : Thêm / sửa / xóa địa chỉ
+UI -> API : POST/PUT/DELETE /api/addresses
+API -> DB : Thao tác tương ứng
+DB --> API : result
+API --> UI : 200/201 OK
+UI --> User : Cập nhật list\nĐặt địa chỉ mặc định
+
+@enduml
+

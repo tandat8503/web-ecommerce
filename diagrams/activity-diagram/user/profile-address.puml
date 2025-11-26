@@ -1,0 +1,48 @@
+@startuml
+title Activity Diagram – User hồ sơ & địa chỉ
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User mở trang Profile;
+:Hệ thống tải thông tin hiện tại;
+repeat
+  if (Cập nhật hồ sơ?) then (Yes)
+    :User sửa họ tên, avatar...;
+    :Gửi request update;
+    if (Validate hợp lệ?) then (Yes)
+      :Lưu DB -> thành công;
+    else (No)
+      :Hiển thị lỗi cụ thể;
+    endif
+  else if (Đổi mật khẩu?) then (Yes)
+    :Nhập mật khẩu cũ/mới;
+    if (Mật khẩu cũ đúng?) then (Yes)
+      :Cập nhật password hash;
+    else (No)
+      :Thông báo "Sai mật khẩu";
+    endif
+  else if (Quản lý địa chỉ?) then (Yes)
+    if (Thêm địa chỉ) then (Yes)
+      :Nhập thông tin -> lưu DB;
+    else if (Chỉnh sửa) then (Yes)
+      :Sửa địa chỉ -> update;
+    else (Xóa)
+      :Confirm -> delete;
+    endif
+    if (Đặt địa chỉ mặc định?) then (Yes)
+      :Chọn địa chỉ -> set default;
+    endif
+  endif
+repeat while (Tiếp tục thao tác?) is (Yes)
+stop
+
+@enduml
+

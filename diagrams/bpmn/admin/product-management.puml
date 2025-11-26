@@ -1,0 +1,96 @@
+@startuml
+title BPMN – Quản lý sản phẩm (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý sản phẩm;
+:Hiển thị danh sách sản phẩm;
+
+|#LightGray|Tạo sản phẩm mới|
+if (Tạo mới?) then (Có)
+  :Nhập thông tin cơ bản\n(tên, slug, giá, mô tả, category);
+  :Validate dữ liệu;
+  if (Dữ liệu hợp lệ?) then (Không)
+    :Hiển thị lỗi chi tiết;
+    stop
+  endif
+  :Gửi POST /api/admin/products;
+  |#LightGray|Backend API|
+  :Kiểm tra slug đã tồn tại?;
+  if (Slug trùng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Hiển thị lỗi;
+    stop
+  else (Không)
+    :Lưu sản phẩm vào DB;
+    :Trả về 201 Created + productId;
+    |#Admin Portal|
+    :Chuyển tới quản lý biến thể/ảnh;
+  endif
+endif
+
+|#LightGray|Cập nhật sản phẩm|
+if (Chỉnh sửa sản phẩm?) then (Có)
+  :Chọn sản phẩm cần sửa;
+  :Hiển thị chi tiết sản phẩm;
+  :Cập nhật thông tin;
+  :Gửi PUT /api/admin/products/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra sản phẩm đang bị khóa?;
+  if (Đang đồng bộ?) then (Có)
+    :Trả về 423 Locked;
+    |#Admin Portal|
+    :Thông báo "Đang đồng bộ, vui lòng thử lại";
+    stop
+  else (Không)
+    :Cập nhật DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Hiển thị kết quả;
+  endif
+endif
+
+|#LightGray|Đánh dấu sản phẩm nổi bật|
+if (Đánh dấu Featured?) then (Có)
+  :Toggle switch isFeatured;
+  :Gửi PATCH /api/admin/products/{id}/featured;
+  |#LightGray|Backend API|
+  :Cập nhật isFeatured;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Cập nhật UI;
+endif
+
+|#LightGray|Xóa sản phẩm|
+if (Xóa sản phẩm?) then (Có)
+  :Chọn sản phẩm cần xóa;
+  :Gửi DELETE /api/admin/products/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra đã có đơn hàng?;
+  if (Có đơn hàng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Không cho xóa;
+    :Đề nghị vô hiệu hóa thay vì xóa;
+  else (Không)
+    :Xóa sản phẩm khỏi DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật danh sách;
+  endif
+endif
+
+stop
+
+@enduml
+

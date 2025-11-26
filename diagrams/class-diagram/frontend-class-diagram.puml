@@ -1,0 +1,399 @@
+@startuml Frontend Class Diagram - Web E-commerce
+
+!define COMPONENT_COLOR #E3F2FD
+!define HOOK_COLOR #FFF3E0
+!define STORE_COLOR #E8F5E9
+!define API_COLOR #F3E5F5
+!define UTIL_COLOR #FCE4EC
+
+skinparam class {
+    BackgroundColor COMPONENT_COLOR
+    BorderColor #1976D2
+    ArrowColor #1976D2
+}
+
+skinparam class<<Hook>> {
+    BackgroundColor HOOK_COLOR
+    BorderColor #F57C00
+}
+
+skinparam class<<Store>> {
+    BackgroundColor STORE_COLOR
+    BorderColor #388E3C
+}
+
+skinparam class<<API>> {
+    BackgroundColor API_COLOR
+    BorderColor #7B1FA2
+}
+
+skinparam class<<Util>> {
+    BackgroundColor UTIL_COLOR
+    BorderColor #C2185B
+}
+
+package "App & Routing" {
+    class App {
+        +router: RouterProvider
+        +toastContainer: ToastContainer
+        +initUserData: InitUserData
+        +initUserSocket: InitUserSocket
+    }
+    
+    class Router {
+        +routes: Route[]
+        +createBrowserRouter(): Router
+    }
+    
+    class ProtectedRoute {
+        +children: ReactNode
+        +requiredRole?: string
+        +checkAuth(): boolean
+    }
+}
+
+package "Layout Components" {
+    class UserLayout {
+        +header: UserHeader
+        +footer: UserFooter
+        +children: ReactNode
+    }
+    
+    class AdminLayout {
+        +header: AdminHeader
+        +sidebar: Sidebar
+        +footer: AdminFooter
+        +children: ReactNode
+    }
+    
+    class UserHeader {
+        +cartButton: CartButton
+        +wishlistButton: WishlistButton
+        +userMenu: DropdownMenu
+        +searchBar: SearchBar
+    }
+    
+    class AdminHeader {
+        +notificationDropdown: NotificationDropdown
+        +userMenu: DropdownMenu
+    }
+}
+
+package "User Pages" {
+    class HomePage {
+        +bannerSlider: BannerSlider
+        +categories: Categories
+        +featuredProducts: FeaturedProductsSection
+        +newProducts: NewProductsSection
+        +saleProducts: SaleProductsSection
+    }
+    
+    class ProductPage {
+        +filters: ProductFilters
+        +productList: ProductCard[]
+        +pagination: Pagination
+        +useProducts(): ProductsHook
+    }
+    
+    class ProductDetailPage {
+        +productImages: ProductImages
+        +productInfo: ProductInfo
+        +variantSelector: VariantSelector
+        +productReview: ProductReview
+        +productComment: ProductComment
+        +featuredProducts: FeaturedProducts
+        +useProductDetail(): ProductDetailHook
+    }
+    
+    class CartPage {
+        +cartItems: CartItem[]
+        +checkoutButton: Button
+        +useCart(): CartHook
+    }
+    
+    class CheckoutPage {
+        +addressForm: AddressForm
+        +paymentMethod: PaymentMethodSelector
+        +orderSummary: OrderSummary
+        +useCheckout(): CheckoutHook
+    }
+    
+    class WishlistPage {
+        +wishlistItems: ProductCard[]
+        +useWishlist(): WishlistHook
+    }
+    
+    class MyOrdersPage {
+        +orders: Order[]
+        +useMyOrders(): MyOrdersHook
+    }
+    
+    class OrderDetailPage {
+        +order: Order
+        +orderItems: OrderItem[]
+        +useOrderDetail(): OrderDetailHook
+    }
+}
+
+package "Admin Pages" {
+    class AdminDashboard {
+        +revenueChart: RevenueChart
+        +salesChart: SalesChart
+        +productMetrics: ProductMetrics
+        +orderStats: OrderStats
+    }
+    
+    class AdminProductsPage {
+        +productTable: DataTable
+        +createModal: ProductModal
+        +editModal: ProductModal
+        +useAdminProducts(): AdminProductsHook
+    }
+    
+    class AdminOrdersPage {
+        +orderTable: DataTable
+        +statusFilter: StatusFilter
+        +useAdminOrders(): AdminOrdersHook
+    }
+    
+    class AdminCategoriesPage {
+        +categoryTable: DataTable
+        +useAdminCategories(): AdminCategoriesHook
+    }
+}
+
+package "Shared Components" {
+    class ProductCard {
+        +product: Product
+        +onClick(): void
+        +showWishlistButton: boolean
+        +showCartButton: boolean
+    }
+    
+    class BannerSlider {
+        +banners: Banner[]
+        +autoPlay: boolean
+    }
+    
+    class RatingStars {
+        +rating: number
+        +readOnly: boolean
+    }
+    
+    class CartButton {
+        +itemCount: number
+        +onClick(): void
+    }
+    
+    class WishlistButton {
+        +productId: number
+        +isInWishlist: boolean
+        +onToggle(): void
+    }
+}
+
+package "Hooks" <<Hook>> {
+    class useAuth {
+        +user: User | null
+        +token: string | null
+        +login(email, password): Promise<void>
+        +logout(): void
+        +isAuthenticated: boolean
+    }
+    
+    class useCart {
+        +items: CartItem[]
+        +totalAmount: number
+        +addToCart(productId, variantId, quantity): Promise<void>
+        +updateCartItem(cartItemId, quantity): Promise<void>
+        +removeFromCart(cartItemId): Promise<void>
+        +clearCart(): Promise<void>
+    }
+    
+    class useWishlist {
+        +items: WishlistItem[]
+        +addToWishlist(productId): Promise<void>
+        +removeFromWishlist(productId): Promise<void>
+        +isInWishlist(productId): boolean
+    }
+    
+    class useCheckout {
+        +addresses: Address[]
+        +selectedAddress: Address | null
+        +paymentMethod: PaymentMethod
+        +couponCode: string
+        +createOrder(): Promise<Order>
+        +validateOrder(): boolean
+    }
+    
+    class useAdminCRUD {
+        +data: T[]
+        +loading: boolean
+        +error: Error | null
+        +create(item: T): Promise<void>
+        +update(id: number, item: T): Promise<void>
+        +delete(id: number): Promise<void>
+        +fetch(): Promise<void>
+    }
+    
+    class useProductDetail {
+        +product: Product | null
+        +variants: ProductVariant[]
+        +selectedVariant: ProductVariant | null
+        +reviews: ProductReview[]
+        +comments: ProductComment[]
+        +fetchProduct(id: number): Promise<void>
+        +selectVariant(variantId: number): void
+    }
+}
+
+package "Stores (Zustand)" <<Store>> {
+    class CartStore {
+        +items: CartItem[]
+        +totalQuantity: number
+        +totalAmount: number
+        +selectedIds: Set<number>
+        +fetchCart(): Promise<void>
+        +addToCart(cartData): Promise<void>
+        +updateCartItem(cartItemId, quantity): Promise<void>
+        +removeFromCart(cartItemId): Promise<void>
+        +clearCart(): Promise<void>
+        +setSelectedIds(ids): void
+    }
+    
+    class WishlistStore {
+        +items: WishlistItem[]
+        +fetchWishlist(): Promise<void>
+        +addToWishlist(productId): Promise<void>
+        +removeFromWishlist(productId): Promise<void>
+        +resetWishlist(): void
+    }
+}
+
+package "API Clients" <<API>> {
+    class AxiosClient {
+        +baseURL: string
+        +interceptors: Interceptors
+        +get(url, config): Promise<Response>
+        +post(url, data, config): Promise<Response>
+        +put(url, data, config): Promise<Response>
+        +delete(url, config): Promise<Response>
+        +patch(url, data, config): Promise<Response>
+    }
+    
+    class AuthAPI {
+        +login(email, password): Promise<AuthResponse>
+        +register(userData): Promise<AuthResponse>
+        +logout(): Promise<void>
+        +refreshToken(): Promise<AuthResponse>
+    }
+    
+    class ProductAPI {
+        +getProducts(params): Promise<Product[]>
+        +getProductById(id): Promise<Product>
+        +searchProducts(query): Promise<Product[]>
+    }
+    
+    class CartAPI {
+        +getCart(): Promise<CartResponse>
+        +addToCart(cartData): Promise<void>
+        +updateCartItem(cartItemId, quantity): Promise<void>
+        +removeFromCart(cartItemId): Promise<void>
+        +clearCart(): Promise<void>
+    }
+    
+    class OrderAPI {
+        +createOrder(orderData): Promise<Order>
+        +getOrders(): Promise<Order[]>
+        +getOrderById(id): Promise<Order>
+        +cancelOrder(id): Promise<void>
+    }
+    
+    class PaymentAPI {
+        +createMoMoPayment(orderId): Promise<PaymentResponse>
+        +getPaymentStatus(orderId): Promise<PaymentStatus>
+    }
+    
+    class AdminProductAPI {
+        +createProduct(productData): Promise<Product>
+        +updateProduct(id, productData): Promise<Product>
+        +deleteProduct(id): Promise<void>
+        +getProducts(params): Promise<Product[]>
+    }
+}
+
+package "Utils" <<Util>> {
+    class AuthUtils {
+        +getToken(): string | null
+        +setToken(token: string): void
+        +removeToken(): void
+        +isTokenValid(): boolean
+    }
+    
+    class SocketClient {
+        +socket: Socket
+        +connect(): void
+        +disconnect(): void
+        +on(event, callback): void
+        +emit(event, data): void
+    }
+    
+    class Logger {
+        +info(message, meta): void
+        +error(message, error): void
+        +warn(message, meta): void
+    }
+}
+
+' Relationships
+App --> Router : uses
+Router --> ProtectedRoute : includes
+
+UserLayout --> UserHeader : contains
+AdminLayout --> AdminHeader : contains
+AdminLayout --> Sidebar : contains
+
+HomePage --> ProductCard : uses
+ProductPage --> ProductCard : uses
+ProductDetailPage --> ProductCard : uses
+
+CartPage --> useCart : uses
+CheckoutPage --> useCheckout : uses
+WishlistPage --> useWishlist : uses
+ProductDetailPage --> useProductDetail : uses
+
+useCart --> CartStore : uses
+useWishlist --> WishlistStore : uses
+
+useCart --> CartAPI : uses
+useWishlist --> WishlistAPI : uses
+useCheckout --> OrderAPI : uses
+useProductDetail --> ProductAPI : uses
+
+CartAPI --> AxiosClient : extends
+OrderAPI --> AxiosClient : extends
+ProductAPI --> AxiosClient : extends
+AuthAPI --> AxiosClient : extends
+
+AxiosClient --> AuthUtils : uses
+AxiosClient --> Logger : uses
+
+App --> SocketClient : uses
+UserHeader --> SocketClient : uses
+
+note right of CartStore
+  **State Management:**
+  - Zustand stores
+  - Persistent state
+  - Server sync
+end note
+
+note right of AxiosClient
+  **HTTP Client:**
+  - Auto token injection
+  - Error handling
+  - Request/Response interceptors
+end note
+
+@enduml
+

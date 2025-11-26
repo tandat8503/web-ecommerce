@@ -1,0 +1,72 @@
+@startuml
+title Sequence – User đăng ký / đăng nhập
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+}
+
+actor User
+participant "Web/Mobile UI" as UI
+participant "Auth API\n(authRouter)" as API
+database "MySQL / Prisma" as DB
+actor "Google OAuth" as Google
+
+== Đăng ký ==
+User -> UI : Nhập email/password\nấn Đăng ký
+UI -> API : POST /api/auth/register
+API -> DB : Kiểm tra email trùng?
+DB --> API : exists?
+alt Email đã tồn tại
+  API --> UI : 409 Conflict
+  UI --> User : Hiển thị lỗi
+else Hợp lệ
+  API -> DB : prisma.user.create()
+  DB --> API : userId
+  API --> UI : 201 + token
+  UI --> User : Lưu token, chuyển sang dashboard
+end
+
+== Đăng nhập email/password ==
+User -> UI : Nhập thông tin
+UI -> API : POST /api/auth/login
+API -> DB : prisma.user.findUnique()
+DB --> API : user record
+alt Sai mật khẩu hoặc user inactive
+  API --> UI : 401 Unauthorized
+  UI --> User : Hiển thị cảnh báo
+else Success
+  API --> UI : JWT access + refresh token
+  UI --> User : Lưu localStorage & sync giỏ hàng
+end
+
+== Đăng nhập Google ==
+User -> Google : Chọn tài khoản
+Google --> UI : OAuth token
+UI -> API : POST /api/auth/google {token}
+API -> Google : Verify token
+Google --> API : profile info
+API -> DB : find or create user
+DB --> API : user + token
+API --> UI : 200 OK (JWT)
+UI --> User : Đăng nhập thành công
+
+== Đăng xuất ==
+User -> UI : Click "Đăng xuất"
+UI -> API : POST /api/auth/logout (optional)
+API --> UI : 200 OK
+UI --> User : Xóa token, redirect
+
+== Quên mật khẩu ==
+User -> UI : Nhập email
+UI -> API : POST /api/auth/forgot-password
+API -> DB : prisma.passwordReset.create()
+DB --> API : token
+API --> User : Gửi email reset
+
+@enduml
+

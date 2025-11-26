@@ -1,0 +1,104 @@
+@startuml
+title BPMN – Quản lý media và banner (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý media;
+
+|#LightGray|Upload ảnh sản phẩm|
+if (Upload ảnh sản phẩm?) then (Có)
+  :Chọn sản phẩm;
+  :Chọn file ảnh (tối đa 10 ảnh/sản phẩm);
+  :Gửi POST /api/admin/products/{id}/images;
+  |#LightGray|Backend API|
+  :Kiểm tra số lượng ảnh hiện tại;
+  if (Đã đủ 10 ảnh?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Admin Portal|
+    :Hiển thị lỗi "Đã đạt giới hạn ảnh";
+    stop
+  else (Chưa)
+    :Upload lên Cloudinary;
+    |#LightGray|Cloudinary|
+    :Trả về URL ảnh;
+    |#Backend API|
+    :Lưu URL vào DB;
+    :Trả về 201 Created;
+    |#Admin Portal|
+    :Hiển thị ảnh mới;
+  endif
+endif
+
+|#LightGray|Xóa ảnh sản phẩm|
+if (Xóa ảnh?) then (Có)
+  :Chọn ảnh cần xóa;
+  :Gửi DELETE /api/admin/products/{id}/images/{imageId};
+  |#LightGray|Backend API|
+  :Xóa ảnh trên Cloudinary;
+  |#LightGray|Cloudinary|
+  :Xóa record trong DB;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Cập nhật gallery;
+endif
+
+|#LightGray|Đặt ảnh chính|
+if (Đặt ảnh chính?) then (Có)
+  :Chọn ảnh làm thumbnail;
+  :Gửi PATCH /api/admin/products/{id}/images/{imageId}/set-primary;
+  |#LightGray|Backend API|
+  :Cập nhật isPrimary trong DB;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Cập nhật UI;
+endif
+
+|#LightGray|Quản lý banner|
+if (Quản lý banner?) then (Có)
+  :Chọn loại banner (homepage, category, product);
+  if (Tạo banner mới?) then (Có)
+    :Upload ảnh banner;
+    :Nhập thông tin (tiêu đề, link, thứ tự);
+    :Gửi POST /api/admin/banners;
+    |#LightGray|Backend API|
+    :Upload lên Cloudinary;
+    :Lưu vào DB;
+    :Trả về 201 Created;
+    |#Admin Portal|
+    :Hiển thị banner mới;
+  else (Cập nhật)
+    :Chọn banner cần sửa;
+    :Cập nhật thông tin;
+    :Gửi PUT /api/admin/banners/{id};
+    |#LightGray|Backend API|
+    :Cập nhật DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật UI;
+  endif
+  
+  if (Xóa banner?) then (Có)
+    :Chọn banner cần xóa;
+    :Gửi DELETE /api/admin/banners/{id};
+    |#LightGray|Backend API|
+    :Xóa ảnh trên Cloudinary;
+    :Xóa record trong DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật danh sách;
+  endif
+endif
+
+stop
+
+@enduml
+

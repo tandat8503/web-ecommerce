@@ -1,0 +1,57 @@
+@startuml
+title Sequence – User đặt hàng & thanh toán MoMo/COD
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "Checkout UI" as UI
+participant "Order API\n(orderRouter)" as OrderAPI
+participant "Payment API\n(paymentRouter)" as PayAPI
+actor "MoMo Gateway" as MoMo
+database "MySQL / Prisma" as DB
+
+== Tạo đơn hàng ==
+User -> UI : Chọn địa chỉ + phương thức thanh toán\nnhập ghi chú
+UI -> OrderAPI : POST /api/orders {cartItemIds, addressId, paymentMethod}
+OrderAPI -> DB : Validate cart, tính tổng, lock stock
+DB --> OrderAPI : giỏ hàng hợp lệ
+alt Cart rỗng hoặc địa chỉ sai
+  OrderAPI --> UI : 400 Bad Request
+  UI --> User : Thông báo lỗi
+else OK
+  OrderAPI -> DB : prisma.order.create + payment pending
+  DB --> OrderAPI : order + payment record
+  OrderAPI --> UI : 201 Order Created
+end
+
+== Thanh toán COD ==
+opt paymentMethod = COD
+  UI --> User : Hiển thị thông tin đơn COD\nchờ giao hàng
+end
+
+== Thanh toán MoMo ==
+opt paymentMethod = MoMo
+  UI -> PayAPI : POST /api/payment/momo/create {orderId}
+  PayAPI -> DB : kiểm tra order thuộc user & phương thức?
+  DB --> PayAPI : ok
+  PayAPI -> MoMo : create payment request
+  MoMo --> PayAPI : paymentUrl, requestId
+  PayAPI --> UI : paymentUrl
+  UI --> User : Redirect sang app/web MoMo
+  User -> MoMo : Xác nhận thanh toán
+  MoMo --> PayAPI : Callback result
+  PayAPI -> DB : update paymentStatus, order paymentStatus
+  DB --> PayAPI : success
+  PayAPI --> UI : (websocket) emit payment_update
+  UI --> User : Hiển thị trạng thái "Đã thanh toán"
+end
+
+@enduml
+

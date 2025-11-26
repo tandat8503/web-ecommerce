@@ -1,0 +1,55 @@
+@startuml
+title Activity Diagram – CRUD sản phẩm & sản phẩm nổi bật
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở trang quản lý sản phẩm;
+repeat
+  :Chọn sản phẩm hoặc tạo mới;
+  if (Tạo mới?) then (Yes)
+    :Nhập thông tin cơ bản (tên, slug, giá, category…);
+    if (Validate dữ liệu ok?) then (Yes)
+      :Gửi POST /products;
+      :API lưu DB, trả productId;
+      :Đi tới bước quản lý biến thể/ảnh;
+    else (No)
+      :Hiển thị lỗi chi tiết;
+    endif
+  else (No)
+    :Hiển thị chi tiết sản phẩm;
+    if (Chỉnh sửa?) then (Yes)
+      :Admin cập nhật thông tin;
+      if (Sản phẩm đang bị khóa?) then (Yes)
+        :Thông báo "đang đồng bộ, thử lại";
+      else (No)
+        :API update -> lưu DB;
+      endif
+    endif
+
+    if (Đánh dấu Featured?) then (Yes)
+      :Toggle switch;
+      :API PATCH /featured -> cập nhật isFeatured;
+    endif
+
+    if (Xóa sản phẩm?) then (Yes)
+      :Kiểm tra đã có đơn hàng?;
+      if (Có) then (Yes)
+        :Không cho xóa, đề nghị vô hiệu;
+      else (No)
+        :API DELETE, loại bỏ khỏi DB;
+      endif
+    endif
+  endif
+repeat while (Tiếp tục thao tác?) is (Yes)
+stop
+
+@enduml
+

@@ -80,5 +80,24 @@ export const addressSchema = Joi.object({
     .messages({
       "string.max": "Ghi chú tối đa 255 ký tự",
     }),
+
+  // GHN District ID: không bắt buộc, dùng để tính phí vận chuyển
+  ghnDistrictId: Joi.number()
+    .integer()
+    .positive()
+    .optional()
+    .allow(null)
+    .messages({
+      "number.base": "GHN District ID phải là số",
+      "number.positive": "GHN District ID phải là số dương",
+    }),
+
+  // GHN Ward Code: không bắt buộc, dùng để tính phí vận chuyển
+  ghnWardCode: Joi.string()
+    .optional()
+    .allow(null, "")
+    .messages({
+      "string.base": "GHN Ward Code phải là chuỗi",
+    }),
 });
 

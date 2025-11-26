@@ -1,0 +1,56 @@
+@startuml
+title Use Case – Quản lý thương hiệu (Brand)
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+
+left to right direction
+
+actor Admin as A
+actor "Admin Portal" as Portal
+
+rectangle "Brand Management" {
+  usecase UC_CreateBrand as "Tạo thương hiệu"
+  usecase UC_UpdateBrand as "Chỉnh sửa thông tin thương hiệu"
+  usecase UC_DeleteBrand as "Xóa thương hiệu"
+  usecase UC_ListBrand as "Xem danh sách thương hiệu"
+  usecase UC_ToggleBrand as "Kích hoạt / vô hiệu"
+  usecase UC_LinkBrand as "Gán thương hiệu cho sản phẩm"
+}
+
+A --> UC_CreateBrand
+A --> UC_UpdateBrand
+A --> UC_DeleteBrand
+A --> UC_ListBrand
+A --> UC_ToggleBrand
+A --> UC_LinkBrand
+
+UC_CreateBrand --> Portal
+UC_UpdateBrand --> Portal
+UC_DeleteBrand --> Portal
+UC_ListBrand --> Portal
+UC_ToggleBrand --> Portal
+UC_LinkBrand --> Portal
+
+UC_DeleteBrand ..> UC_ListBrand : «extend»
+UC_UpdateBrand ..> UC_ListBrand : «include»
+UC_LinkBrand ..> UC_ListBrand : «include»
+
+@enduml
+

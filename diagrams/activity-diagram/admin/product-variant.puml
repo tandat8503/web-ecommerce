@@ -1,0 +1,43 @@
+@startuml
+title Activity Diagram – Quản lý biến thể & kho hàng
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin chọn sản phẩm -> tab "Biến thể";
+repeat
+  :Chọn hành động;
+  if (Thêm biến thể?) then (Yes)
+    :Nhập SKU, thuộc tính, giá, tồn kho;
+    if (SKU trùng?) then (Yes)
+      :Thông báo lỗi;
+    else (No)
+      :API tạo biến thể;
+      :Bảng biến thể cập nhật;
+    endif
+  else (No)
+    if (Điều chỉnh tồn kho?) then (Yes)
+      :Nhập số lượng + lý do;
+      if (Tồn kho sau điều chỉnh âm?) then (Yes)
+        :Từ chối, hiển thị cảnh báo;
+      else (No)
+        :API cập nhật stock + ghi log;
+      endif
+    else (No)
+      if (Cập nhật thông số kỹ thuật?) then (Yes)
+        :Sửa thông tin -> gửi PATCH;
+      endif
+    endif
+  endif
+repeat while (Tiếp tục?) is (Yes)
+stop
+
+@enduml
+

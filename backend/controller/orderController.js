@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
 import { emitNewOrder } from '../config/socket.js';
+import * as ghnService from '../services/shipping/ghnService.js';
 
 /**
  * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
@@ -123,9 +124,53 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // BƯỚC 4: Tính tổng đơn
+    // BƯỚC 4: Tính phí vận chuyển GHN (nếu có thông tin GHN)
     const discountAmount = 0; // bản cơ bản: chưa áp dụng giảm giá
-    const shippingFee = 0;    // bản cơ bản: phí ship 0
+    let shippingFee = 0;    // Mặc định phí ship 0
+    
+    // Tính phí vận chuyển GHN nếu có thông tin GHN trong địa chỉ
+    let ghnDistrictId = null;
+    let ghnWardCode = null;
+    let ghnShopId = process.env.GHN_SHOP_ID || null;
+    
+    if (shippingAddress.ghnDistrictId && shippingAddress.ghnWardCode) {
+      try {
+        // Tính tổng trọng lượng từ items (mặc định 100g mỗi item nếu không có thông tin)
+        const totalWeight = cartItems.reduce((sum, item) => {
+          const itemWeight = item.variant?.weightCapacity 
+            ? Number(item.variant.weightCapacity) * 1000 // Convert kg to gram
+            : 100; // Mặc định 100g
+          return sum + (itemWeight * item.quantity);
+        }, 0);
+
+        // Tính phí vận chuyển
+        const feeData = await ghnService.calculateShippingFee({
+          toDistrictId: shippingAddress.ghnDistrictId,
+          toWardCode: shippingAddress.ghnWardCode,
+          weight: totalWeight || 1000,
+          insuranceValue: subtotal
+        });
+
+        shippingFee = feeData.totalFee || 0;
+        ghnDistrictId = shippingAddress.ghnDistrictId;
+        ghnWardCode = shippingAddress.ghnWardCode;
+        
+        logger.info('GHN: Tính phí vận chuyển thành công', {
+          orderNumber: 'pending',
+          shippingFee,
+          totalWeight
+        });
+      } catch (ghnError) {
+        // Nếu lỗi tính phí GHN, log nhưng vẫn tiếp tục với shippingFee = 0
+        logger.warn('GHN: Không thể tính phí vận chuyển, sử dụng phí mặc định', {
+          error: ghnError.message,
+          addressId: shippingAddress.id
+        });
+      }
+    } else {
+      logger.info('GHN: Địa chỉ chưa có thông tin GHN, sử dụng phí vận chuyển mặc định');
+    }
+
     //tổng tiền cuối cùng của đơn hàng = tổng tiền của đơn hàng + phí ship - giảm giá
     const totalAmount = subtotal + shippingFee - discountAmount;
 
@@ -161,7 +206,12 @@ export const createOrder = async (req, res) => {
           totalAmount,
           shippingAddress: shippingAddressString,
           paymentMethod,
-          customerNote
+          customerNote,
+          // Lưu thông tin GHN nếu có
+          ghnDistrictId: ghnDistrictId ? parseInt(ghnDistrictId) : null,
+          ghnWardCode: ghnWardCode || null,
+          ghnShopId: ghnShopId || null,
+          shippingMethod: (ghnDistrictId && ghnWardCode) ? 'GHN' : null
         }
       });
 

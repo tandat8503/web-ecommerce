@@ -42,6 +42,16 @@ const config = {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   },
+
+  // GHN Shipping
+  // Lưu ý: Các field GHN_FROM_* được dùng trực tiếp trong ghnService.js
+  // Không cần lưu vào config để tránh duplicate
+  ghn: {
+    token: process.env.GHN_TOKEN,
+    shopId: process.env.GHN_SHOP_ID,
+    apiUrl: process.env.GHN_API_URL || 'https://dev-online-gateway.ghn.vn/shiip/public-api/v2',
+    isProduction: process.env.GHN_IS_PRODUCTION === 'true',
+  },
 };
 
 export default config;

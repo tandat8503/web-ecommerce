@@ -1,0 +1,59 @@
+@startuml
+title Sequence – Admin sử dụng công cụ AI (chatbot / báo cáo)
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor Admin
+participant "AI Console UI" as UI
+participant "AI Backend\n(FastAPI)" as AIApp
+participant "MCP Tools" as MCP
+database "ecommerce_db (readonly)" as DB
+participant "LLM Provider" as LLM
+
+== Chatbot tư vấn ==
+Admin -> UI : Gửi câu hỏi sản phẩm
+UI -> AIApp : POST /chat {message, user_type:"admin"}
+AIApp -> MCP : Kiểm tra quota / quyền truy cập
+MCP --> AIApp : ok?
+alt Vượt quota
+  AIApp --> UI : 429 Rate Limit
+  UI --> Admin : Thông báo đợi
+else Hợp lệ
+  AIApp -> LLM : Prompt + context
+  LLM --> AIApp : Response draft
+  AIApp --> UI : Câu trả lời + gợi ý truy vấn dữ liệu
+  UI --> Admin : Hiển thị chat
+end
+
+== Báo cáo doanh thu ==
+Admin -> UI : Chọn "Generate revenue report"
+UI -> AIApp : POST /api/ai/reports/generate {report_type:"revenue"}
+AIApp -> MCP : get_revenue_analytics()
+MCP -> DB : SQL query thống kê
+DB --> MCP : Result set
+MCP --> AIApp : JSON metrics
+AIApp -> LLM : Prompt sinh nội dung + chart
+LLM --> AIApp : HTML báo cáo
+AIApp --> UI : SSE progress + link tải
+UI --> Admin : Hiển thị trạng thái từng bước
+
+== Cảnh báo sentiment ==
+Admin -> UI : Yêu cầu phân tích review xấu
+UI -> AIApp : POST /api/ai/sentiment
+AIApp -> MCP : analyze_sentiment(product_id)
+MCP -> DB : Lấy review
+DB --> MCP : dữ liệu review
+MCP -> LLM : summarize sentiment
+LLM --> MCP : insight
+MCP --> AIApp : sentiment summary
+AIApp --> UI : Render biểu đồ + khuyến nghị
+
+@enduml
+

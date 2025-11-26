@@ -1,0 +1,92 @@
+@startuml
+title BPMN – Quản lý biến thể sản phẩm (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý biến thể;
+:Chọn sản phẩm cần quản lý biến thể;
+
+|#LightGray|Thêm biến thể|
+if (Thêm biến thể mới?) then (Có)
+  :Nhập thông tin (SKU, kích thước, màu, giá, tồn kho);
+  :Gửi POST /api/admin/product-variants/{productId};
+  |#LightGray|Backend API|
+  :Kiểm tra SKU đã tồn tại?;
+  if (SKU trùng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Hiển thị lỗi "SKU đã tồn tại";
+    stop
+  else (Không)
+    :Lưu biến thể vào DB;
+    :Trả về 201 Created;
+    |#Admin Portal|
+    :Cập nhật bảng biến thể;
+  endif
+endif
+
+|#LightGray|Điều chỉnh tồn kho|
+if (Cập nhật tồn kho?) then (Có)
+  :Chọn biến thể;
+  :Nhập số lượng điều chỉnh;
+  :Gửi PATCH /api/admin/product-variants/{id}/stock;
+  |#LightGray|Backend API|
+  :Lấy current stock;
+  :Kiểm tra quantity âm vượt quá stock?;
+  if (Vượt quá?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Admin Portal|
+    :Hiển thị lỗi "Không đủ tồn kho";
+    stop
+  else (Không)
+    :Cập nhật stock_quantity;
+    :Lưu lịch sử điều chỉnh;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Hiển thị lịch sử điều chỉnh;
+  endif
+endif
+
+|#LightGray|Cập nhật thông số kỹ thuật|
+if (Cập nhật specs?) then (Có)
+  :Chọn biến thể;
+  :Chỉnh sửa specs/material;
+  :Gửi PUT /api/admin/product-variants/{id};
+  |#LightGray|Backend API|
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Refresh card chi tiết;
+endif
+
+|#LightGray|Xóa biến thể|
+if (Xóa biến thể?) then (Có)
+  :Chọn biến thể cần xóa;
+  :Gửi DELETE /api/admin/product-variants/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra có đơn hàng liên quan?;
+  if (Có đơn hàng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Thông báo không thể xóa;
+  else (Không)
+    :Xóa biến thể khỏi DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật danh sách;
+  endif
+endif
+
+stop
+
+@enduml
+

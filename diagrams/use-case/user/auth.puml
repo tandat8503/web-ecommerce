@@ -1,0 +1,40 @@
+@startuml
+title User Use Case – Đăng ký / Đăng nhập
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+
+rectangle "Auth Portal" {
+  usecase UC_Register as "Đăng ký tài khoản"
+  usecase UC_Login as "Đăng nhập (Email/Password)"
+  usecase UC_Google as "Đăng nhập Google OAuth"
+  usecase UC_Logout as "Đăng xuất"
+  usecase UC_Reset as "Quên / Đặt lại mật khẩu"
+  usecase UC_Session as "Đồng bộ phiên người dùng"
+}
+
+U --> UC_Register
+U --> UC_Login
+U --> UC_Google
+U --> UC_Logout
+U --> UC_Reset
+UC_Login ..> UC_Session : «include»
+UC_Google ..> UC_Session : «include»
+UC_Register ..> UC_Session : «include»
+
+@enduml
+

@@ -1,0 +1,63 @@
+@startuml
+title Sequence – User đánh giá & bình luận
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "Product Detail UI" as UI
+participant "Review API\n(reviewRouter)" as ReviewAPI
+participant "Comment API\n(commentRouter)" as CommentAPI
+database "MySQL / Prisma" as DB
+participant "Moderation Service" as Mod
+
+== Viết đánh giá ==
+User -> UI : Nhập rating + nội dung
+UI -> ReviewAPI : POST /api/product-reviews
+ReviewAPI -> DB : Kiểm tra user đã mua sản phẩm?
+DB --> ReviewAPI : yes/no
+alt Chưa mua hàng
+  ReviewAPI --> UI : 400 Not allowed
+  UI --> User : Thông báo yêu cầu mua hàng
+else Đã mua
+  ReviewAPI -> DB : prisma.productReview.create()
+  DB --> ReviewAPI : reviewId
+  ReviewAPI --> UI : 201 Created (pending moderation)
+  UI --> User : Hiển thị trạng thái
+end
+
+== Sửa / xóa đánh giá ==
+User -> UI : Edit/Xóa
+UI -> ReviewAPI : PUT/DELETE /api/product-reviews/{id}
+ReviewAPI -> DB : update/delete
+DB --> ReviewAPI : ok
+ReviewAPI --> UI : 200 OK
+
+== Bình luận ==
+User -> UI : Gõ bình luận
+UI -> CommentAPI : POST /api/product-comments
+CommentAPI -> Mod : Kiểm duyệt nội dung?
+Mod --> CommentAPI : pass/flag
+alt Flag nội dung xấu
+  CommentAPI --> UI : 202 Pending moderation
+else Pass
+  CommentAPI -> DB : prisma.productComment.create()
+  DB --> CommentAPI : commentId
+  CommentAPI --> UI : 201 OK
+end
+
+== Trả lời bình luận ==
+User -> UI : Reply
+UI -> CommentAPI : POST /api/product-comments {parentId}
+CommentAPI -> DB : create reply
+DB --> CommentAPI : replyId
+CommentAPI --> UI : 201 OK
+
+@enduml
+

@@ -1,0 +1,53 @@
+@startuml
+title Sequence – User giỏ hàng & wishlist
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor User
+participant "Cart/Wishlist UI" as UI
+participant "Cart API\n(cartRouter)" as CartAPI
+participant "Wishlist API\n(wishlistRouter)" as WishAPI
+database "MySQL / Prisma" as DB
+
+== Thêm vào giỏ ==
+User -> UI : Chọn biến thể -> Add to Cart
+UI -> CartAPI : POST /api/cart {productId, variantId, qty}
+CartAPI -> DB : prisma.shoppingCart.upsert()
+DB --> CartAPI : cart record
+CartAPI --> UI : 200 OK
+UI --> User : Toast + cập nhật badge
+
+== Cập nhật số lượng ==
+User -> UI : Tăng / giảm qty
+UI -> CartAPI : PATCH /api/cart/{cartItemId}
+CartAPI -> DB : update quantity
+DB --> CartAPI : result
+CartAPI --> UI : 200 OK
+UI --> User : Hiển thị tổng tiền mới
+
+== Đồng bộ giỏ hàng ==
+opt User đăng nhập
+  UI -> CartAPI : GET /api/cart
+  CartAPI -> DB : findMany by userId
+  DB --> CartAPI : danh sách cart
+  CartAPI --> UI : JSON
+  UI --> User : Render giỏ đã sync
+end
+
+== Wishlist ==
+User -> UI : Toggle wishlist icon
+UI -> WishAPI : POST/DELETE /api/wishlist {productId}
+WishAPI -> DB : thêm hoặc xóa record
+DB --> WishAPI : result
+WishAPI --> UI : 200 OK
+UI --> User : Cập nhật trạng thái tim
+
+@enduml
+

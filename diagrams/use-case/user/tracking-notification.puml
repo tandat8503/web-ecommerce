@@ -1,0 +1,45 @@
+@startuml
+title User Use Case – Theo dõi đơn hàng & Thông báo
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+actor "Notification Service" as Noti
+
+rectangle "Order Tracking" {
+  usecase UC_ViewHistory as "Xem lịch sử đơn hàng"
+  usecase UC_ViewDetail as "Xem chi tiết trạng thái"
+  usecase UC_ReceiveUpdate as "Nhận cập nhật trạng thái"
+}
+
+rectangle "Notification Center" {
+  usecase UC_Promo as "Nhận thông báo khuyến mãi"
+  usecase UC_System as "Thông báo hệ thống / socket"
+}
+
+U --> UC_ViewHistory
+U --> UC_ViewDetail
+U --> UC_ReceiveUpdate
+U --> UC_Promo
+U --> UC_System
+
+UC_ViewDetail ..> UC_ViewHistory : «include»
+UC_ReceiveUpdate --> Noti
+UC_Promo --> Noti
+UC_System --> Noti
+
+@enduml
+

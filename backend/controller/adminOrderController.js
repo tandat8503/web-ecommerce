@@ -226,17 +226,22 @@ export const updateOrder = async (req, res) => {
       return res.status(400).json({ message: 'Trạng thái không hợp lệ' });
     }
 
-    // Lấy thông tin đơn hàng hiện tại
+    // Lấy thông tin đơn hàng hiện tại (bao gồm thông tin GHN và địa chỉ)
     const currentOrder = await prisma.order.findUnique({
       where: { id },
       select: { 
         status: true,
         userId: true, // Cần để gửi WebSocket
+        orderNumber: true,
+        shippingAddress: true,
+        ghnDistrictId: true,
+        ghnWardCode: true,
+        ghnOrderCode: true,
+        shippingMethod: true,
         orderItems: {
-          select: {
-            productId: true,
-            variantId: true,
-            quantity: true // Cần để hoàn trả tồn kho
+          include: {
+            product: true,
+            variant: true
           }
         }
       }
@@ -292,6 +297,82 @@ export const updateOrder = async (req, res) => {
       return order;
     });
 
+    // Tạo đơn vận chuyển GHN khi đơn hàng được xác nhận (CONFIRMED hoặc PROCESSING)
+    // và chưa có đơn GHN
+    if ((status === 'CONFIRMED' || status === 'PROCESSING') && 
+        !currentOrder.ghnOrderCode && 
+        currentOrder.ghnDistrictId && 
+        currentOrder.ghnWardCode) {
+      try {
+        // Parse shipping address
+        let shippingAddress = currentOrder.shippingAddress;
+        if (typeof shippingAddress === 'string') {
+          try {
+            shippingAddress = JSON.parse(shippingAddress);
+          } catch (e) {
+            logger.warn('Failed to parse shipping address', { orderId: id });
+          }
+        }
+
+        // Tính tổng trọng lượng
+        const totalWeight = currentOrder.orderItems.reduce((sum, item) => {
+          const itemWeight = item.variant?.weightCapacity 
+            ? Number(item.variant.weightCapacity) * 1000 // Convert kg to gram
+            : 100; // Mặc định 100g
+          return sum + (itemWeight * item.quantity);
+        }, 0);
+
+        // Tính tổng giá trị
+        const totalValue = currentOrder.orderItems.reduce((sum, item) => {
+          return sum + (Number(item.unitPrice) * item.quantity);
+        }, 0);
+
+        // Tạo đơn vận chuyển GHN
+        const ghnServiceModule = await import('../services/shipping/ghnService.js');
+        const ghnResult = await ghnServiceModule.createShippingOrder({
+          orderNumber: currentOrder.orderNumber,
+          shippingAddress: shippingAddress || {},
+          toDistrictId: currentOrder.ghnDistrictId,
+          toWardCode: currentOrder.ghnWardCode,
+          items: currentOrder.orderItems.map(item => ({
+            name: item.productName,
+            code: item.productSku,
+            quantity: item.quantity,
+            price: Number(item.unitPrice),
+            weight: item.variant?.weightCapacity ? Number(item.variant.weightCapacity) * 1000 : 100
+          })),
+          totalWeight: totalWeight || 1000,
+          totalValue: totalValue,
+          codAmount: updated.paymentMethod === 'COD' ? Number(updated.totalAmount) : 0,
+          note: `Đơn hàng ${currentOrder.orderNumber}`
+        });
+
+        // Cập nhật thông tin GHN vào đơn hàng
+        await prisma.order.update({
+          where: { id },
+          data: {
+            ghnOrderCode: ghnResult.ghnOrderCode,
+            trackingCode: ghnResult.ghnOrderCode, // Dùng mã GHN làm tracking code
+            ghnShopId: process.env.GHN_SHOP_ID || null
+          }
+        });
+
+        logger.info('GHN: Tạo đơn vận chuyển thành công', {
+          orderId: id,
+          orderNumber: currentOrder.orderNumber,
+          ghnOrderCode: ghnResult.ghnOrderCode
+        });
+      } catch (ghnError) {
+        // Log lỗi nhưng không fail toàn bộ request
+        logger.error('GHN: Lỗi tạo đơn vận chuyển', {
+          orderId: id,
+          error: ghnError.message,
+          stack: ghnError.stack
+        });
+        // Có thể gửi thông báo cho admin về lỗi này
+      }
+    }
+
     // Gửi WebSocket thông báo đến user
     emitOrderStatusUpdate(currentOrder.userId, {
       orderId: updated.id,
@@ -302,7 +383,13 @@ export const updateOrder = async (req, res) => {
 
     logger.success('Order status updated', { id, oldStatus: currentOrder.status, newStatus: updated.status });
     logger.end(context.path, { id });
-    return res.json(updated);
+    
+    // Lấy lại đơn hàng với thông tin GHN đã cập nhật
+    const finalOrder = await prisma.order.findUnique({
+      where: { id }
+    });
+    
+    return res.json(finalOrder);
   } catch (error) {
     logger.error('Failed to update order', {
       path: context.path,
@@ -336,6 +423,7 @@ export const cancelOrder = async (req, res) => {
       select: { 
         status: true,
         userId: true,
+        ghnOrderCode: true, // Cần để hủy đơn GHN
         orderItems: {
           select: {
             productId: true,
@@ -410,6 +498,25 @@ export const cancelOrder = async (req, res) => {
 
       return order;
     });
+
+    // Hủy đơn vận chuyển GHN nếu có
+    if (currentOrder.ghnOrderCode) {
+      try {
+        const ghnServiceModule = await import('../services/shipping/ghnService.js');
+        await ghnServiceModule.cancelShippingOrder(currentOrder.ghnOrderCode);
+        logger.info('Đã hủy đơn vận chuyển GHN', { 
+          orderId: id, 
+          ghnOrderCode: currentOrder.ghnOrderCode 
+        });
+      } catch (ghnError) {
+        // Log lỗi nhưng không fail transaction vì đơn hàng đã được hủy
+        logger.error('Lỗi khi hủy đơn vận chuyển GHN', {
+          orderId: id,
+          ghnOrderCode: currentOrder.ghnOrderCode,
+          error: ghnError.message
+        });
+      }
+    }
 
     // Gửi WebSocket thông báo đến user
     emitOrderStatusUpdate(currentOrder.userId, {

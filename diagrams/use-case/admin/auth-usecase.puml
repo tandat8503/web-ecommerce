@@ -1,0 +1,57 @@
+@startuml
+title Authentication Use Case – Admin & Customer
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #888
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+
+left to right direction
+
+actor Customer as C
+actor Admin as A
+
+rectangle "Public Auth Portal" {
+  usecase UC_Register as "Đăng ký"
+  usecase UC_Verify as "Xác minh email"
+  usecase UC_Login as "Đăng nhập"
+  usecase UC_Logout as "Đăng xuất"
+  usecase UC_Forget as "Quên mật khẩu"
+  usecase UC_Reset as "Đặt lại mật khẩu"
+}
+
+rectangle "Admin Auth Portal" {
+  usecase UC_AdminLogin as "Đăng nhập admin"
+  usecase UC_AdminLogout as "Đăng xuất admin"
+  usecase UC_AdminVerify as "Xác thực tài khoản"
+}
+
+UC_Register --> UC_Verify : «extend»
+UC_Forget --> UC_Reset : «include»
+UC_Login --> UC_AdminVerify : «include»
+UC_AdminLogin --> UC_AdminVerify : «include»
+
+C --> UC_Register
+C --> UC_Login
+C --> UC_Logout
+C --> UC_Forget
+
+A --> UC_AdminLogin
+A --> UC_AdminLogout
+
+@enduml
+

@@ -1,0 +1,43 @@
+@startuml
+title Activity Diagram – Xử lý đơn hàng cho Admin
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở danh sách đơn hàng;
+:Chọn một đơn -> Xem chi tiết;
+repeat
+  if (Cập nhật trạng thái?) then (Yes)
+    :Chọn trạng thái mới + ghi chú;
+    if (Transition hợp lệ?) then (Yes)
+      :API cập nhật order + lịch sử;
+      :Gửi thông báo cho user;
+    else (No)
+      :Thông báo "Trạng thái không hợp lệ";
+    endif
+  else if (Theo dõi thanh toán?) then (Yes)
+    :Kiểm tra paymentStatus;
+    if (Đã thanh toán?) then (Yes)
+      :Cập nhật ghi chú -> chuyển bước tiếp;
+    else (No)
+      :Liên hệ khách hoặc retry MoMo;
+    endif
+  else if (Ghi chú nội bộ?) then (Yes)
+    :Nhập nội dung -> lưu orderNotes;
+  else if (Xử lý refund?) then (Yes)
+    :Tạo yêu cầu hoàn tiền;
+    :Gửi thông điệp tới Payment service;
+  endif
+repeat while (Tiếp tục thao tác trên đơn?) is (Yes)
+
+stop
+
+@enduml
+

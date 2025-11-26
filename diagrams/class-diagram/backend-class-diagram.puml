@@ -1,0 +1,289 @@
+@startuml Backend Class Diagram - Web E-commerce
+
+!define PRIMARY_COLOR #E3F2FD
+!define SERVICE_COLOR #FFF3E0
+!define MIDDLEWARE_COLOR #E8F5E9
+!define MODEL_COLOR #F3E5F5
+
+skinparam class {
+    BackgroundColor PRIMARY_COLOR
+    BorderColor #1976D2
+    ArrowColor #1976D2
+}
+
+skinparam class<<Service>> {
+    BackgroundColor SERVICE_COLOR
+    BorderColor #F57C00
+}
+
+skinparam class<<Middleware>> {
+    BackgroundColor MIDDLEWARE_COLOR
+    BorderColor #388E3C
+}
+
+skinparam class<<Model>> {
+    BackgroundColor MODEL_COLOR
+    BorderColor #7B1FA2
+}
+
+package "Server & Configuration" {
+    class Server {
+        -app: Express
+        -PORT: number
+        +startServer(): Promise<void>
+        +configureMiddleware(): void
+        +configureRoutes(): void
+        +handleErrors(): void
+    }
+    
+    class PrismaClient {
+        +user: UserDelegate
+        +product: ProductDelegate
+        +order: OrderDelegate
+        +$connect(): Promise<void>
+        +$disconnect(): Promise<void>
+        +$transaction(): Promise<T>
+    }
+    
+    class SocketIO {
+        -io: Server
+        +initializeSocket(server: Server): void
+        +emitNewOrder(order: Order): void
+        +emitOrderStatusUpdate(orderId: number, status: string): void
+    }
+}
+
+package "Controllers" {
+    class AuthController {
+        +login(req, res): Promise<void>
+        +register(req, res): Promise<void>
+        +logout(req, res): Promise<void>
+        +refreshToken(req, res): Promise<void>
+        +googleLogin(req, res): Promise<void>
+    }
+    
+    class OrderController {
+        +createOrder(req, res): Promise<void>
+        +getOrders(req, res): Promise<void>
+        +getOrderById(req, res): Promise<void>
+        +cancelOrder(req, res): Promise<void>
+        -generateOrderNumber(userId: number): Promise<string>
+    }
+    
+    class PaymentController {
+        +createMoMoPayment(req, res): Promise<void>
+        +handleMoMoCallback(req, res): Promise<void>
+        +handleMoMoResult(req, res): Promise<void>
+    }
+    
+    class AdminProductController {
+        +createProduct(req, res): Promise<void>
+        +updateProduct(req, res): Promise<void>
+        +deleteProduct(req, res): Promise<void>
+        +getProducts(req, res): Promise<void>
+        +getProductById(req, res): Promise<void>
+    }
+    
+    class AdminProductImageController {
+        +uploadImage(req, res): Promise<void>
+        +updateImage(req, res): Promise<void>
+        +deleteImage(req, res): Promise<void>
+        +setPrimaryImage(req, res): Promise<void>
+        +reorderImages(req, res): Promise<void>
+    }
+    
+    class AdminProductVariantController {
+        +createVariant(req, res): Promise<void>
+        +updateVariant(req, res): Promise<void>
+        +deleteVariant(req, res): Promise<void>
+        +getVariants(req, res): Promise<void>
+    }
+    
+    class ShoppingCartController {
+        +addToCart(req, res): Promise<void>
+        +updateCartItem(req, res): Promise<void>
+        +removeFromCart(req, res): Promise<void>
+        +getCart(req, res): Promise<void>
+        +clearCart(req, res): Promise<void>
+    }
+    
+    class ProductReviewController {
+        +createReview(req, res): Promise<void>
+        +updateReview(req, res): Promise<void>
+        +deleteReview(req, res): Promise<void>
+        +getReviews(req, res): Promise<void>
+    }
+    
+    class ProductCommentController {
+        +createComment(req, res): Promise<void>
+        +updateComment(req, res): Promise<void>
+        +deleteComment(req, res): Promise<void>
+        +getComments(req, res): Promise<void>
+    }
+    
+    class AddressController {
+        +createAddress(req, res): Promise<void>
+        +updateAddress(req, res): Promise<void>
+        +deleteAddress(req, res): Promise<void>
+        +getAddresses(req, res): Promise<void>
+        +setDefaultAddress(req, res): Promise<void>
+    }
+    
+    class WishlistController {
+        +addToWishlist(req, res): Promise<void>
+        +removeFromWishlist(req, res): Promise<void>
+        +getWishlist(req, res): Promise<void>
+    }
+    
+    class UserController {
+        +getProfile(req, res): Promise<void>
+        +updateProfile(req, res): Promise<void>
+        +uploadAvatar(req, res): Promise<void>
+    }
+}
+
+package "Services" <<Service>> {
+    class MoMoService {
+        +createPayment(orderNumber: string, amount: number, orderInfo: string): Promise<PaymentResponse>
+        +verifySignature(params: object, signature: string): boolean
+        +createSignature(params: object): string
+    }
+    
+    class EmailService {
+        +sendEmail(to: string, subject: string, html: string): Promise<void>
+        +sendOrderConfirmation(order: Order): Promise<void>
+        +sendPasswordReset(email: string, token: string): Promise<void>
+    }
+}
+
+package "Middleware" <<Middleware>> {
+    class AuthMiddleware {
+        +authenticateToken(req, res, next): Promise<void>
+        +requireAdmin(req, res, next): void
+    }
+    
+    class UploadMiddleware {
+        +uploadCloud(req, res, next): Promise<void>
+        +validateImage(req, res, next): void
+    }
+    
+    class ValidateMiddleware {
+        +validateRequest(schema: Schema): Middleware
+    }
+}
+
+package "Utils" {
+    class FullTextSearch {
+        +searchProducts(query: string, options: object): Promise<Product[]>
+        +ensureFullTextIndex(): Promise<void>
+        +buildSearchQuery(query: string): string
+    }
+    
+    class Logger {
+        +info(message: string, meta?: object): void
+        +error(message: string, error?: Error): void
+        +warn(message: string, meta?: object): void
+        +debug(message: string, meta?: object): void
+    }
+    
+    class Slugify {
+        +slugify(text: string): string
+    }
+}
+
+package "Validators" {
+    class ProductValidator {
+        +validateCreate(): Schema
+        +validateUpdate(): Schema
+    }
+    
+    class OrderValidator {
+        +validateCreate(): Schema
+        +validateUpdate(): Schema
+    }
+    
+    class AddressValidator {
+        +validateCreate(): Schema
+        +validateUpdate(): Schema
+    }
+}
+
+package "Routes" {
+    class Routes {
+        +configureRoutes(app: Express): void
+    }
+    
+    class AuthRoutes {
+        +router: Router
+    }
+    
+    class OrderRoutes {
+        +router: Router
+    }
+    
+    class PaymentRoutes {
+        +router: Router
+    }
+    
+    class AdminProductRoutes {
+        +router: Router
+    }
+}
+
+' Relationships
+Server --> Routes : uses
+Server --> SocketIO : initializes
+Server --> PrismaClient : uses
+
+Routes --> AuthRoutes : includes
+Routes --> OrderRoutes : includes
+Routes --> PaymentRoutes : includes
+Routes --> AdminProductRoutes : includes
+
+AuthRoutes --> AuthController : routes to
+OrderRoutes --> OrderController : routes to
+PaymentRoutes --> PaymentController : routes to
+AdminProductRoutes --> AdminProductController : routes to
+
+AuthRoutes --> AuthMiddleware : uses
+OrderRoutes --> AuthMiddleware : uses
+PaymentRoutes --> AuthMiddleware : uses
+AdminProductRoutes --> AuthMiddleware : uses
+AdminProductRoutes --> ValidateMiddleware : uses
+
+OrderController --> MoMoService : uses
+PaymentController --> MoMoService : uses
+OrderController --> EmailService : uses
+
+OrderController --> PrismaClient : uses
+PaymentController --> PrismaClient : uses
+AdminProductController --> PrismaClient : uses
+ShoppingCartController --> PrismaClient : uses
+
+OrderController --> FullTextSearch : uses
+AdminProductController --> FullTextSearch : uses
+
+OrderController --> Logger : uses
+PaymentController --> Logger : uses
+
+ValidateMiddleware --> ProductValidator : uses
+ValidateMiddleware --> OrderValidator : uses
+ValidateMiddleware --> AddressValidator : uses
+
+note right of PrismaClient
+  **Prisma Models:**
+  - User, Product, Order
+  - Payment, Cart, Wishlist
+  - Review, Comment, Address
+  - 20+ models total
+end note
+
+note right of MoMoService
+  **Payment Integration:**
+  - MoMo Payment Gateway
+  - Signature verification
+  - Callback handling
+end note
+
+@enduml
+

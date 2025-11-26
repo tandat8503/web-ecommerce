@@ -1,0 +1,52 @@
+@startuml
+title Use Case – CRUD sản phẩm (Admin)
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+left to right direction
+
+actor Admin as A
+
+rectangle "Product Management" {
+  usecase UC_Create as "Tạo sản phẩm"
+  usecase UC_Update as "Chỉnh sửa thông tin"
+  usecase UC_Delete as "Xóa sản phẩm"
+  usecase UC_List as "Xem danh sách sản phẩm"
+  usecase UC_Feature as "Đánh dấu sản phẩm nổi bật"
+  usecase UC_Toggle as "Kích hoạt/Vô hiệu"
+  usecase UC_Copy as "Nhân bản sản phẩm"
+}
+
+A --> UC_Create
+A --> UC_Update
+A --> UC_Delete
+A --> UC_List
+A --> UC_Feature
+A --> UC_Toggle
+A --> UC_Copy
+
+UC_Create ..> UC_List : «include»
+UC_Update ..> UC_List : «include»
+UC_Delete ..> UC_List : «extend»
+UC_Feature ..> UC_List : «include»
+UC_Toggle ..> UC_List : «include»
+UC_Copy ..> UC_Create : «include»
+
+@enduml
+

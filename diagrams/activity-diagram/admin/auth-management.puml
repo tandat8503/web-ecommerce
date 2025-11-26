@@ -1,0 +1,43 @@
+@startuml
+title Activity Diagram – Admin Authentication Flow
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở trang đăng nhập;
+:Nhập email / password;
+if (Thông tin hợp lệ?) then (Yes)
+  :Gửi request POST /api/auth/admin/login;
+  :API kiểm tra tài khoản + quyền;
+  if (Đúng vai trò Admin?) then (Yes)
+    :Tạo JWT + refresh token;
+    :Trả về token, thông tin user;
+    :UI lưu token, chuyển Dashboard;
+  else (No)
+    :Trả lỗi 403 Forbidden;
+    :Hiển thị thông báo không có quyền;
+  endif
+else (No)
+  :Hiển thị lỗi "Sai thông tin";
+endif
+
+if (Admin chọn "Quên mật khẩu"?) then (Yes)
+  :Nhập email -> POST /api/auth/admin/forgot;
+  :API tạo OTP/Token, gửi mail xác thực;
+  :Admin mở mail -> nhập OTP mới;
+  :Đặt lại mật khẩu thành công;
+endif
+
+:Admin chọn "Đăng xuất";
+:Xóa token, chuyển về trang login;
+stop
+
+@enduml
+

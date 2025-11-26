@@ -38,6 +38,8 @@ export default function Checkout() {
     handleSaveAddress,
     handlePlaceOrder,
     setShowAddressForm,
+    calculatingShipping,
+    shippingFee,
   } = useCheckout();
 
   const [openAddressDialog, setOpenAddressDialog] = React.useState(false);
@@ -313,9 +315,15 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between text-sm">
                 <span>Phí vận chuyển</span>
-                <Badge variant="outline" className="bg-green-100 text-green-700">
-                  Miễn phí
-                </Badge>
+                {calculatingShipping ? (
+                  <span className="text-gray-500">Đang tính...</span>
+                ) : shippingFee > 0 ? (
+                  <span className="font-semibold">{formatPrice(shippingFee)}</span>
+                ) : (
+                  <Badge variant="outline" className="bg-green-100 text-green-700">
+                    Miễn phí
+                  </Badge>
+                )}
               </div>
               <div className="flex justify-between border-t pt-3 font-bold">
                 <span>Tổng cộng</span>

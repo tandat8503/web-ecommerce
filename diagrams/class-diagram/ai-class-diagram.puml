@@ -1,0 +1,376 @@
+@startuml AI System Class Diagram - Web E-commerce
+
+!define AGENT_COLOR #E3F2FD
+!define SERVICE_COLOR #FFF3E0
+!define MCP_COLOR #E8F5E9
+!define MODEL_COLOR #F3E5F5
+!define CORE_COLOR #FCE4EC
+
+skinparam class {
+    BackgroundColor AGENT_COLOR
+    BorderColor #1976D2
+    ArrowColor #1976D2
+}
+
+skinparam class<<Service>> {
+    BackgroundColor SERVICE_COLOR
+    BorderColor #F57C00
+}
+
+skinparam class<<MCP>> {
+    BackgroundColor MCP_COLOR
+    BorderColor #388E3C
+}
+
+skinparam class<<Model>> {
+    BackgroundColor MODEL_COLOR
+    BorderColor #7B1FA2
+}
+
+skinparam class<<Core>> {
+    BackgroundColor CORE_COLOR
+    BorderColor #C2185B
+}
+
+package "FastAPI Application" {
+    class FastAPIApp {
+        -app: FastAPI
+        -lifespan: LifespanManager
+        +health_check(): HealthResponse
+        +chat(request: ChatRequest): ChatResponse
+        +moderate_content(request: ModerationRequest): ModerationResponse
+        +generate_report(request: ReportGenerateRequest): StreamingResponse
+    }
+    
+    class ChatRequest {
+        +message: string
+        +user_type: string
+        +context: Dict[str, Any]
+    }
+    
+    class ChatResponse {
+        +success: bool
+        +response: string
+        +agent_type: string
+        +data: Dict[str, Any]
+    }
+    
+    class ModerationRequest {
+        +content: string
+        +content_type: string
+        +product_id: Optional[int]
+        +user_id: Optional[int]
+    }
+    
+    class ModerationResponse {
+        +success: bool
+        +is_appropriate: bool
+        +violations: List[str]
+        +severity: string
+        +confidence: float
+        +suggested_action: string
+    }
+}
+
+package "Agents" {
+    class BaseAgent {
+        #agent_type: str
+        #system_prompt: str
+        #llm_client: LLMClient
+        #tool_client: MCPToolClient
+        +process_request(message: str, context: Dict): Promise[Dict]
+        #_classify_intent(message: str): Promise[str]
+        #_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+        #_generate_response(message: str, tool_result: Dict, intent: str): Promise[str]
+    }
+    
+    class UserChatbotAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+    }
+    
+    class AdminChatbotAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+    }
+    
+    class SentimentAnalyzerAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+    }
+    
+    class BusinessAnalystAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+    }
+    
+    class ReportGeneratorAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+        +_fetch_report_data(report_type: str, context: Dict): Promise[Dict]
+    }
+    
+    class ContentModerationAgent {
+        +_classify_intent(message: str): Promise[str>
+        +_call_tools(intent: str, message: str, context: Dict): Promise[Dict]
+    }
+    
+    class Orchestrator {
+        -agents: Dict[str, BaseAgent]
+        +process_request(user_message: str, user_type: str, context: Dict): Promise[Dict]
+        -_select_agent(user_type: str, message: str): BaseAgent
+    }
+}
+
+package "MCP Tools" <<MCP>> {
+    class MCPToolClient {
+        -tools: Dict[str, Callable]
+        +_load_tools(): void
+        +call_tool(tool_name: str, **kwargs): Promise[Dict]
+    }
+    
+    class FastMCP {
+        +tool(description: str): Decorator
+        +run(): void
+    }
+    
+    class search_products {
+        +query: str
+        +limit: int
+        +min_price: Optional[float]
+        +max_price: Optional[float]
+        +category: Optional[str]
+        +execute(): Promise[str]
+    }
+    
+    class analyze_sentiment {
+        +texts: List[str]
+        +product_id: Optional[int]
+        +execute(): Promise[str]
+    }
+    
+    class summarize_sentiment_by_product {
+        +product_id: Optional[int]
+        +execute(): Promise[str]
+    }
+    
+    class get_revenue_analytics {
+        +month: Optional[int]
+        +year: Optional[int]
+        +start_date: Optional[str]
+        +end_date: Optional[str]
+        +execute(): Promise[str]
+    }
+    
+    class get_sales_performance {
+        +days: int
+        +execute(): Promise[str]
+    }
+    
+    class get_product_metrics {
+        +limit: int
+        +execute(): Promise[str]
+    }
+    
+    class generate_report {
+        +report_type: str
+        +month: Optional[int]
+        +year: Optional[int]
+        +include_sentiment: bool
+        +include_revenue: bool
+        +execute(): Promise[str]
+    }
+    
+    class moderate_content {
+        +content: str
+        +content_type: str
+        +product_id: Optional[int]
+        +user_id: Optional[int]
+        +execute(): Promise[str]
+    }
+}
+
+package "Services" <<Service>> {
+    class ProductSearchService {
+        -vector_store: VectorStore
+        +build_from_db(conn): Promise<void>
+        +search(query: str, top_k: int): List[Product]
+        +_sql_search(conn, query: str, limit: int): Promise[List[Product]]
+    }
+    
+    class SentimentService {
+        -llm_client: LLMClient
+        +analyze_sentiment(texts: List[str], product_id: Optional[int]): Promise[Dict]
+        +summarize_by_product(product_id: Optional[int]): Promise[Dict]
+    }
+    
+    class AnalystService {
+        -db_pool: ConnectionPool
+        +get_revenue_analytics(month: Optional[int], year: Optional[int]): Promise[Dict]
+        +get_sales_performance(days: int): Promise[Dict]
+        +get_product_metrics(limit: int): Promise[Dict]
+    }
+    
+    class ModerationService {
+        -llm_client: LLMClient
+        +moderate_content(content: str, content_type: str): Promise[Dict]
+        +check_profanity(content: str): bool
+        +check_spam(content: str): bool
+    }
+    
+    class ReportGeneratorService {
+        -templates: Dict[str, Template]
+        +generate_html_report(report_type: str, data: Dict, progress_tracker: ProgressTracker): Promise[Dict]
+        +_render_template(template_name: str, data: Dict): str
+    }
+    
+    class ReportProgressTracker {
+        -session_id: str
+        -callback: Optional[Callable]
+        +step_completed(step: int, step_name: str, message: str, percentage: int): void
+        +set_callback(callback: Callable): void
+    }
+    
+    class ReportStorage {
+        -storage_dir: Path
+        +save_report(report_id: str, html_content: str, metadata: Dict): Promise[Dict]
+        +get_report(report_id: str): Promise[Dict]
+        +list_reports(report_type: Optional[str], limit: int): Promise[List[Dict]]
+    }
+}
+
+package "Core" <<Core>> {
+    class LLMClient {
+        -api_key: str
+        -model: str
+        +generate(prompt: str, context: Dict): Promise[str]
+        +chat(messages: List[Dict]): Promise[str]
+    }
+    
+    class LLMClientFactory {
+        +create_client(): LLMClient
+    }
+    
+    class DatabasePool {
+        -pool: ConnectionPool
+        +get_conn(): Promise[Connection]
+        +release_conn(conn: Connection): void
+        +init_pool(): Promise<void>
+        +close_pool(): Promise<void>
+    }
+    
+    class Config {
+        +get_llm_config(): LLMConfig
+        +get_db_config(): DBConfig
+        +get_app_config(): AppConfig
+    }
+    
+    class Logger {
+        +info(message: str): void
+        +error(message: str, error: Exception): void
+        +warning(message: str): void
+        +debug(message: str): void
+    }
+}
+
+package "Models" <<Model>> {
+    class AgentType {
+        <<enumeration>>
+        USER_CHATBOT
+        ADMIN_CHATBOT
+        SENTIMENT_ANALYZER
+        BUSINESS_ANALYST
+        REPORT_GENERATOR
+        CONTENT_MODERATION
+    }
+    
+    class AgentStep {
+        +step_number: int
+        +step_name: str
+        +status: str
+        +result: Optional[Dict]
+    }
+    
+    class AgentResult {
+        +success: bool
+        +agent_type: str
+        +response: str
+        +tool_result: Dict
+        +timestamp: datetime
+    }
+}
+
+' Relationships
+FastAPIApp --> Orchestrator : uses
+FastAPIApp --> ContentModerationAgent : uses
+FastAPIApp --> ReportGeneratorAgent : uses
+
+Orchestrator --> UserChatbotAgent : routes to
+Orchestrator --> AdminChatbotAgent : routes to
+Orchestrator --> SentimentAnalyzerAgent : routes to
+Orchestrator --> BusinessAnalystAgent : routes to
+Orchestrator --> ReportGeneratorAgent : routes to
+
+BaseAgent --> MCPToolClient : uses
+BaseAgent --> LLMClient : uses
+
+UserChatbotAgent --|> BaseAgent
+AdminChatbotAgent --|> BaseAgent
+SentimentAnalyzerAgent --|> BaseAgent
+BusinessAnalystAgent --|> BaseAgent
+ReportGeneratorAgent --|> BaseAgent
+ContentModerationAgent --|> BaseAgent
+
+MCPToolClient --> search_products : calls
+MCPToolClient --> analyze_sentiment : calls
+MCPToolClient --> summarize_sentiment_by_product : calls
+MCPToolClient --> get_revenue_analytics : calls
+MCPToolClient --> get_sales_performance : calls
+MCPToolClient --> get_product_metrics : calls
+MCPToolClient --> generate_report : calls
+MCPToolClient --> moderate_content : calls
+
+search_products --> ProductSearchService : uses
+analyze_sentiment --> SentimentService : uses
+summarize_sentiment_by_product --> SentimentService : uses
+get_revenue_analytics --> AnalystService : uses
+get_sales_performance --> AnalystService : uses
+get_product_metrics --> AnalystService : uses
+moderate_content --> ModerationService : uses
+generate_report --> ReportGeneratorService : uses
+
+ProductSearchService --> DatabasePool : uses
+SentimentService --> LLMClient : uses
+AnalystService --> DatabasePool : uses
+ModerationService --> LLMClient : uses
+ReportGeneratorService --> ReportProgressTracker : uses
+ReportGeneratorService --> ReportStorage : uses
+
+LLMClientFactory --> LLMClient : creates
+Config --> LLMClientFactory : provides config
+Config --> DatabasePool : provides config
+
+note right of Orchestrator
+  **Agent Routing:**
+  - Routes requests to appropriate agent
+  - Based on user_type and message intent
+  - Handles errors and fallbacks
+end note
+
+note right of MCPToolClient
+  **MCP Tools:**
+  - 8 tools total
+  - Product search, sentiment analysis
+  - Revenue analytics, reports
+  - Content moderation
+end note
+
+note right of DatabasePool
+  **Database:**
+  - MySQL connection pool
+  - Async/await support
+  - Connection management
+end note
+
+@enduml
+

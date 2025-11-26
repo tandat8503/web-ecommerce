@@ -1,0 +1,52 @@
+@startuml
+title Use Case – Quản lý biến thể & kho hàng
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+left to right direction
+
+actor Admin as A
+
+rectangle "Variant & Inventory Management" {
+  usecase UC_CreateVariant as "Tạo biến thể sản phẩm"
+  usecase UC_UpdateVariant as "Cập nhật biến thể"
+  usecase UC_DeleteVariant as "Xóa biến thể"
+  usecase UC_ListVariant as "Xem danh sách biến thể"
+  usecase UC_AdjustStock as "Điều chỉnh tồn kho"
+  usecase UC_SetPrice as "Cập nhật giá nhập/giá bán"
+  usecase UC_Spec as "Quản lý thông số kỹ thuật"
+}
+
+A --> UC_CreateVariant
+A --> UC_UpdateVariant
+A --> UC_DeleteVariant
+A --> UC_ListVariant
+A --> UC_AdjustStock
+A --> UC_SetPrice
+A --> UC_Spec
+
+UC_CreateVariant ..> UC_ListVariant : «include»
+UC_UpdateVariant ..> UC_ListVariant : «include»
+UC_DeleteVariant ..> UC_ListVariant : «extend»
+UC_AdjustStock ..> UC_ListVariant : «include»
+UC_SetPrice ..> UC_ListVariant : «include»
+UC_Spec ..> UC_ListVariant : «include»
+
+@enduml
+

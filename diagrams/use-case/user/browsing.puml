@@ -1,0 +1,42 @@
+@startuml
+title User Use Case – Duyệt & Tìm kiếm sản phẩm
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+
+rectangle "Product Discovery" {
+  usecase UC_BrowseCategory as "Duyệt danh mục"
+  usecase UC_Search as "Tìm kiếm toàn văn"
+  usecase UC_Filter as "Lọc / sắp xếp"
+  usecase UC_ViewDetail as "Xem chi tiết sản phẩm"
+  usecase UC_ViewImages as "Xem hình ảnh & gallery"
+  usecase UC_ViewVariant as "Xem biến thể & tồn kho"
+  usecase UC_ViewSpec as "Xem thông số & mô tả"
+}
+
+U --> UC_BrowseCategory
+U --> UC_Search
+U --> UC_Filter
+U --> UC_ViewDetail
+UC_ViewDetail ..> UC_ViewImages : «include»
+UC_ViewDetail ..> UC_ViewVariant : «include»
+UC_ViewDetail ..> UC_ViewSpec : «include»
+UC_Filter ..> UC_BrowseCategory : «include»
+UC_Search ..> UC_Filter : «include»
+
+@enduml
+

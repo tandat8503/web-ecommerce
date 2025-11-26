@@ -6,6 +6,7 @@ import { getAddresses, addAddress } from "@/api/address";
 import { createOrder } from "@/api/orders";
 import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
 import { createMoMoPayment } from "@/api/payment";
+import { calculateGHNShippingFee } from "@/api/shipping";
 
 /**
  * ========================================
@@ -58,13 +59,18 @@ export function useCheckout() {
     return cartItems.filter((item) => selectedCartItemIds.includes(String(item.id)));
   }, [cartItems, selectedCartItemIds]);
 
+  // State cho phí vận chuyển GHN
+  const [shippingFee, setShippingFee] = useState(0);
+  const [calculatingShipping, setCalculatingShipping] = useState(false);
+
   const summary = useMemo(() => {
     const subtotal = checkoutItems.reduce((sum, item) => {
       const price = Number(item?.final_price ?? item?.product?.price ?? 0);
       return sum + price * item.quantity;
     }, 0);
-    return { subtotal, shippingFee: 0, discount: 0, total: subtotal };
-  }, [checkoutItems]);
+    const total = subtotal + shippingFee;
+    return { subtotal, shippingFee, discount: 0, total };
+  }, [checkoutItems, shippingFee]);
 
   const selectedAddress = useMemo(() => {
     return addresses.find((a) => a.id === selectedAddressId) || null;
@@ -101,6 +107,67 @@ export function useCheckout() {
   useEffect(() => {
     loadAddresses();
   }, []);
+
+  // Tính phí vận chuyển GHN khi địa chỉ được chọn
+  useEffect(() => {
+    const calculateFee = async () => {
+      if (!selectedAddress || !selectedAddress.ghnDistrictId || !selectedAddress.ghnWardCode) {
+        setShippingFee(0);
+        return;
+      }
+
+      if (checkoutItems.length === 0) {
+        setShippingFee(0);
+        return;
+      }
+
+      try {
+        setCalculatingShipping(true);
+        // Tính tổng trọng lượng và kích thước từ giỏ hàng
+        const totalWeight = checkoutItems.reduce((sum, item) => {
+          // Giả sử mỗi sản phẩm nặng 500g (có thể lấy từ product.weight nếu có)
+          return sum + (item.quantity * 500);
+        }, 0);
+
+        // Tính kích thước (giả sử mỗi sản phẩm có kích thước 20x20x20cm)
+        const totalItems = checkoutItems.reduce((sum, item) => sum + item.quantity, 0);
+        const estimatedLength = Math.ceil(Math.cbrt(totalItems)) * 20; // Ước tính chiều dài
+        const estimatedWidth = 20;
+        const estimatedHeight = 20;
+
+        // Tính subtotal để làm insuranceValue
+        const subtotal = checkoutItems.reduce((sum, item) => {
+          const price = Number(item?.final_price ?? item?.product?.price ?? 0);
+          return sum + price * item.quantity;
+        }, 0);
+
+        const res = await calculateGHNShippingFee({
+          toDistrictId: selectedAddress.ghnDistrictId,
+          toWardCode: selectedAddress.ghnWardCode,
+          weight: totalWeight || 1000, // Tối thiểu 1000g
+          length: estimatedLength || 20,
+          width: estimatedWidth || 20,
+          height: estimatedHeight || 20,
+          serviceTypeId: 2, // Standard service
+          insuranceValue: subtotal || 0
+        });
+
+        if (res.data?.success && res.data?.data?.totalFee) {
+          setShippingFee(res.data.data.totalFee);
+        } else {
+          setShippingFee(0);
+        }
+      } catch (error) {
+        console.error('Lỗi tính phí vận chuyển:', error);
+        setShippingFee(0);
+        // Không hiển thị toast để tránh spam khi đổi địa chỉ
+      } finally {
+        setCalculatingShipping(false);
+      }
+    };
+
+    calculateFee();
+  }, [selectedAddress, checkoutItems]);
 
   // 📝 XỬ LÝ FORM ĐỊA CHỈ
   const handleAddressChange = (field, value) => {
@@ -141,8 +208,29 @@ export function useCheckout() {
 
     try {
       setSavingAddress(true);
+      
+      // Lấy GHN IDs từ selectedCodes và districts/wards
+      const addressData = { ...addressForm };
+      
+      // Lấy ghnDistrictId từ districts
+      if (selectedCodes.districtCode) {
+        const district = districts.find(d => String(d.code) === String(selectedCodes.districtCode));
+        if (district && district.districtId) {
+          addressData.ghnDistrictId = district.districtId;
+        }
+      }
+      
+      // Lấy ghnWardCode từ wards
+      if (selectedCodes.wardCode) {
+        const ward = wards.find(w => String(w.code) === String(selectedCodes.wardCode));
+        if (ward && ward.wardCode) {
+          addressData.ghnWardCode = ward.wardCode;
+        }
+      }
+      
       const res = await addAddress({
-        ...addressForm,
+        ...addressData,
+        addressType: addressData.addressType?.toUpperCase() || "HOME",
         isDefault: addresses.length === 0, // Địa chỉ đầu tiên = mặc định
       });
       toast.success("Thêm địa chỉ thành công");
@@ -234,6 +322,7 @@ export function useCheckout() {
     districts,//danh sách quận
     wards,//danh sách phường
     savingAddress,//trạng thái đang lưu địa chỉ
+    calculatingShipping,//trạng thái đang tính phí vận chuyển
 
     // Actions
     setSelectedAddressId,//set id địa chỉ được chọn

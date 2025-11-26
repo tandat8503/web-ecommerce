@@ -66,6 +66,22 @@ export default function OrderDetail() {
                     </Descriptions.Item>
                   </>
                 )}
+                {/* Mã vận đơn GHN */}
+                {order.ghnOrderCode && (
+                  <Descriptions.Item label="Mã vận đơn GHN">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-blue-600">{order.ghnOrderCode}</span>
+                      <a
+                        href={`https://donhang.ghn.vn/?order_code=${order.ghnOrderCode}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline text-sm"
+                      >
+                        (Tra cứu)
+                      </a>
+                    </div>
+                  </Descriptions.Item>
+                )}
               </Descriptions>
 
               {/* Thông tin nhận hàng */}

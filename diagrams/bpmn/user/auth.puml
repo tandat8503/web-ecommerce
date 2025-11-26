@@ -1,0 +1,108 @@
+@startuml
+title BPMN – Xác thực người dùng (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User truy cập trang web;
+
+|#LightGray|Đăng ký|
+if (Đăng ký tài khoản?) then (Có)
+  :Nhập email/password;
+  :Gửi POST /api/auth/register;
+  |#LightGray|Backend API|
+  :Kiểm tra email đã tồn tại?;
+  if (Email trùng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Web/Mobile UI|
+    :Hiển thị lỗi "Email đã được sử dụng";
+    stop
+  else (Không)
+    :Tạo user mới trong DB;
+    :Tạo JWT token;
+    :Trả về 201 Created + token;
+    |#Web/Mobile UI|
+    :Lưu token vào localStorage;
+    :Chuyển sang dashboard;
+  endif
+endif
+
+|#LightGray|Đăng nhập email/password|
+if (Đăng nhập email/password?) then (Có)
+  :Nhập email/password;
+  :Gửi POST /api/auth/login;
+  |#LightGray|Backend API|
+  :Tìm user trong DB;
+  :Xác thực mật khẩu;
+  if (Sai mật khẩu hoặc user inactive?) then (Có)
+    :Trả về 401 Unauthorized;
+    |#Web/Mobile UI|
+    :Hiển thị cảnh báo;
+    stop
+  else (Hợp lệ)
+    :Tạo JWT access + refresh token;
+    :Trả về 200 OK + tokens;
+    |#Web/Mobile UI|
+    :Lưu tokens vào localStorage;
+    :Đồng bộ giỏ hàng;
+    :Chuyển sang trang chủ;
+  endif
+endif
+
+|#LightGray|Đăng nhập Google OAuth|
+if (Đăng nhập Google?) then (Có)
+  :Click "Đăng nhập với Google";
+  |#LightGray|Google OAuth|
+  :User chọn tài khoản Google;
+  :Trả về OAuth token;
+  |#Web/Mobile UI|
+  :Gửi POST /api/auth/google {token};
+  |#LightGray|Backend API|
+  :Verify token với Google;
+  |#LightGray|Google OAuth|
+  :Trả về profile info;
+  |#Backend API|
+  :Tìm hoặc tạo user;
+  :Tạo JWT token;
+  :Trả về 200 OK + JWT;
+  |#Web/Mobile UI|
+  :Lưu token;
+  :Đăng nhập thành công;
+endif
+
+|#LightGray|Quên mật khẩu|
+if (Quên mật khẩu?) then (Có)
+  :Nhập email;
+  :Gửi POST /api/auth/forgot-password;
+  |#LightGray|Backend API|
+  :Tạo password reset token;
+  :Lưu vào DB;
+  :Gửi email reset link;
+  |#Web/Mobile UI|
+  :Hiển thị thông báo "Kiểm tra email";
+endif
+
+|#LightGray|Đăng xuất|
+if (Đăng xuất?) then (Có)
+  :Click "Đăng xuất";
+  :Gửi POST /api/auth/logout (optional);
+  |#LightGray|Backend API|
+  :Invalidate refresh token (nếu có);
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Xóa token khỏi localStorage;
+  :Redirect về trang chủ;
+endif
+
+stop
+
+@enduml
+

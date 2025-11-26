@@ -1,0 +1,59 @@
+@startuml
+title Sequence – Admin quản lý danh mục
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+  ParticipantBorderColor #000000
+  ParticipantBackgroundColor #fefefe
+  ActorBorderColor #000000
+  ActorBackgroundColor #ffffff
+}
+
+actor Admin
+participant "Admin Portal UI" as UI
+participant "Backend API\ncategoryRouter" as API
+database "MySQL / Prisma" as DB
+
+== Tạo / cập nhật danh mục ==
+Admin -> UI : Mở form danh mục\n(Nhập tên, slug, icon,…)
+UI -> API : POST /api/admin/categories\npayload
+API -> DB : Kiểm tra slug tồn tại?
+DB --> API : true/false
+alt Slug đã tồn tại
+  API --> UI : 409 Conflict\n"Slug đã được dùng"
+  UI --> Admin : Hiển thị lỗi
+else Hợp lệ
+  API -> DB : prisma.category.create()
+  DB --> API : danh mục mới
+  API --> UI : 201 Created
+end
+UI --> Admin : Hiển thị toast thành công\nrefresh danh sách
+
+== Xem danh sách ==
+Admin -> UI : Mở trang danh mục
+UI -> API : GET /api/admin/categories
+API -> DB : prisma.category.findMany()
+DB --> API : danh sách
+API --> UI : JSON data
+UI --> Admin : Render bảng + phân trang
+
+== Xóa danh mục ==
+Admin -> UI : Click "Delete" danh mục
+UI -> API : DELETE /api/admin/categories/{id}
+API -> DB : Đếm sản phẩm thuộc danh mục
+DB --> API : count
+alt Còn sản phẩm liên kết
+  API --> UI : 409 Conflict\n"Category in use"
+  UI --> Admin : Thông báo cần gỡ sản phẩm
+else count = 0
+  API -> DB : prisma.category.delete()
+  DB --> API : result
+  API --> UI : 200 OK
+  UI --> Admin : Cập nhật bảng
+end
+
+@enduml
+

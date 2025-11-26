@@ -1,0 +1,40 @@
+@startuml
+title User Use Case – Đánh giá & Bình luận
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+
+rectangle "Review & Comment" {
+  usecase UC_WriteReview as "Viết đánh giá sản phẩm"
+  usecase UC_EditReview as "Chỉnh sửa / xóa đánh giá"
+  usecase UC_Comment as "Đăng bình luận"
+  usecase UC_Reply as "Trả lời bình luận"
+  usecase UC_Report as "Báo cáo nội dung xấu"
+}
+
+U --> UC_WriteReview
+U --> UC_EditReview
+U --> UC_Comment
+U --> UC_Reply
+U --> UC_Report
+
+UC_EditReview ..> UC_WriteReview : «include»
+UC_Reply ..> UC_Comment : «include»
+UC_Report ..> UC_Comment : «extend»
+
+@enduml
+

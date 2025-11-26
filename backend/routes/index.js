@@ -11,6 +11,7 @@ import wishlistRouter from "./wishlistRouter.js"; // Routes quản lý danh sác
 import shoppingCartRouter from "./shoppingCartRoutes.js"; // Routes quản lý giỏ hàng
 import orderRouter from "./orderRoutes.js"; // Routes quản lý đơn hàng
 import paymentRouter from "./paymentRoutes.js"; // Routes thanh toán MoMo
+import shippingRouter from "./shippingRoutes.js"; // Routes GHN shipping
 
 
 
@@ -43,6 +44,7 @@ const routes = (app) => {
   app.use("/api/cart", shoppingCartRouter); // Shopping cart management endpoints
   app.use("/api/orders", orderRouter); // Order management endpoints
   app.use("/api/payment", paymentRouter); // Payment endpoints (MoMo)
+  app.use("/api/shipping", shippingRouter); // GHN shipping endpoints
   app.use("/api/notifications", notificationRoutes); // Notification endpoints
   app.use("/api/products", adminProductRoutes); // Product endpoints (public + admin)
   app.use("/api/product-variants", adminProductVariantRoutes); // Product variant endpoints (public + admin)

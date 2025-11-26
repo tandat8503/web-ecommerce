@@ -1,0 +1,107 @@
+@startuml
+title BPMN – Quản lý hồ sơ và địa chỉ (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User mở trang Profile;
+
+|#LightGray|Xem hồ sơ|
+:Hiển thị trang Profile;
+:Gửi GET /api/users/me;
+|#LightGray|Backend API|
+:Lấy thông tin user từ DB;
+:Trả về JSON;
+|#Web/Mobile UI|
+:Hiển thị form thông tin;
+
+|#LightGray|Cập nhật hồ sơ|
+if (Cập nhật thông tin?) then (Có)
+  :Chỉnh sửa thông tin (tên, SĐT, avatar);
+  :Gửi PUT /api/users/me;
+  |#LightGray|Backend API|
+  :Validate dữ liệu;
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Hiển thị toast thành công;
+  :Refresh thông tin;
+endif
+
+|#LightGray|Thay đổi mật khẩu|
+if (Đổi mật khẩu?) then (Có)
+  :Nhập mật khẩu cũ/mới;
+  :Gửi POST /api/users/change-password;
+  |#LightGray|Backend API|
+  :Xác thực mật khẩu cũ;
+  if (Sai mật khẩu cũ?) then (Có)
+    :Trả về 400 Invalid;
+    |#Web/Mobile UI|
+    :Hiển thị cảnh báo;
+    stop
+  else (Hợp lệ)
+    :Hash mật khẩu mới;
+    :Cập nhật password trong DB;
+    :Trả về 200 OK;
+    |#Web/Mobile UI|
+    :Hiển thị toast thành công;
+  endif
+endif
+
+|#LightGray|Quản lý địa chỉ|
+if (Thêm địa chỉ mới?) then (Có)
+  :Nhập thông tin địa chỉ;
+  :Gửi POST /api/addresses;
+  |#LightGray|Backend API|
+  :Validate địa chỉ;
+  :Lưu vào DB;
+  :Trả về 201 Created;
+  |#Web/Mobile UI|
+  :Cập nhật danh sách địa chỉ;
+endif
+
+if (Sửa địa chỉ?) then (Có)
+  :Chọn địa chỉ cần sửa;
+  :Cập nhật thông tin;
+  :Gửi PUT /api/addresses/{id};
+  |#LightGray|Backend API|
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật danh sách;
+endif
+
+if (Xóa địa chỉ?) then (Có)
+  :Chọn địa chỉ cần xóa;
+  :Gửi DELETE /api/addresses/{id};
+  |#LightGray|Backend API|
+  :Xóa khỏi DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật danh sách;
+endif
+
+if (Đặt địa chỉ mặc định?) then (Có)
+  :Chọn địa chỉ;
+  :Gửi PATCH /api/addresses/{id}/set-default;
+  |#LightGray|Backend API|
+  :Cập nhật isDefault trong DB;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Cập nhật UI;
+endif
+
+stop
+
+@enduml
+
+
+

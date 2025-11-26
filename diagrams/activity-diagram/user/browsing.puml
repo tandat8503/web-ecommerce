@@ -1,0 +1,39 @@
+@startuml
+title Activity Diagram – User duyệt & tìm kiếm sản phẩm
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:User truy cập trang sản phẩm;
+repeat
+  if (Chọn danh mục?) then (Yes)
+    :Gửi request GET products theo category;
+    :Render danh sách;
+  else if (Tìm kiếm?) then (Yes)
+    :Nhập keyword;
+    :Gọi API search (fulltext);
+    if (Có kết quả?) then (Yes)
+      :Hiển thị danh sách phù hợp;
+    else (No)
+      :Gợi ý sản phẩm nổi bật;
+    endif
+  endif
+  if (Chọn sản phẩm?) then (Yes)
+    :Tải chi tiết, ảnh, biến thể;
+    :User xem mô tả, đánh giá;
+    if (Thêm vào giỏ/wishlist?) then (Yes)
+      :Gửi request tương ứng;
+    endif
+  endif
+repeat while (Tiếp tục duyệt?) is (Yes)
+stop
+
+@enduml
+

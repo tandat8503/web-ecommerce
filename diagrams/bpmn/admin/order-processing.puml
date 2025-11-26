@@ -1,0 +1,98 @@
+@startuml
+title BPMN – Xử lý đơn hàng (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý đơn hàng;
+:Hiển thị danh sách đơn hàng;
+
+|#LightGray|Xem chi tiết đơn hàng|
+if (Xem chi tiết?) then (Có)
+  :Chọn đơn hàng;
+  :Gửi GET /api/admin/orders/{id};
+  |#LightGray|Backend API|
+  :Lấy thông tin đơn hàng\n(items, history, payment);
+  :Trả về JSON;
+  |#Admin Portal|
+  :Render timeline, items, payment info;
+endif
+
+|#LightGray|Cập nhật trạng thái đơn hàng|
+if (Cập nhật trạng thái?) then (Có)
+  :Chọn đơn hàng;
+  :Chọn trạng thái mới + ghi chú;
+  :Gửi PATCH /api/admin/orders/{id}/status;
+  |#LightGray|Backend API|
+  :Kiểm tra transition hợp lệ?;
+  if (Trạng thái không hợp lệ?) then (Có)
+    :Trả về 400 Invalid transition;
+    |#Admin Portal|
+    :Hiển thị rule chuyển trạng thái;
+    stop
+  else (Hợp lệ)
+    :Cập nhật status trong DB;
+    :Lưu lịch sử thay đổi;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Hiển thị toast;
+    :Broadcast socket cho user;
+  endif
+endif
+
+|#LightGray|Theo dõi thanh toán|
+|#LightGray|Payment Service|
+:MoMo gửi webhook /payment/momo/callback;
+|#LightGray|Backend API|
+:Kiểm tra chữ ký webhook;
+if (Signature invalid?) then (Có)
+  :Trả về 400 Invalid;
+  stop
+else (Hợp lệ)
+  :Kiểm tra trạng thái trùng?;
+  if (Đã xử lý?) then (Có)
+    :Trả về 200 OK (ignore);
+    stop
+  else (Chưa)
+    :Cập nhật payment status;
+    :Lưu vào DB;
+    :Emit websocket payment_update;
+    |#Admin Portal|
+    :Cập nhật badge thanh toán;
+  endif
+endif
+
+|#LightGray|Ghi chú nội bộ|
+if (Thêm ghi chú?) then (Có)
+  :Nhập note nội bộ;
+  :Gửi POST /api/admin/orders/{id}/notes;
+  |#LightGray|Backend API|
+  :Lưu note vào DB;
+  :Trả về 201 OK;
+  |#Admin Portal|
+  :Append vào note list;
+endif
+
+|#LightGray|In hóa đơn|
+if (In hóa đơn?) then (Có)
+  :Chọn đơn hàng;
+  :Gửi GET /api/admin/orders/{id}/invoice;
+  |#LightGray|Backend API|
+  :Generate PDF invoice;
+  :Trả về PDF;
+  |#Admin Portal|
+  :Hiển thị/Download PDF;
+endif
+
+stop
+
+@enduml
+

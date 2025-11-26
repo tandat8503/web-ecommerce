@@ -1,0 +1,61 @@
+@startuml
+title Sequence – Quản lý hình ảnh sản phẩm & banner
+
+skinparam backgroundColor #ffffff
+skinparam sequence {
+  ArrowColor #000000
+  ParticipantBackgroundColor #fefefe
+  ParticipantBorderColor #000000
+  LifeLineBorderColor #000000
+  LifeLineBackgroundColor #ffffff
+}
+
+actor Admin
+participant "Media Manager UI" as UI
+participant "Backend API\nproductImageRouter" as ImgAPI
+participant "Backend API\nbannerRouter" as BannerAPI
+participant "Cloudinary Service" as Cloud
+database "MySQL / Prisma" as DB
+
+== Upload ảnh sản phẩm ==
+Admin -> UI : Kéo thả hình
+UI -> ImgAPI : POST /api/admin/product-images/{productId}\nfile multipart
+ImgAPI -> Cloud : upload stream
+Cloud --> ImgAPI : public_id + url
+ImgAPI -> DB : Kiểm tra quota ảnh?
+DB --> ImgAPI : count
+alt Đã đạt giới hạn
+  ImgAPI --> UI : 400 Bad Request\n"Max images reached"
+  UI --> Admin : Hiển thị warning
+else Còn slot
+  ImgAPI -> DB : prisma.productImage.create({url, order})
+end
+DB --> ImgAPI : saved record
+ImgAPI --> UI : 201 + url
+UI --> Admin : Update gallery
+
+== Gán ảnh primary / reorder ==
+Admin -> UI : Chọn ảnh -> "Set Primary"
+UI -> ImgAPI : PATCH /api/admin/product-images/{productId}/set-primary
+ImgAPI -> DB : Validate ảnh thuộc product?
+DB --> ImgAPI : yes/no
+alt Không thuộc product
+  ImgAPI --> UI : 404 Not Found
+else Hợp lệ
+  ImgAPI -> DB : cập nhật isPrimary
+  DB --> ImgAPI : ok
+  ImgAPI --> UI : 200 OK
+end
+
+== Quản lý banner ==
+Admin -> UI : Tạo banner/bộ sưu tập
+UI -> BannerAPI : POST /api/admin/banners
+BannerAPI -> Cloud : upload ảnh banner
+Cloud --> BannerAPI : url
+BannerAPI -> DB : lưu banner (title, link, sortOrder)
+DB --> BannerAPI : bannerId
+BannerAPI --> UI : 201 OK
+UI --> Admin : Hiển thị banner trong trang chủ preview
+
+@enduml
+

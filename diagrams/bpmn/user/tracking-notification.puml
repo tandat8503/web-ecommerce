@@ -1,0 +1,91 @@
+@startuml
+title BPMN – Theo dõi đơn hàng và thông báo (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User mở trang My Orders;
+
+|#LightGray|Xem lịch sử đơn hàng|
+:Hiển thị trang lịch sử;
+:Gửi GET /api/orders/me;
+|#LightGray|Backend API|
+:Lấy danh sách đơn hàng theo userId;
+:Tìm trong DB;
+:Trả về JSON;
+|#Web/Mobile UI|
+:Render danh sách đơn hàng;
+:Hiển thị trạng thái từng đơn;
+
+|#LightGray|Xem chi tiết đơn hàng|
+if (Xem chi tiết?) then (Có)
+  :Chọn đơn hàng;
+  :Gửi GET /api/orders/{id};
+  |#LightGray|Backend API|
+  :Lấy thông tin đơn hàng;
+  :Lấy items, history, payment;
+  :Trả về JSON;
+  |#Web/Mobile UI|
+  :Render timeline trạng thái;
+  :Hiển thị chi tiết items;
+  :Hiển thị thông tin thanh toán;
+  :Hiển thị địa chỉ giao hàng;
+endif
+
+|#LightGray|Nhận thông báo real-time|
+|#LightGray|Backend API|
+:Khi có cập nhật trạng thái đơn hàng;
+:Emit order_status_update;
+|#LightGray|Notification Service|
+:Nhận socket event;
+:Gửi tới UI;
+|#Web/Mobile UI|
+:Hiển thị badge thông báo;
+:Hiển thị toast notification;
+:Cập nhật trạng thái đơn hàng;
+
+|#LightGray|Nhận thông báo khuyến mãi|
+|#LightGray|Notification Service|
+:Gửi push notification (promo);
+|#Web/Mobile UI|
+:Hiển thị thông báo;
+if (User click vào thông báo?) then (Có)
+  :Mở trang khuyến mãi;
+  :Hiển thị danh sách promo;
+endif
+
+|#LightGray|Hủy đơn hàng|
+if (Hủy đơn hàng?) then (Có)
+  :Chọn đơn hàng cần hủy;
+  :Gửi POST /api/orders/{id}/cancel;
+  |#LightGray|Backend API|
+  :Kiểm tra trạng thái đơn hàng;
+  if (Đã giao hoặc đang giao?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Web/Mobile UI|
+    :Thông báo "Không thể hủy";
+    stop
+  else (Có thể hủy)
+    :Cập nhật status = CANCELLED;
+    :Hoàn trả stock;
+    :Trả về 200 OK;
+    |#Web/Mobile UI|
+    :Cập nhật trạng thái;
+    :Hiển thị thông báo;
+  endif
+endif
+
+stop
+
+@enduml
+
+
+

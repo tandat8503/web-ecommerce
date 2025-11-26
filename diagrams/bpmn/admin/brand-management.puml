@@ -1,0 +1,81 @@
+@startuml
+title BPMN – Quản lý thương hiệu (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+start
+:Admin mở trang quản lý thương hiệu;
+:Hiển thị danh sách thương hiệu;
+
+|#LightGray|Tạo thương hiệu|
+if (Tạo mới?) then (Có)
+  :Nhập thông tin (tên, quốc gia, logo);
+  :Gửi POST /api/admin/brands;
+  |#LightGray|Backend API|
+  :Kiểm tra tên thương hiệu trùng?;
+  if (Tên đã tồn tại?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Hiển thị lỗi "Tên thương hiệu đã tồn tại";
+    stop
+  else (Không)
+    :Lưu thương hiệu vào DB;
+    :Trả về 201 Created;
+    |#Admin Portal|
+    :Reload bảng thương hiệu;
+  endif
+endif
+
+|#LightGray|Cập nhật/Kích hoạt|
+if (Cập nhật thông tin?) then (Có)
+  :Chọn thương hiệu cần sửa;
+  :Cập nhật thông tin;
+  :Gửi PUT /api/admin/brands/{id};
+  |#LightGray|Backend API|
+  :Validate dữ liệu;
+  :Cập nhật DB;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Hiển thị toast + refresh;
+endif
+
+if (Bật/Tắt trạng thái?) then (Có)
+  :Toggle switch kích hoạt;
+  :Gửi PATCH /api/admin/brands/{id}/status;
+  |#LightGray|Backend API|
+  :Cập nhật trạng thái;
+  :Trả về 200 OK;
+  |#Admin Portal|
+  :Cập nhật UI;
+endif
+
+|#LightGray|Xóa thương hiệu|
+if (Xóa thương hiệu?) then (Có)
+  :Chọn thương hiệu cần xóa;
+  :Gửi DELETE /api/admin/brands/{id};
+  |#LightGray|Backend API|
+  :Kiểm tra sản phẩm gắn brand;
+  if (Còn sản phẩm sử dụng?) then (Có)
+    :Trả về 409 Conflict;
+    |#Admin Portal|
+    :Hiển thị cảnh báo "Thương hiệu đang được sử dụng";
+  else (Không)
+    :Xóa thương hiệu khỏi DB;
+    :Trả về 200 OK;
+    |#Admin Portal|
+    :Cập nhật danh sách;
+  endif
+endif
+
+stop
+
+@enduml
+

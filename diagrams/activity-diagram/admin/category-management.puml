@@ -1,0 +1,45 @@
+@startuml
+title Activity Diagram – Quản lý danh mục sản phẩm
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #fefefe
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+start
+:Admin mở trang Category;
+:UI tải danh sách hiện có;
+repeat
+  :Admin chọn hành động;
+  if (Tạo/Chỉnh sửa?) then (Yes)
+    :Nhập tên, slug, icon;
+    if (Slug đã tồn tại?) then (Yes)
+      :Hiển thị lỗi trùng slug;
+    else (No)
+      :Gửi request create/update;
+      :API lưu DB;
+      :Refresh bảng;
+    endif
+  else (No)
+    if (Xóa danh mục?) then (Yes)
+      :Kiểm tra có sản phẩm gắn danh mục?;
+      if (Có sản phẩm) then (Yes)
+        :Hiển thị cảnh báo không thể xóa;
+      else (No)
+        :Xác nhận xóa -> API remove;
+        :Refresh bảng;
+      endif
+    else (Sắp xếp)
+      :Kéo thả thay đổi thứ tự;
+      :API cập nhật sortOrder;
+    endif
+  endif
+repeat while (Tiếp tục thao tác?) is (Yes)
+stop
+
+@enduml
+

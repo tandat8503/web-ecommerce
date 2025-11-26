@@ -1,0 +1,17 @@
+Địa chỉ:
+- Lấy danh sách Tỉnh/Thành: /shiip/public-api/master-data/province
+- Lấy danh sách Quận/Huyện: /shiip/public-api/master-data/district --> Cần province_id
+- Lấy danh sách Phường/Xã: /shiip/public-api/master-data/ward
+
+API Tính phí & thời gian
+- Lấy gói dịch vụ: /shiip/public-api/v2/shipping-order/available-services
+- Tính phí vận chuyển: /shiip/public-api/v2/shipping-order/fee
+- Tính thời gian giao dự kiến: /shiip/public-api/v2/shipping-order/leadtime
+
+API Tạo đơn hàng:
+- Tạo đơn hàng: /shiip/public-api/v2/shipping-order/create
+- Lấy Token in đơn: /shiip/public-api/v2/a5/gen-token
+
+API quản lý đơn:
+- Hủy đơn hàng: /shiip/public-api/v2/switch-status/cancel
+- Chi tiết đơn hàng: /shiip/public-api/v2/shipping-order/detail

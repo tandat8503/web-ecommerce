@@ -84,6 +84,8 @@ model Address {
   addressType   AddressType @default(HOME) @map("address_type")
   isDefault     Boolean     @default(false) @map("is_default")
   note          String?
+  ghnDistrictId Int?        @map("ghn_district_id")
+  ghnWardCode   String?     @map("ghn_ward_code")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
   user          User        @relation(fields: [userId], references: [id], onDelete: NoAction)
@@ -282,6 +284,11 @@ model Order {
   trackingCode     String?              @map("tracking_code")
   customerNote     String?              @map("customer_note")
   adminNote        String?              @map("admin_note")
+  ghnOrderCode    String?              @map("ghn_order_code")
+  ghnShopId       String?              @map("ghn_shop_id")
+  ghnDistrictId   Int?                 @map("ghn_district_id")
+  ghnWardCode     String?              @map("ghn_ward_code")
+  shippingMethod   String?              @map("shipping_method")
   createdAt        DateTime             @default(now()) @map("created_at")
   updatedAt        DateTime             @updatedAt @map("updated_at")
   couponUsages     CouponUsage[]

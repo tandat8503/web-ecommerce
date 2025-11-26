@@ -1,0 +1,99 @@
+@startuml
+title BPMN – Đặt hàng và thanh toán (User)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Web/Mobile UI|
+start
+:User vào trang Checkout;
+
+|#LightGray|Tạo đơn hàng|
+:Chọn địa chỉ giao hàng;
+:Chọn phương thức thanh toán;
+:Nhập ghi chú (nếu có);
+:Gửi POST /api/orders {cartItemIds, addressId, paymentMethod};
+|#LightGray|Backend API|
+:Validate giỏ hàng;
+:Tính tổng tiền;
+:Kiểm tra tồn kho;
+if (Cart rỗng hoặc địa chỉ sai?) then (Có)
+  :Trả về 400 Bad Request;
+  |#Web/Mobile UI|
+  :Thông báo lỗi;
+  stop
+else (Hợp lệ)
+  :Lock stock (tạm khóa);
+  :Tạo order trong DB;
+  :Tạo payment record (pending);
+  :Trả về 201 Order Created;
+  |#Web/Mobile UI|
+  :Hiển thị thông tin đơn hàng;
+endif
+
+|#LightGray|Thanh toán COD|
+if (Phương thức = COD?) then (Có)
+  :Xác nhận đơn hàng;
+  |#LightGray|Backend API|
+  :Cập nhật payment status = COD;
+  :Trả về 200 OK;
+  |#Web/Mobile UI|
+  :Hiển thị thông tin đơn COD;
+  :Thông báo "Chờ giao hàng";
+  :Chuyển tới trang theo dõi đơn hàng;
+endif
+
+|#LightGray|Thanh toán MoMo|
+if (Phương thức = MoMo?) then (Có)
+  :Xác nhận thanh toán;
+  :Gửi POST /api/payment/momo/create {orderId};
+  |#LightGray|Backend API|
+  :Kiểm tra order thuộc user?;
+  :Kiểm tra phương thức thanh toán?;
+  if (Không hợp lệ?) then (Có)
+    :Trả về 400 Bad Request;
+    |#Web/Mobile UI|
+    :Hiển thị lỗi;
+    stop
+  else (Hợp lệ)
+    :Tạo payment request;
+    |#LightGray|MoMo Gateway|
+    :Xử lý request;
+    :Trả về paymentUrl, requestId;
+    |#Backend API|
+    :Lưu requestId;
+    :Trả về paymentUrl;
+    |#Web/Mobile UI|
+    :Redirect sang app/web MoMo;
+    |#LightGray|MoMo Gateway|
+    :User xác nhận thanh toán;
+    :Gửi callback result;
+    |#Backend API|
+    :Kiểm tra chữ ký webhook;
+    if (Signature invalid?) then (Có)
+      :Trả về 400 Invalid;
+      stop
+    else (Hợp lệ)
+      :Cập nhật paymentStatus;
+      :Cập nhật order paymentStatus;
+      :Emit websocket payment_update;
+      |#Web/Mobile UI|
+      :Nhận thông báo real-time;
+      :Hiển thị trạng thái "Đã thanh toán";
+      :Chuyển tới trang theo dõi đơn hàng;
+    endif
+  endif
+endif
+
+stop
+
+@enduml
+
+
+

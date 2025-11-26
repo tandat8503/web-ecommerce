@@ -1,0 +1,46 @@
+@startuml
+title Use Case – Quản lý đơn hàng (Admin)
+
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+skinparam rectangle {
+  BorderColor #666
+  BackgroundColor #050505
+  FontColor #f5f5f5
+}
+skinparam backgroundColor #000000
+skinparam shadowing false
+left to right direction
+
+actor Admin as A
+
+rectangle "Order Management" {
+  usecase UC_View as "Xem chi tiết đơn hàng"
+  usecase UC_UpdateStatus as "Cập nhật trạng thái"
+  usecase UC_InternalNote as "Ghi chú nội bộ"
+  usecase UC_PaymentTracking as "Theo dõi thanh toán"
+  usecase UC_Refund as "Xử lý refund"
+}
+
+A --> UC_View
+A --> UC_UpdateStatus
+A --> UC_InternalNote
+A --> UC_PaymentTracking
+A --> UC_Refund
+
+UC_UpdateStatus ..> UC_View : «include»
+UC_InternalNote ..> UC_View : «include»
+UC_PaymentTracking ..> UC_View : «include»
+UC_Refund ..> UC_PaymentTracking : «include»
+
+@enduml
+

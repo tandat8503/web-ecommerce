@@ -1,0 +1,47 @@
+@startuml
+title User Use Case – Hồ sơ & Địa chỉ
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+
+rectangle "Profile Management" {
+  usecase UC_ViewProfile as "Xem hồ sơ cá nhân"
+  usecase UC_UpdateProfile as "Cập nhật thông tin"
+  usecase UC_ChangePassword as "Đổi mật khẩu"
+}
+
+rectangle "Address Book" {
+  usecase UC_AddAddress as "Thêm địa chỉ"
+  usecase UC_UpdateAddress as "Cập nhật địa chỉ"
+  usecase UC_DeleteAddress as "Xóa địa chỉ"
+  usecase UC_SetDefault as "Đặt địa chỉ mặc định"
+}
+
+U --> UC_ViewProfile
+U --> UC_UpdateProfile
+U --> UC_ChangePassword
+U --> UC_AddAddress
+U --> UC_UpdateAddress
+U --> UC_DeleteAddress
+U --> UC_SetDefault
+
+UC_SetDefault ..> UC_AddAddress : «include»
+UC_UpdateAddress ..> UC_AddAddress : «include»
+UC_DeleteAddress ..> UC_AddAddress : «extend»
+
+@enduml
+

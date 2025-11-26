@@ -1,0 +1,48 @@
+@startuml
+title User Use Case – Tạo đơn hàng & Thanh toán
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+actor "MoMo Gateway" as MoMo
+
+rectangle "Order Creation" {
+  usecase UC_SelectAddress as "Chọn địa chỉ giao hàng"
+  usecase UC_AddNote as "Ghi chú đơn hàng"
+  usecase UC_ChoosePayment as "Chọn phương thức thanh toán"
+  usecase UC_CreateOrder as "Đặt hàng (COD / MoMo)"
+}
+
+rectangle "MoMo Payment" {
+  usecase UC_MoMoPay as "Thanh toán MoMo"
+  usecase UC_MoMoResult as "Nhận kết quả thanh toán"
+}
+
+U --> UC_SelectAddress
+U --> UC_AddNote
+U --> UC_ChoosePayment
+U --> UC_CreateOrder
+
+UC_CreateOrder ..> UC_SelectAddress : «include»
+UC_CreateOrder ..> UC_AddNote : «include»
+UC_CreateOrder ..> UC_ChoosePayment : «include»
+UC_ChoosePayment ..> UC_MoMoPay : «extend»
+UC_MoMoPay --> MoMo
+MoMo --> UC_MoMoResult
+UC_MoMoResult ..> UC_CreateOrder : «include»
+
+@enduml
+

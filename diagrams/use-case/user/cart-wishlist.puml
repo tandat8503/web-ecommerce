@@ -1,0 +1,47 @@
+@startuml
+title User Use Case – Giỏ hàng & Wishlist
+
+skinparam backgroundColor #000000
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #111
+  BorderColor #888
+  FontColor #f5f5f5
+  ArrowColor #f5f5f5
+}
+skinparam actor {
+  BackgroundColor transparent
+  BorderColor #f5f5f5
+  FontColor #f5f5f5
+}
+left to right direction
+
+actor User as U
+
+rectangle "Shopping Cart" {
+  usecase UC_AddCart as "Thêm vào giỏ hàng"
+  usecase UC_UpdateQty as "Cập nhật số lượng"
+  usecase UC_RemoveCart as "Xóa khỏi giỏ"
+  usecase UC_SyncCart as "Đồng bộ giỏ hàng đa thiết bị"
+}
+
+rectangle "Wishlist" {
+  usecase UC_AddWish as "Thêm vào wishlist"
+  usecase UC_RemoveWish as "Xóa khỏi wishlist"
+  usecase UC_SyncWish as "Đồng bộ wishlist"
+}
+
+U --> UC_AddCart
+U --> UC_UpdateQty
+U --> UC_RemoveCart
+U --> UC_AddWish
+U --> UC_RemoveWish
+
+UC_AddCart ..> UC_SyncCart : «include»
+UC_UpdateQty ..> UC_SyncCart : «include»
+UC_RemoveCart ..> UC_SyncCart : «include»
+UC_AddWish ..> UC_SyncWish : «include»
+UC_RemoveWish ..> UC_SyncWish : «include»
+
+@enduml
+

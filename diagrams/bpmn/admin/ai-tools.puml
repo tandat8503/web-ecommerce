@@ -1,0 +1,98 @@
+@startuml
+title BPMN – Sử dụng công cụ AI (Admin)
+
+skinparam backgroundColor #ffffff
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #ffffff
+  BorderColor #000000
+  FontColor #000000
+  ArrowColor #000000
+}
+
+|#LightGray|Admin Portal|
+|#LightGray|Backend API|
+|#LightGray|AI Service|
+
+start
+|Admin Portal|
+:Admin mở trang công cụ AI;
+
+' Chatbot hỗ trợ
+if (Sử dụng Chatbot?) then (Có)
+  |Admin Portal|
+  :Nhập câu hỏi;
+  :Gửi POST /api/admin/ai/chat;
+  |Backend API|
+  :Kiểm tra quota/permission?;
+  if (Không đủ quyền?) then (Có)
+    :Trả về 403 Forbidden;
+    |Admin Portal|
+    :Hiển thị lỗi;
+    stop
+  else (Có quyền)
+    :Gửi request tới AI Service;
+    |AI Service|
+    :Xử lý với LLM (Gemini Pro);
+    :Trả về response;
+    |Backend API|
+    :Lưu lịch sử chat;
+    :Trả về 200 OK + response;
+    |Admin Portal|
+    :Hiển thị câu trả lời;
+  endif
+endif
+
+' Báo cáo tự động
+if (Tạo báo cáo?) then (Có)
+  |Admin Portal|
+  :Chọn loại báo cáo\n(doanh thu, sản phẩm, đơn hàng);
+  :Chọn khoảng thời gian;
+  :Gửi POST /api/admin/ai/reports;
+  |Backend API|
+  :Kiểm tra permission?;
+  if (Không có quyền?) then (Có)
+    :Trả về 403;
+    |Admin Portal|
+    :Thông báo lỗi;
+    stop
+  else (Có quyền)
+    :Thu thập dữ liệu từ DB;
+    :Gửi tới AI Service;
+    |AI Service|
+    :Phân tích dữ liệu;
+    :Generate báo cáo;
+    :Trả về báo cáo;
+    |Backend API|
+    :Lưu báo cáo;
+    :Trả về 200 OK + report;
+    |Admin Portal|
+    :Hiển thị báo cáo;
+    :Cho phép export PDF/Excel;
+  endif
+endif
+
+' Phân tích cảm xúc đánh giá
+if (Phân tích đánh giá?) then (Có)
+  |Admin Portal|
+  :Chọn sản phẩm hoặc tất cả;
+  :Gửi POST /api/admin/ai/sentiment-analysis;
+  |Backend API|
+  :Lấy danh sách reviews;
+  :Gửi tới AI Service;
+  |AI Service|
+  :Phân tích sentiment (positive/negative/neutral);
+  :Tính toán điểm trung bình;
+  :Trả về kết quả;
+  |Backend API|
+  :Lưu kết quả phân tích;
+  :Trả về 200 OK;
+  |Admin Portal|
+  :Hiển thị biểu đồ sentiment;
+  :Hiển thị danh sách reviews được phân loại;
+endif
+
+stop
+
+@enduml
+
