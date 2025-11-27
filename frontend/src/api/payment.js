@@ -1,12 +1,12 @@
 import axiosClient from "./axiosClient";
 
 /**
- * Tạo payment URL từ MoMo
+ * Tạo payment URL từ VNPay
  * @param {number} orderId - ID của đơn hàng
  * @returns {Promise} - Payment URL và thông tin thanh toán
  */
-export const createMoMoPayment = async (orderId) => {
-  return await axiosClient.post("/payment/momo/create", { orderId });
+export const createVNPayPayment = async (orderId) => {
+  return await axiosClient.post("/payment/vnpay/create", { orderId });
 };
 
 /**

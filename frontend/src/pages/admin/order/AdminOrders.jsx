@@ -71,14 +71,24 @@ export default function AdminOrders() {
       if (order.status === "CANCELLED") {
         return { label: "Đơn đã hủy", color: "red" };
       }
-      return { label: "Chưa thanh toán", color: "orange" };
+      return { label: "Chưa thanh toán (thanh toán khi nhận hàng)", color: "orange" };
     }
 
+    // Kiểm tra payment method để hiển thị đúng
     if (order.paymentStatus === "PAID") {
-      return { label: "Đã thanh toán MoMo", color: "green" };
+      if (order.paymentMethod === "VNPAY") {
+        return { label: "Đã thanh toán VNPay", color: "green" };
+      }
+      return { label: "Đã thanh toán", color: "green" };
     }
     if (order.paymentStatus === "FAILED") {
+      if (order.paymentMethod === "VNPAY") {
+        return { label: "Thanh toán VNPay thất bại", color: "red" };
+      }
       return { label: "Thanh toán thất bại", color: "red" };
+    }
+    if (order.paymentMethod === "VNPAY") {
+      return { label: "Chưa thanh toán VNPay", color: "orange" };
     }
     return { label: "Chưa thanh toán", color: "orange" };
   };
@@ -142,30 +152,66 @@ export default function AdminOrders() {
       fixed: "right",
       render: (_, record) => (
         <Space size="small">
-          {/* Nút xem chi tiết */}
+          {/* Nút xem chi tiết */}  
           <Tooltip title="Xem chi tiết">
             <Button className="cursor-pointer" variant="secondary" size="sm" onClick={() => handleViewDetail(record.id)}>
               <FaEye />
             </Button>
           </Tooltip>
 
+{/* cập nhật trạng thái đơn hàng và thanh toán online nếu chưa thanh toán thành công */}
           {/* Dropdown cập nhật trạng thái (chỉ hiện khi có trạng thái có thể chuyển) */}
           {record.availableStatuses?.length > 0 && (
-            <Select
-              value={record.status}
-              onChange={(value) => handleStatusChange(record.id, value)}
-              style={{ width: 150 }}
-              disabled={updatingId === record.id}
+            <Tooltip
+              title={
+                record.paymentMethod === 'VNPAY' && 
+                record.paymentStatus !== 'PAID' && 
+                record.availableStatuses.some(s => s.value === 'CONFIRMED')
+                  ? record.paymentStatus === 'FAILED'
+                    ? `Không thể xác nhận: Thanh toán VNPay thất bại`
+                    : `Không thể xác nhận: Thanh toán VNPay chưa thành công`
+                  : null
+              }
             >
-              <Option value={record.status} disabled>
-                {getStatusLabel(record.status)} (hiện tại)
-              </Option>
-              {record.availableStatuses.map((s) => (
-                <Option key={s.value} value={s.value}>
-                  {s.label}
+              <Select
+                value={record.status}
+                onChange={(value) => handleStatusChange(record.id, value)}
+                style={{ width: 150 }}
+                disabled={updatingId === record.id}
+              >
+                <Option value={record.status} disabled>
+                  {getStatusLabel(record.status)} (hiện tại)
                 </Option>
-              ))}
-            </Select>
+                {record.availableStatuses.map((s) => {
+                  // Disable option "Đã xác nhận" nếu đơn hàng online (VNPAY) chưa thanh toán thành công
+                  const isDisabled = 
+                    s.value === 'CONFIRMED' && 
+                    record.paymentMethod === 'VNPAY' && 
+                    record.paymentStatus !== 'PAID';
+                  
+                  // Xác định thông báo tooltip dựa trên payment method
+                  const getTooltipMessage = () => {
+                    if (!isDisabled) return undefined;
+                    if (record.paymentStatus === 'FAILED') {
+                      return `Thanh toán VNPay thất bại`;
+                    }
+                    return `Thanh toán VNPay chưa thành công`;
+                  };
+                  
+                  return (
+                    <Option 
+                      key={s.value} 
+                      value={s.value}
+                      disabled={isDisabled}
+                      title={getTooltipMessage()}
+                    >
+                      {s.label}
+                      {isDisabled && ' ⚠️'}
+                    </Option>
+                  );
+                })}
+              </Select>
+            </Tooltip>
           )}
 
           {/* Nút hủy đơn (chỉ hiện khi có thể hủy) */}
@@ -367,7 +413,7 @@ export default function AdminOrders() {
                   rowKey="id"
                   columns={columns}
                   dataSource={orders}
-                  scroll={{ x: 1200 }}
+                 
                   pagination={{
                     current: pagination.page,
                     pageSize: pagination.limit,

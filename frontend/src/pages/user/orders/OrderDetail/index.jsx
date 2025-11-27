@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Steps, Card, Descriptions, Tag, List, Space, Skeleton } from "antd";
+import { Steps, Card, Descriptions, Tag, List, Space, Skeleton, Modal } from "antd";
+import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
@@ -8,14 +10,28 @@ import { useOrderDetail, getStatusLabel, getStatusTagColor, getPaymentStatusLabe
 export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const {
     order,
     loading,
     actionLoading,
     steps,
-    handleCancel,
-    handleConfirmReceived,
+    handleCancel,//hủy đơn hàng
+    handleConfirmReceived,//xác nhận nhận hàng
   } = useOrderDetail(id);
+
+  const showCancelModal = () => {
+    setCancelModalVisible(true);
+  };
+
+  const handleCancelConfirm = async () => {
+    setCancelModalVisible(false);
+    await handleCancel();
+  };
+
+  const handleCancelCancel = () => {
+    setCancelModalVisible(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -40,6 +56,16 @@ export default function OrderDetail() {
                 />
               </div>
 
+               {/* Ghi chú admin */}
+               {order.adminNote && (
+                <div className="border-2 border-red-400 bg-blue-50 rounded-lg p-4 shadow-md">
+                  <div className="flex items-start gap-3">
+                    <h3 className="text-base font-semibold text-blue-800 whitespace-nowrap">Ghi chú từ shop:</h3>
+                    <p className="whitespace-pre-wrap text-gray-800 font-medium flex-1">{order.adminNote}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Thông tin đơn hàng */}
               <Descriptions column={1} bordered title="Thông tin đơn hàng">
                 <Descriptions.Item label="Mã đơn hàng">
@@ -60,9 +86,11 @@ export default function OrderDetail() {
                 {order.paymentSummary && (
                   <>
                     <Descriptions.Item label="Trạng thái thanh toán">
-                      <Tag color={getPaymentStatusTagColor(order.paymentSummary.status)}>
-                        {getPaymentStatusLabel(order.paymentSummary)}
-                      </Tag>
+                      <div className="flex items-center gap-3">
+                        <Tag color={getPaymentStatusTagColor(order.paymentSummary.status)}>
+                          {getPaymentStatusLabel(order.paymentSummary)}
+                        </Tag>
+                      </div>
                     </Descriptions.Item>
                   </>
                 )}
@@ -90,13 +118,7 @@ export default function OrderDetail() {
                 </Descriptions.Item>
               </Descriptions>
 
-              {/* Ghi chú admin */}
-              {order.adminNote && (
-                <div>
-                  <h3 className="text-base font-semibold mb-3">Ghi chú từ shop</h3>
-                  <p className="whitespace-pre-wrap">{order.adminNote}</p>
-                </div>
-              )}
+             
 
               {/* Sản phẩm */}
               <div>
@@ -137,7 +159,7 @@ export default function OrderDetail() {
                 <span className="text-gray-900 font-bold text-lg">Tổng tiền: <span className="text-xl font-bold text-red-600">{formatPrice(Number(order.totalAmount))}</span></span>
                 <Space>
                   {order.status === 'PENDING' && (
-                    <Button variant="outline" disabled={actionLoading} onClick={handleCancel}>Hủy đơn</Button>
+                    <Button variant="outline" disabled={actionLoading} onClick={showCancelModal}>Hủy đơn</Button>
                   )}
                   {order.status === 'PROCESSING' && (
                     <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={actionLoading} onClick={handleConfirmReceived}>Xác nhận đã nhận</Button>
@@ -153,6 +175,34 @@ export default function OrderDetail() {
           )}
         </Card>
       </div>
+
+      {/* Modal xác nhận hủy đơn */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <ExclamationCircleOutlined className="text-orange-500 text-xl" />
+            <span>Xác nhận hủy đơn hàng</span>
+          </div>
+        }
+        open={cancelModalVisible}//hiển thị modal
+        onOk={handleCancelConfirm}//xác nhận hủy đơn
+        onCancel={handleCancelCancel}//không xác nhận hủy đơn
+        okText="Xác nhận hủy"//text của nút xác nhận
+        cancelText="Không"//text của nút không
+        okButtonProps={{ danger: true, loading: actionLoading }}//props của nút xác nhận
+        cancelButtonProps={{ disabled: actionLoading }}//props của nút không
+        maskClosable={false}//không đóng modal khi click ra ngoài
+        keyboard={false}//không đóng modal khi nhấn phím escape
+      >
+        <div className="py-4">
+          <p className="text-base mb-2">
+            Bạn có chắc chắn muốn hủy đơn hàng <strong>{order?.orderNumber}</strong> không?
+          </p>
+          <p className="text-sm text-gray-600">
+            Hành động này không thể hoàn tác. Đơn hàng sẽ được chuyển sang trạng thái "Đã hủy".
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

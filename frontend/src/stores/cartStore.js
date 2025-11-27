@@ -19,7 +19,6 @@ const useCartStore = create((set, get) => ({
   loading: false,
   error: null,
   isFetching: false,
-  selectedIds: new Set(),
 
   fetchCart: async () => {
     if (get().isFetching) return
@@ -27,28 +26,14 @@ const useCartStore = create((set, get) => ({
     try {
       const response = await getCart()
       const items = response.data.cart || []
-      const totalAmount = response.data.total_amount || 0 // Backend trả về total_amount (snake_case)
-      const prevSelected = get().selectedIds
-      const prevItemIds = new Set(get().items.map(item => item.id))
-      const currentItemIds = new Set(items.map(item => item.id))
-
-      const nextSelected = new Set(
-        [...prevSelected].filter(id => currentItemIds.has(id))
-      )
-
-      items.forEach(item => {
-        if (!prevItemIds.has(item.id)) {
-          nextSelected.add(item.id)
-        }
-      })
+      const totalAmount = response.data.total_amount || 0
 
       set({
         items,
         totalQuantity: items.length,
         totalAmount,
         loading: false,
-        isFetching: false,
-        selectedIds: nextSelected
+        isFetching: false
       })
     } catch (error) {
       set({ 
@@ -101,7 +86,7 @@ const useCartStore = create((set, get) => ({
     try {
       const response = await clearCartAPI()
       toast.success(`🗑️ Đã xóa ${response.data.removedCount} sản phẩm`)
-      set({ items: [], totalQuantity: 0, totalAmount: 0, loading: false, isFetching: false, selectedIds: new Set() })
+      set({ items: [], totalQuantity: 0, totalAmount: 0, loading: false, isFetching: false })
     } catch (error) {
       toast.error("❌ Không thể xóa tất cả")
       set({ error: error.response?.data?.message, loading: false, isFetching: false })
@@ -109,21 +94,8 @@ const useCartStore = create((set, get) => ({
   },
 
   resetCart: () => {
-    set({ items: [], totalQuantity: 0, totalAmount: 0, loading: false, error: null, isFetching: false, selectedIds: new Set() })
+    set({ items: [], totalQuantity: 0, totalAmount: 0, loading: false, error: null, isFetching: false })
   },
-
-  setSelectedIds: (ids) => set({ selectedIds: new Set(ids) }),
-  addSelectedId: (id) => set((state) => {
-    const next = new Set(state.selectedIds)
-    next.add(id)
-    return { selectedIds: next }
-  }),
-  removeSelectedId: (id) => set((state) => {
-    const next = new Set(state.selectedIds)
-    next.delete(id)
-    return { selectedIds: next }
-  }),
-  clearSelected: () => set({ selectedIds: new Set() }),
 }))
 
 export default useCartStore

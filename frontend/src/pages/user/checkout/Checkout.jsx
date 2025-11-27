@@ -229,7 +229,19 @@ export default function Checkout() {
               <CardTitle>Sản phẩm đặt hàng ({checkoutItems.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {checkoutItems.map((item) => {
+              {checkoutItems.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>Không có sản phẩm nào được chọn.</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => window.location.href = '/cart'}
+                  >
+                    Quay lại giỏ hàng
+                  </Button>
+                </div>
+              ) : (
+                checkoutItems.map((item) => {
                 const variant = item.variant;
                 const imageUrl =
                   item.product?.primary_image || item.product?.image_url || "/placeholder-product.jpg";
@@ -253,7 +265,8 @@ export default function Checkout() {
                     </div>
                   </div>
                 );
-              })}
+              })
+              )}
             </CardContent>
           </Card>
 
@@ -264,7 +277,7 @@ export default function Checkout() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
-                {["COD", "MOMO"].map((method) => (
+                {["COD", "VNPAY"].map((method) => (
                   <label
                     key={method}
                     className={`border rounded p-3 cursor-pointer text-sm flex items-center gap-2 ${
@@ -277,7 +290,7 @@ export default function Checkout() {
                       checked={paymentMethod === method}
                       onChange={() => setPaymentMethod(method)}
                     />
-                    {method === "COD" ? "COD" : "Ví MoMo"}
+                    {method === "COD" ? "COD" : "VNPay"}
                   </label>
                 ))}
               </div>

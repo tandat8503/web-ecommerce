@@ -37,6 +37,27 @@ export function useAdminOrders() {
   };
 
   /**
+   * Chuẩn hóa thông tin thanh toán từ order/payments
+   */
+  const normalizePaymentInfo = (order = {}) => {
+    const latestPayment = Array.isArray(order.payments) && order.payments.length > 0
+      ? order.payments[0]
+      : null;
+
+    const paymentStatus =
+      order.paymentStatus ||
+      latestPayment?.paymentStatus ||
+      "PENDING";
+
+    const paymentMethod =
+      order.paymentMethod ||
+      latestPayment?.paymentMethod ||
+      order.paymentMethod;
+
+    return { paymentStatus, paymentMethod };
+  };
+
+  /**
    * Lấy màu cho tag status
    */
   const getStatusColor = (status) => {
@@ -88,12 +109,17 @@ export function useAdminOrders() {
       });
 
       // Backend trả về: { items, total, page, limit }
-      const items = (res.data.items || []).map(order => ({
-        ...order,
-        // Thêm các field tính toán cho UI
-        canCancel: order.status === "PENDING" || order.status === "CONFIRMED", // Có thể hủy không?
-        availableStatuses: getAvailableStatuses(order.status), // Các trạng thái có thể chuyển
-      }));
+      const items = (res.data.items || []).map(order => {
+        const { paymentStatus, paymentMethod } = normalizePaymentInfo(order);
+        return {
+          ...order,
+          paymentStatus,
+          paymentMethod,
+          // Thêm các field tính toán cho UI
+          canCancel: order.status === "PENDING" || order.status === "CONFIRMED", // Có thể hủy không?
+          availableStatuses: getAvailableStatuses(order.status), // Các trạng thái có thể chuyển
+        };
+      });
 
       setOrders(items);
       setPagination(prev => ({ ...prev, total: res.data.total || 0 }));
@@ -155,7 +181,8 @@ export function useAdminOrders() {
   const handleViewDetail = async (id) => {
     try {
       const res = await getOrderById(id);
-      setDetailData(res.data); // Lưu dữ liệu chi tiết
+      const { paymentStatus, paymentMethod } = normalizePaymentInfo(res.data);
+      setDetailData({ ...res.data, paymentStatus, paymentMethod }); // Lưu dữ liệu chi tiết
       setDetailOpen(true); // Mở modal chi tiết
     } catch (err) {
       console.error("❌ Lỗi khi lấy chi tiết đơn hàng:", err);
@@ -168,9 +195,27 @@ export function useAdminOrders() {
   /**
    * Gọi API cập nhật trạng thái đơn hàng
    * Backend chỉ cho phép: PENDING → CONFIRMED → PROCESSING → DELIVERED
+   * 
+   * Validation: Nếu đơn hàng thanh toán bằng VNPay và chuyển sang CONFIRMED,
+   * phải kiểm tra paymentStatus phải là PAID (đã thanh toán thành công)
    */
   const handleStatusChange = async (orderId, newStatus) => {
     try {
+      // Tìm đơn hàng trong danh sách để kiểm tra payment status
+      const order = orders.find(o => o.id === orderId);
+      
+      // Kiểm tra: Nếu chuyển sang CONFIRMED và thanh toán bằng VNPay
+      if (newStatus === 'CONFIRMED' && order?.paymentMethod === 'VNPAY') {
+        // Kiểm tra paymentStatus phải là PAID
+        if (order?.paymentStatus !== 'PAID') {
+          const paymentStatusLabel = order?.paymentStatus === 'FAILED' 
+            ? 'thất bại' 
+            : 'chưa thanh toán';
+          toast.error(`Không thể xác nhận đơn hàng. Thanh toán VNPay ${paymentStatusLabel}. Vui lòng đợi khách hàng thanh toán thành công.`);
+          return; // Dừng lại, không gọi API
+        }
+      }
+
       setUpdatingId(orderId); // Hiển thị loading
       await updateOrder(orderId, { status: newStatus });
       toast.success("Cập nhật trạng thái thành công");

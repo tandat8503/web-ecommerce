@@ -5,7 +5,8 @@ import useCartStore from "@/stores/cartStore";
 import { getAddresses, addAddress } from "@/api/address";
 import { createOrder } from "@/api/orders";
 import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
-import { createMoMoPayment } from "@/api/payment";
+import { createVNPayPayment } from "@/api/payment";
+import { handleVNPayPayment } from "@/features/payment/vnpayPayment";
 
 /**
  * ========================================
@@ -46,6 +47,7 @@ export function useCheckout() {
   const { provinces, districts, wards, fetchDistricts, fetchWards } = useVietnamesePlaces();
 
   // 🛒 Lấy danh sách sản phẩm được chọn từ URL: /checkout?selected=1,2,3
+  // Nếu không có selected trong URL → không lấy gì (tránh lấy tất cả giỏ hàng)
   const selectedCartItemIds = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const raw = params.get("selected");
@@ -54,8 +56,14 @@ export function useCheckout() {
   }, [location.search]);
 
   const checkoutItems = useMemo(() => {
-    if (selectedCartItemIds.length === 0) return cartItems;
-    return cartItems.filter((item) => selectedCartItemIds.includes(String(item.id)));
+    // Nếu có selected trong URL → CHỈ lấy những items đó (trường hợp "Mua ngay")
+    // Đây là trường hợp quan trọng: chỉ lấy sản phẩm được chọn, không lấy toàn bộ giỏ hàng
+    if (selectedCartItemIds.length > 0) {
+      return cartItems.filter((item) => selectedCartItemIds.includes(String(item.id)));
+    }
+    // Nếu không có selected → lấy tất cả giỏ hàng (trường hợp từ giỏ hàng bấm "Thanh toán")
+    // Vì đã bỏ select rồi nên khi bấm "Thanh toán" sẽ lấy tất cả
+    return cartItems;
   }, [cartItems, selectedCartItemIds]);
 
   const summary = useMemo(() => {
@@ -70,9 +78,12 @@ export function useCheckout() {
     return addresses.find((a) => a.id === selectedAddressId) || null;
   }, [addresses, selectedAddressId]);
 
-  // 🔄 Tải giỏ hàng
+  // 🔄 Tải giỏ hàng và địa chỉ
   useEffect(() => {
-    fetchCart();
+    const loadData = async () => {
+      await fetchCart(); // Đảm bảo cart được load trước
+    };
+    loadData();
   }, [fetchCart]);
 
   // 🔄 Tải địa chỉ lần đầu
@@ -167,7 +178,7 @@ export function useCheckout() {
       return;
     }
     if (checkoutItems.length === 0) {
-      toast.error("Giỏ hàng trống");
+      toast.error("Không có sản phẩm nào được chọn. Vui lòng quay lại giỏ hàng.");
       return;
     }
 
@@ -191,21 +202,20 @@ export function useCheckout() {
         // COD: Chuyển đến trang success
         toast.success("Đặt hàng thành công!");
         navigate(orderId ? `/order-success?orderId=${orderId}` : "/order-success");
-      } else if (paymentMethod === 'MOMO') {
-        // MoMo: Tạo payment URL và redirect
+      } else if (paymentMethod === 'VNPAY') {
+        // VNPay: Tạo payment URL và redirect
         try {
-          const response = await createMoMoPayment(orderId);
-          const paymentData = response.data;
-          if (paymentData?.success && paymentData?.data?.paymentUrl) {
-            // Redirect đến MoMo (MoMo sẽ hiển thị QR)
-            window.location.href = paymentData.data.paymentUrl;
-          } else {
-            throw new Error(paymentData?.message || 'Không tạo được payment URL');
-          }
+          await handleVNPayPayment(
+            orderId,
+            createVNPayPayment,
+            (errorMessage) => {
+              toast.error(errorMessage);
+              navigate('/orders');
+            }
+          );
         } catch (paymentError) {
-          toast.error(paymentError.response?.data?.message || "Không thể tạo thanh toán MoMo");
-          // Redirect về trang orders để user có thể thử lại
-          navigate('/orders');
+          // Error đã được xử lý trong handleVNPayPayment
+          console.error('VNPay payment error:', paymentError);
         }
       }
     } catch (error) {

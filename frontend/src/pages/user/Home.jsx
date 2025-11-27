@@ -25,25 +25,28 @@ export default function Home() {
           <SaleProductsSection limit={9} />
         </div>
 
+        {/* Sản phẩm mới */}
+        <div className="my-16">
+          <NewProductsSection limit={9} />
+        </div>
+
         {/* Sản phẩm nổi bật */}
         <div className="my-16">
           <FeaturedProductsSection limit={9} />
         </div>
        
-        {/* Trang giới thiệu */}
-        <div className="mb-8">
-          <About />
-        </div>
+       
 
            {/* Danh mục sản phẩm */}
         <div className="mt-5">
           <Categories />
         </div>
 
-        {/* Sản phẩm mới */}
-        <div className="my-16">
-          <NewProductsSection limit={9} />
+ {/* Trang giới thiệu */}
+ <div className="mb-8">
+          <About />
         </div>
+        
       
         {/* Bộ sưu tập */}
         <div className="my-16">
