@@ -26,6 +26,7 @@ import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import ProductImageModal from "../ProductImageModal";
 import { useAdminProducts } from "./useAdminProducts";
+import { formatPrice } from "@/lib/utils";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -99,10 +100,10 @@ export default function AdminProducts() {
       dataIndex: "price", 
       render: (p, record) => (
         <div>
-          <div style={{ fontWeight: 'bold' }}>${p?.toLocaleString() || 0}</div>
+          <div style={{ fontWeight: 'bold' }}>{formatPrice(p)}</div>
           {record.salePrice && (
             <div style={{ color: '#ff4d4f', fontSize: '12px' }}>
-              Sale: ${record.salePrice.toLocaleString()}
+              Sale: {formatPrice(record.salePrice)}
             </div>
           )}
         </div>
@@ -311,9 +312,9 @@ export default function AdminProducts() {
     { name: "name", label: "Tên sản phẩm" },
     { name: "slug", label: "Slug (URL)", render: (v) => v || "-" },
     { name: "description", label: "Mô tả", render: (v) => v || "-" },
-    { name: "price", label: "Giá bán", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
-    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
-    { name: "costPrice", label: "Giá nhập", render: (v) => v ? `${Number(v).toLocaleString("vi-VN")} VNĐ` : "-" },
+    { name: "price", label: "Giá bán", render: (v) => v ? formatPrice(v) : "-" },
+    { name: "salePrice", label: "Giá khuyến mãi", render: (v) => v ? formatPrice(v) : "-" },
+    { name: "costPrice", label: "Giá nhập", render: (v) => v ? formatPrice(v) : "-" },
     { name: "metaTitle", label: "Tiêu đề SEO", render: (v) => v || "-" },
     { name: "metaDescription", label: "Mô tả SEO", render: (v) => v || "-" },
     { name: "category", label: "Danh mục", render: (v) => v?.name || "-" },

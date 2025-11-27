@@ -127,7 +127,12 @@ export function useAdminBrands() {
       toast.success("Xóa thương hiệu thành công");
       fetchBrands();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
+      const rawMessage = error.response?.data?.message || "";
+      if (/brand has products/i.test(rawMessage)) {
+        toast.error("Không thể xóa thương hiệu vì vẫn còn sản phẩm.");
+      } else {
+        toast.error(rawMessage || "Có lỗi xảy ra khi xóa thương hiệu.");
+      }
     }
   };
 

@@ -326,6 +326,15 @@ export const googleLogin = async (req, res) => {
       }
     }
 
+    // Không cho đăng nhập nếu tài khoản đã bị vô hiệu hóa
+    if (!user.isActive) {
+      logger.warn('Google login blocked - user inactive', { userId: user.id });
+      return res.status(403).json({
+        success: false,
+        message: "Tài khoản đã bị vô hiệu hóa, vui lòng liên hệ quản trị viên",
+      });
+    }
+
     // Tạo JWT cho client
     const jwtToken = jwt.sign(
       {

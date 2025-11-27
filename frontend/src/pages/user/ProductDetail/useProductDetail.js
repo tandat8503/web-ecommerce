@@ -150,6 +150,27 @@ export function useProductDetail(productId) {
       .filter((dim, index, self) => dim && self.indexOf(dim) === index);
   }, [variants]);
 
+  const dimensionsByColor = useMemo(() => {
+    return variants.reduce((acc, v) => {
+      if (v.color && v.width && v.depth && v.height) {
+        const key = v.color;
+        const dim = `${v.width}x${v.depth}x${v.height}`;
+        if (!acc[key]) acc[key] = [];
+        if (!acc[key].includes(dim)) {
+          acc[key].push(dim);
+        }
+      }
+      return acc;
+    }, {});
+  }, [variants]);
+
+  const availableDimensions = useMemo(() => {
+    if (selectedColor && dimensionsByColor[selectedColor]?.length) {
+      return dimensionsByColor[selectedColor];
+    }
+    return uniqueDimensions;
+  }, [selectedColor, dimensionsByColor, uniqueDimensions]);
+
   // Stock calculation
   const displayStock = useMemo(() => {
     if (selectedVariant?.stockQuantity !== undefined) {
@@ -310,6 +331,7 @@ export function useProductDetail(productId) {
     currentImage,// URL hình ảnh hiện tại đang hiển thị
     uniqueColors,// Danh sách màu sắc unique (không trùng)
     uniqueDimensions,// Danh sách kích thước unique (không trùng)
+    availableDimensions,// Kích thước khả dụng theo màu đã chọn
     displayStock,// Số lượng tồn kho hiển thị
     isInStock,// Trạng thái còn hàng (true/false)
     isLowStock,// Trạng thái sắp hết hàng (true/false)

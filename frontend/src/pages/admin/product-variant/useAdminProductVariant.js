@@ -114,11 +114,13 @@ export function useAdminProductVariant() {
   const handleDelete = async (id) => {
     try {
       await deleteProductVariant(id);
-      toast.success("Xóa thành công");
+      toast.success("Xóa biến thể thành công");
       fetchVariants();
     } catch (err) {
       console.error(err);
-      toast.error("Lỗi khi xóa biến thể");
+      // Hiển thị message từ backend nếu có
+      const errorMessage = err.response?.data?.message || "Lỗi khi xóa biến thể";
+      toast.error(errorMessage);
     }
   };
 

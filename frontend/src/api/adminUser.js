@@ -28,9 +28,3 @@ export async function updateUser(id, data) {
   return await axiosClient.put(`admin/users/${id}`, data);
 }
 
-/**
- * Xóa người dùng
- */
-export async function deleteUser(id) {
-  return await axiosClient.delete(`admin/users/${id}`);
-}

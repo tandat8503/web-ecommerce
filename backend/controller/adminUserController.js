@@ -18,6 +18,7 @@ const userResponse = (user) => ({
   lastLoginAt: user.lastLoginAt,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
+  orderCount: user.orderCount ?? user._count?.orders ?? 0,
 });
 
 // ==============================
@@ -58,6 +59,9 @@ export const getUsers = async (req, res) => {
           lastLoginAt: true,
           createdAt: true,
           updatedAt: true,
+          _count: {
+            select: { orders: true },
+          },
         },
       }),
       prisma.user.count({ where }),
@@ -262,21 +266,3 @@ export const updateUser = async (req, res) => {
   }
 };
 
-// ==============================
-// Xóa user
-// ==============================
-export const deleteUser = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
-    if (!user) return res.status(404).json({ message: "User không tồn tại" });
-
-    await prisma.user.delete({ where: { id: parseInt(id) } });
-
-    res.json({ code: 200, message: "Xóa user thành công" });
-  } catch (error) {
-    logger.error('Failed to delete user', { error: error.message, stack: error.stack });
-    res.status(500).json({ message: "Lỗi server", error: error.message });
-  }
-};

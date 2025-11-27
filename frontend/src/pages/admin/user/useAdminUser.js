@@ -4,7 +4,6 @@ import {
   getUsers,
   createUser,
   updateUser,
-  deleteUser,
   getUserById,
 } from "@/api/adminUser";
 
@@ -135,21 +134,6 @@ export function useAdminUser() {
   };
 
   /**
-   * Xử lý xóa user
-   * @param {number} id - ID của user cần xóa
-   */
-  const handleDelete = async (id) => {
-    try {
-      await deleteUser(id);
-      toast.success("Xóa user thành công");
-      fetchUsers();
-    } catch (err) {
-      console.log(err);
-      message.error("Xóa thất bại");
-    }
-  };
-
-  /**
    * Xử lý xem chi tiết user
    * @param {number} id - ID của user cần xem
    */
@@ -250,7 +234,6 @@ export function useAdminUser() {
     // ===== HANDLERS =====
     fetchUsers,           // Hàm fetch danh sách users
     handleSubmit,         // Hàm xử lý submit form (create/update)
-    handleDelete,         // Hàm xử lý xóa user
     handleViewDetail,     // Hàm xử lý xem chi tiết
     handleToggleStatus,   // Hàm xử lý toggle trạng thái active/inactive
     openCreateModal,      // Hàm mở modal tạo mới

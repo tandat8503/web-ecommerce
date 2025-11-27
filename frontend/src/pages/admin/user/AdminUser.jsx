@@ -12,7 +12,7 @@ import {
   Select,
   Checkbox,
 } from "antd";
-import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import { FaPlus, FaEdit, FaEye } from "react-icons/fa";
 import { Button } from "@/components/ui/button"; // shadcn/ui button
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
@@ -33,7 +33,6 @@ export default function AdminUser() {
     detailData,
     loadingUserId,
     handleSubmit,
-    handleDelete,
     handleViewDetail,
     handleToggleStatus,
     openCreateModal,
@@ -193,18 +192,6 @@ export default function AdminUser() {
               <FaEdit />
             </Button>
           </Tooltip>
-          <Tooltip title="Xóa">
-            <span>
-              <Popconfirm
-                title="Bạn có chắc muốn xóa user này?"
-                onConfirm={() => handleDelete(record.id)}
-              >
-                <Button variant="destructive" size="sm">
-                  <FaTrash />
-                </Button>
-              </Popconfirm>
-            </span>
-          </Tooltip>
         </Space>
       ),
     },
@@ -240,17 +227,6 @@ export default function AdminUser() {
       label: "Ngày xác thực email",
       render: (v) => {
         if (!v) return <span className="text-gray-400">Chưa xác thực</span>;
-        const d = new Date(v);
-        const date = d.toLocaleDateString("vi-VN");
-        const time = d.toLocaleTimeString("vi-VN");
-        return `${time} ${date}`;
-      },
-    },
-    {
-      name: "lastLoginAt",
-      label: "Lần đăng nhập cuối",
-      render: (v) => {
-        if (!v) return <span className="text-gray-400">Chưa đăng nhập</span>;
         const d = new Date(v);
         const date = d.toLocaleDateString("vi-VN");
         const time = d.toLocaleTimeString("vi-VN");
