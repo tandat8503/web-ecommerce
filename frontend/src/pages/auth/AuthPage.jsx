@@ -50,14 +50,7 @@ export default function AuthPage() {
               </div>
             </Link>
             
-            <div className="flex items-center gap-4">
-              <Badge count="HOT" className="bg-orange-500">
-                <div className="text-sm text-gray-600 bg-white px-3 py-1 rounded-full border border-orange-200">
-                  Ưu đãi mới
-                </div>
-              </Badge>
-             
-            </div>
+            
           </div>
         </div>
       </div>

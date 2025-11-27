@@ -183,17 +183,16 @@ export const createOrder = async (req, res) => {
     }
 
     // BƯỚC 3: Chuẩn hóa item và tính tiền
-    let subtotal = 0;                 // tổng tiền hàng
-    const orderItems = [];            // dữ liệu chi tiết đơn (phù hợp DB)
-    const stockUpdates = [];          // danh sách cần trừ kho
+    let subtotal = 0;
+    const orderItems = [];
 
     for (const item of cartItems) {
-      // tồn kho: ưu tiên variant, 
+      // Kiểm tra tồn kho (chỉ kiểm tra, không trừ)
+      // Tồn kho sẽ được trừ khi admin xác nhận đơn (CONFIRMED)
       let stock = 0;
       if (item.variant?.stockQuantity !== undefined) {
-        stock = item.variant.stockQuantity;//lấy tồn kho của variant
+        stock = item.variant.stockQuantity;
       } else {
-        // Tính tổng stock từ tất cả variants active
         stock = item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
       }
       
@@ -201,32 +200,23 @@ export const createOrder = async (req, res) => {
         return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
       }
 
-      // đơn giá: chỉ lấy từ product (variant không có price)
-      const unitPrice = Number(item.product.price);//đơn giá của sản phẩm
-      const totalPrice = unitPrice * item.quantity; // tổng tiền của sản phẩm = đơn giá × số lượng
-      //  tổng tiền tạm tính của đơn hàng: subtotal = subtotal tổng tiền của đơn hàng  hiện tại + tổng tiền sản phẩm
-      subtotal = subtotal + totalPrice;//vd sp1: 100000, sp2: 200000, sp3: 300000 => subtotal = 100000 + 200000 + 300000 = 600000
+      // Tính tiền
+      const unitPrice = Number(item.product.salePrice ?? item.product.price);
+      const totalPrice = unitPrice * item.quantity;
+      subtotal = subtotal + totalPrice;
 
-      // thêm vào danh sách orderItems đúng cấu trúc DB
+      // Thêm vào danh sách orderItems
       orderItems.push({
         productId: item.productId,
         variantId: item.variantId ?? null,
         productName: item.product.name,
-        productSku: item.product.slug, // Sử dụng slug thay vì SKU
+        productSku: item.product.slug,
         variantName: item.variant ? 
           `${item.variant.color || ''} ${item.variant.width ? `${item.variant.width}x${item.variant.depth}x${item.variant.height}mm` : ''}`.trim() 
           : null,
-        quantity: item.quantity,//số lượng sản phẩm
-        unitPrice,//đơn giá của sản phẩm
-        totalPrice,//tổng tiền của sản phẩm
-      });
-
-      // ghi lại để trừ kho sau khi tạo đơn thành công
-      stockUpdates.push({
-        isVariant: !!item.variantId,//nếu có variantId thì là true, nếu không có thì là false
-        id: item.variantId ?? item.productId,//nếu có variantId thì là variantId, nếu không có thì là productId
-        currentStock: stock,//tồn kho hiện tại của sản phẩm
-        quantity: item.quantity//số lượng sản phẩm
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
       });
     }
 
@@ -291,16 +281,8 @@ export const createOrder = async (req, res) => {
         data: { orderId: order.id, status: "PENDING" }
       });
 
-      // 6.4 Trừ tồn kho theo từng item
-      for (const s of stockUpdates) {
-        if (s.isVariant) {
-          await tx.productVariant.update({ where: { id: s.id }, data: { stockQuantity: s.currentStock - s.quantity } });
-        } else {
-          // Nếu không có variant, không thể trừ stock vì product không có field stockQuantity
-          // Trường hợp này không nên xảy ra vì đã kiểm tra ở trên
-          logger.warn('Attempting to update product stock without variant', { productId: s.id });
-        }
-      }
+      // 6.4 KHÔNG trừ tồn kho ở đây
+      // Tồn kho sẽ được trừ khi admin xác nhận đơn (chuyển sang CONFIRMED)
 
       // 6.5 Xóa các item đã đặt khỏi giỏ hàng của user
       await tx.shoppingCart.deleteMany({ where: { userId, id: { in: selectedIds } } });
@@ -410,7 +392,7 @@ export const getOrderById = async (req, res) => {
       include: {
         orderItems: { include: { product: true, variant: true } },
         user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
-        payments: true,
+        payments: { orderBy: { createdAt: 'desc' } },
         statusHistory: { orderBy: { createdAt: "asc" } }
       }
       // Không dùng select cho Order nên tất cả fields (bao gồm adminNote) đều được trả về
@@ -461,6 +443,7 @@ export const getOrderById = async (req, res) => {
     }
 
     const payment = order.payments.find((p) => p.paymentMethod === order.paymentMethod) || order.payments[0] || null;
+    const summaryStatus = order.paymentStatus || payment?.paymentStatus || "PENDING";
   //tạo summary thanh toán
     const paymentSummary = (() => {
       if (!payment) {
@@ -485,13 +468,21 @@ export const getOrderById = async (req, res) => {
           transactionId: payment.transactionId//mã giao dịch thanh toán
         };
       }
-//thanh toán momo
+      if (order.paymentMethod === "VNPAY") {
+        return {
+          method: "VNPAY",
+          status: summaryStatus,
+          paidAt: payment.paidAt || null,
+          transactionId: payment.transactionId || null,
+          paymentUrl: payment.paymentUrl || null
+        };
+      }
       return {
-        method: "MOMO",//phương thức thanh toán
-        status: payment.paymentStatus || order.paymentStatus || "PENDING",//trạng thái thanh toán
-        paidAt: payment.paidAt || null,//thời gian thanh toán
-        transactionId: payment.transactionId || null,//mã giao dịch thanh toán
-        paymentUrl: payment.paymentUrl || null//url thanh toán momo
+        method: order.paymentMethod,
+        status: summaryStatus,
+        paidAt: payment.paidAt || null,
+        transactionId: payment.transactionId || null,
+        paymentUrl: payment.paymentUrl || null
       };
     })();
 
@@ -524,36 +515,32 @@ export const cancelOrder = async (req, res) => {
     if (order.status !== "PENDING") return res.status(400).json({ message: "Chỉ có thể hủy đơn hàng đang chờ xử lý" });
 
     await prisma.$transaction(async (tx) => {
-      await tx.order.update({ where: { id: order.id }, data: { status: "CANCELLED", paymentStatus: "FAILED" } });
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: "CANCELLED",
+          paymentStatus: order.paymentStatus === "PAID" ? "PAID" : "FAILED"
+        }
+      });
 
       // Lưu lịch sử thay đổi trạng thái
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "CANCELLED" }
       });
       
-      // Chỉ cập nhật payment status cho COD (MoMo đã được xử lý trong paymentController.js)
+      // Chỉ cập nhật payment status cho COD
       if (order.paymentMethod === "COD") {
         await tx.payment.updateMany({
           where: { orderId: order.id },
           data: {
-            paymentStatus: "FAILED",
-            paidAt: null
+            paymentStatus: order.paymentStatus === "PAID" ? "PAID" : "FAILED",
+            paidAt: order.paymentStatus === "PAID" ? order.paidAt || new Date() : null
           }
         });
       }
 
-      // Hoàn trả tồn kho (User chỉ được hủy khi PENDING)
-      // Chỉ hoàn trả stock cho variant (product không có stockQuantity)
-      for (const item of order.orderItems) {
-        if (item.variantId) {
-          await tx.productVariant.update({
-            where: { id: item.variantId },
-            data: { stockQuantity: { increment: item.quantity } }
-          });
-        }
-        // Nếu không có variantId, không thể hoàn trả stock vì product không có field stockQuantity
-        // Trường hợp này không nên xảy ra vì đã bắt buộc chọn variant khi thêm vào giỏ
-      }
+      // KHÔNG hoàn trả tồn kho vì đơn ở PENDING chưa trừ tồn kho
+      // Tồn kho chỉ được trừ khi admin xác nhận đơn (CONFIRMED)
     });
 
     return res.status(200).json({ message: "Hủy đơn hàng thành công" });

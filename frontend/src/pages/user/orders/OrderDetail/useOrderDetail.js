@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { getOrderById, cancelOrder, confirmReceivedOrder } from "@/api/orders";
+import { toast } from "@/lib/utils";
 
 export const getStatusLabel = (status) => {
   const labels = {
@@ -22,7 +23,6 @@ export const getStatusTagColor = (s) => {
     default: return 'default';
   }
 };
-//thanh toán momo
 export const getPaymentStatusTagColor = (status) => {
   switch (String(status)) {
     case 'PAID': return 'green';
@@ -30,16 +30,23 @@ export const getPaymentStatusTagColor = (status) => {
     default: return 'orange';
   }
 };
-//thanh toán momo
+
 export const getPaymentStatusLabel = (summary) => {
   if (!summary) return 'Đang xử lý';
   if (summary.method === 'COD') {
     if (summary.status === 'PAID') return 'Đã thanh toán COD';
     if (summary.status === 'FAILED') return 'Đơn đã hủy';
-    return 'Chưa thanh toán';
+    return 'Chưa thanh toán (thanh toán khi nhận hàng)';
   }
 
-  if (summary.status === 'PAID') return 'Đã thanh toán MoMo';
+  if (summary.method === 'VNPAY') {
+    if (summary.status === 'PAID') return 'Đã thanh toán VNPay';
+    if (summary.status === 'FAILED') return 'Thanh toán VNPay thất bại';
+    return 'Chưa thanh toán VNPay';
+  }
+
+  // Fallback cho các phương thức khác
+  if (summary.status === 'PAID') return 'Đã thanh toán';
   if (summary.status === 'FAILED') return 'Thanh toán thất bại';
   return 'Chưa thanh toán';
 };
@@ -91,10 +98,10 @@ export const useOrderDetail = (id) => {
       }
     };
 
-    // Listen custom event 'order:status:updated'
+    //lắng nghe sự kiện 'order:status:updated'
     window.addEventListener('order:status:updated', handleOrderUpdate);
 
-    // Cleanup
+    //xóa sự kiện khi component unmount
     return () => {
       window.removeEventListener('order:status:updated', handleOrderUpdate);
     };
@@ -147,12 +154,12 @@ export const useOrderDetail = (id) => {
   }, [order]);
 
   return {
-    order,
-    loading,
-    actionLoading,
-    steps,
-    handleCancel,
-    handleConfirmReceived,
+    order,//chi tiết đơn hàng
+    loading,//loading
+    actionLoading,//loading action
+    steps,//bước tiến trình
+    handleCancel,//hủy đơn hàng
+    handleConfirmReceived,//xác nhận nhận hàng
   };
 };
 

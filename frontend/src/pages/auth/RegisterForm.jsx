@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Form, Input, Button, Card, Typography, Divider, Checkbox, Progress, Radio, DatePicker, Space } from "antd";
+import { Form, Input, Button, Card, Typography, Divider, Radio, DatePicker, Space } from "antd";
 import { FaUser, FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaPhone, FaGift, FaCheckCircle, FaStar, FaTruck, FaShieldAlt } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import { register } from "@/api/auth";
@@ -31,8 +31,8 @@ export default function RegisterForm({ onSwitchToLogin }) {
 
   // Kiểm tra form có hợp lệ không
   const isFormValid = () => {
-    const { firstName, lastName, email, password, confirmPassword, agreement } = formValues;
-    return firstName && lastName && email && password && confirmPassword && agreement && 
+    const { firstName, lastName, email, password, confirmPassword } = formValues;
+    return firstName && lastName && email && password && confirmPassword && 
            firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' && 
            password.trim() !== '' && confirmPassword.trim() !== '' && password.length >= 6;
   };
@@ -42,17 +42,6 @@ export default function RegisterForm({ onSwitchToLogin }) {
     setFormValues(allValues);
   };
 
-  // Calculate password strength
-  const getPasswordStrength = (password) => {
-    let strength = 0;
-    if (password.length >= 6) strength += 25;
-    if (password.length >= 8) strength += 25;
-    if (/[A-Z]/.test(password)) strength += 25;
-    if (/[0-9]/.test(password)) strength += 25;
-    return strength;
-  };
-
-  const passwordStrength = getPasswordStrength(formData.password);
 
   const onFinish = async (values) => {
     try {
@@ -296,46 +285,6 @@ export default function RegisterForm({ onSwitchToLogin }) {
                 className="h-10 rounded-lg border-2 border-gray-200 focus:border-green-500 focus:shadow-lg transition-all duration-300 hover:border-gray-300"
                 style={{ fontSize: '14px' }}
               />
-            </Form.Item>
-
-            {formData.password && (
-              <div className="mt-2">
-                <Progress 
-                  percent={passwordStrength} 
-                  size="small" 
-                  strokeColor={
-                    passwordStrength < 50 ? '#ff4d4f' : 
-                    passwordStrength < 75 ? '#faad14' : '#52c41a'
-                  }
-                  showInfo={false}
-                />
-                <Text className="text-xs text-gray-500">
-                  {passwordStrength < 50 ? 'Mật khẩu yếu' : 
-                   passwordStrength < 75 ? 'Mật khẩu trung bình' : 'Mật khẩu mạnh'}
-                </Text>
-              </div>
-            )}
-
-            <Form.Item
-              name="agreement"
-              valuePropName="checked"
-              rules={[
-                { validator: (_, value) => value ? Promise.resolve() : Promise.reject(new Error('Vui lòng đồng ý với điều khoản sử dụng!')) }
-              ]}
-              className="!mb-4"
-            >
-              <Checkbox className="text-gray-600 text-sm">
-                <span className="font-medium">
-                  Tôi đồng ý với{" "}
-                  <Link to="/terms" className="text-green-500 hover:text-green-600 font-semibold">
-                    Điều khoản sử dụng
-                  </Link>{" "}
-                  và{" "}
-                  <Link to="/privacy" className="text-green-500 hover:text-green-600 font-semibold">
-                    Chính sách bảo mật
-                  </Link>
-                </span>
-              </Checkbox>
             </Form.Item>
 
             <Form.Item className="!mb-4">

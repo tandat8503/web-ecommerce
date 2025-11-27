@@ -1,157 +1,143 @@
 import prisma from '../config/prisma.js';
-import momoService from '../services/payment/momoMockService.js';
+import vnpayService from '../services/payment/vnpayService.js';
 import logger from '../utils/logger.js';
 
-// Frontend URL (hardcode giống momoMockService.js)
+// Frontend URL
 const frontendUrl = "http://localhost:5173";
+// Hàm phân tích ngày tháng giờ từ chuỗi VNPay
+const parseVNPayDate = (value) => {
+  if (!value || String(value).length !== 14) return null;// Kiểm tra chuỗi có hợp lệ không
+  const str = String(value);// Chuyển đổi thành chuỗi
+  const year = Number(str.substring(0, 4));// Lấy năm
+  const month = Number(str.substring(4, 6)) - 1;// Lấy tháng
+  const day = Number(str.substring(6, 8));// Lấy ngày
+  const hour = Number(str.substring(8, 10));// Lấy giờ
+  const minute = Number(str.substring(10, 12));// Lấy phút
+  const second = Number(str.substring(12, 14));// Lấy giây
+  return new Date(year, month, day, hour, minute, second);// Trả về ngày tháng giờ
+};
 
 // ============================================
-// TẠO PAYMENT URL
+// VNPAY THANH TOÁN
 // ============================================
-/**
- * POST /api/payment/momo/create
- * Tạo payment URL từ MoMo để user thanh toán
- */
-export const createMoMoPayment = async (req, res) => {
+export const createVNPayPayment = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { orderId } = req.body;
+    const userId = req.user.id;// Lấy ID của user
+    const { orderId } = req.body;// Lấy ID của đơn hàng
 
-    // Kiểm tra orderId
-    if (!orderId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng cung cấp Order ID'
-      });
+    if (!orderId) {// Kiểm tra ID đơn hàng có hợp lệ không
+      return res.status(400).json({ success: false, message: 'Vui lòng cung cấp Order ID' });// Trả về lỗi nếu không có ID đơn hàng
     }
 
-    // Tìm đơn hàng
+    // Truy vấn DB để chắc chắn đơn hàng thuộc về user hiện tại và lấy cả danh sách payment + item
     const order = await prisma.order.findFirst({
       where: { id: Number(orderId), userId },
       include: { payments: true, orderItems: { include: { product: true } } }
     });
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy đơn hàng'
-      });
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+    }
+// Kiểm tra phương thức thanh toán có phải VNPay không
+    if (order.paymentMethod !== 'VNPAY') {
+      return res.status(400).json({ success: false, message: 'Phương thức thanh toán không phải VNPay' });
     }
 
-    // Kiểm tra payment method
-    if (order.paymentMethod !== 'MOMO') {
-      return res.status(400).json({
-        success: false,
-        message: 'Phương thức thanh toán không phải MoMo'
-      });
-    }
-
-    logger.info('MoMo payment request received', {
-      userId,
-      orderId,
-      orderNumber: order.orderNumber,
-      amount: Number(order.totalAmount)
-    });
-
-    // Tìm hoặc tạo payment record
-    let payment = order.payments[0];
-    
-    // Nếu chưa có payment, tạo mới
+    // Kiểm tra DB xem đã từng tạo bản ghi payment cho đơn này chưa
+    let payment = order.payments.find((p) => p.paymentMethod === 'VNPAY');
+// Nếu chưa có bản ghi payment cho đơn hàng này thì tạo bản ghi mới
     if (!payment) {
-      logger.debug('Creating new payment record', { orderId: order.id });
+      // Chưa có session thanh toán => tạo bản ghi payment mới trong DB
       payment = await prisma.payment.create({
         data: {
-          orderId: order.id,
-          paymentMethod: 'MOMO',
-          paymentStatus: 'PENDING',
-          amount: order.totalAmount,
-          transactionId: `MOMO_${order.orderNumber}_${Date.now()}` // Tạm thời, sẽ update sau
+          orderId: order.id,// Lấy ID của đơn hàng
+          paymentMethod: 'VNPAY',// Phương thức thanh toán là VNPay
+          paymentStatus: 'PENDING',// Trạng thái thanh toán là PENDING
+          amount: order.totalAmount,// Lấy tổng số tiền của đơn hàng
+          transactionId: `VNPAY_${order.orderNumber}_${Date.now()}`// Tạo transaction ID
         }
       });
-      logger.success('Payment record created', { paymentId: payment.id });
     }
 
-    // Nếu đã có payment URL và chưa hết hạn, trả về URL cũ
-    if (payment?.paymentUrl && payment?.expiresAt) {
-      const now = new Date();
-      if (now < new Date(payment.expiresAt)) {
-        logger.debug('Reusing existing payment URL');
+    // Nếu đã có payment URL còn hạn và trạng thái vẫn PENDING thì tái sử dụng để tránh tạo giao dịch mới
+    if (payment.paymentUrl && payment.expiresAt && payment.paymentStatus === 'PENDING') {
+      const now = new Date();// Lấy ngày giờ hiện tại
+      if (now < new Date(payment.expiresAt)) {// Kiểm tra xem session thanh toán còn hạn không
         return res.json({
-          success: true,
+          success: true,// Trả về kết quả thành công
           data: {
-            paymentUrl: payment.paymentUrl,
-            orderId: order.id,
-            amount: Number(order.totalAmount)
+            paymentUrl: payment.paymentUrl,// Lấy URL thanh toán
+            orderId: order.id,// Lấy ID của đơn hàng
+            amount: Number(order.totalAmount)// Lấy tổng số tiền của đơn hàng
           }
         });
       }
     }
 
-    // Tạo mô tả đơn hàng
-    const orderInfo = order.orderItems
-      .slice(0, 3)
-      .map(item => item.product.name)
-      .join(', ') || `Đơn hàng ${order.orderNumber}`;
+    // Khi giao dịch trước thất bại => reset dữ liệu để cho phép tạo session thanh toán mới
+    if (payment.paymentStatus === 'FAILED') {
+      // Ghi xuống DB để reset trạng thái payment
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          paymentStatus: 'PENDING',// Trạng thái thanh toán là PENDING
+          paymentUrl: null,// URL thanh toán là null
+          transactionId: `VNPAY_${order.orderNumber}_${Date.now()}`,// Tạo transaction ID
+          expiresAt: null,// Hạn sử dụng là null
+          vnpayTransactionNo: null,// Mã giao dịch VNPay là null
+          bankCode: null,// Mã ngân hàng là null
+          responseCode: null,// Mã phản hồi là null
+          payDate: null// Ngày thanh toán là null
+        }
+      });
+    }
+// Lấy thông tin đơn hàng
+    const orderInfo =
+      order.orderItems // Lấy danh sách sản phẩm
+        .slice(0, 3) // Lấy 3 sản phẩm đầu tiên
+        .map((item) => item.product.name) // Lấy tên sản phẩm
+        .join(', ') || `Đơn hàng ${order.orderNumber}`; // Nối tên sản phẩm bằng dấu phẩy
 
-    logger.debug('Calling MoMo API', { orderNumber: order.orderNumber });
-    
-    // Gọi MoMo API để tạo payment URL
-    const paymentData = await momoService.createPayment(
-      order.orderNumber,
-      order.totalAmount,
-      orderInfo
+        // Lấy IP của client
+    const clientIp =
+      req.headers['x-forwarded-for'] || // Lấy IP từ header
+      req.connection?.remoteAddress || // Lấy IP từ connection
+      req.socket?.remoteAddress || // Lấy IP từ socket
+      req.ip || // Lấy IP từ ip
+      '127.0.0.1'; // IP mặc định là 127.0.0.1
+
+    // Tạo payment URL
+    const paymentData = await vnpayService.createPayment(
+      order.orderNumber,// Lấy số đơn hàng
+      Number(order.totalAmount),// Lấy tổng số tiền của đơn hàng
+      orderInfo,// Lấy thông tin đơn hàng
+      clientIp// Lấy IP của client
     );
 
-    logger.success('MoMo payment created', {
-      hasPaymentUrl: !!paymentData.paymentUrl,
-      momoOrderId: paymentData.momoOrderId
-    });
-
-    // Lưu thông tin vào database
+    // Lưu xuống DB thông tin session thanh toán mới (URL + hạn sử dụng) để frontend redirect user
     await prisma.payment.update({
-      where: { id: payment.id },
+      where: { id: payment.id },// Lấy ID của payment
       data: {
-        requestId: paymentData.requestId,           // Request ID từ MoMo
-        paymentUrl: paymentData.paymentUrl,         // Payment URL
-        momoOrderId: paymentData.momoOrderId,       // Order ID từ MoMo
-        expiresAt: paymentData.expiresAt,           // Thời gian hết hạn
-        partnerCode: "MOMO",                        // Partner code (hardcode)
+        transactionId: paymentData.transactionId,// Lấy transaction ID
+        paymentUrl: paymentData.paymentUrl,// Lấy URL thanh toán
+        expiresAt: paymentData.expiresAt,// Lấy hạn sử dụng
+        partnerCode: 'VNPAY'// Mã đối tác là VNPay
       }
     });
 
-    logger.success('Payment URL saved to database', { 
-      paymentId: payment.id,
-      paymentUrl: paymentData.paymentUrl,
-      expiresAt: paymentData.expiresAt
-    });
-
-    // Log chi tiết để dễ debug
-    console.log('[MoMo] Payment info', {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      paymentId: payment.id,
-      momoOrderId: paymentData.momoOrderId,
-      paymentUrl: paymentData.paymentUrl,
-      expiresAt: paymentData.expiresAt
-    });
-
-    return res.json({
-      success: true,
-      message: 'Tạo payment URL thành công',
+    return res.json({// Trả về kết quả thành công
+      success: true,// Trả về kết quả thành công
+      message: 'Tạo payment URL thành công',// Thông báo thành công
       data: {
-        paymentUrl: paymentData.paymentUrl, // URL này frontend redirect để hiển thị giao diện QR MoMo
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        amount: Number(order.totalAmount),
-        expiresAt: paymentData.expiresAt
+        paymentUrl: paymentData.paymentUrl,// Lấy URL thanh toán
+        orderId: order.id,// Lấy ID của đơn hàng
+        orderNumber: order.orderNumber,// Lấy số đơn hàng
+        amount: Number(order.totalAmount),// Lấy tổng số tiền của đơn hàng
+        expiresAt: paymentData.expiresAt// Lấy hạn sử dụng
       }
     });
-
   } catch (error) {
-    logger.error('Failed to create MoMo payment', {
-      error: error.message,
-      stack: error.stack
-    });
+    logger.error('Failed to create VNPay payment', { error: error.message, stack: error.stack });
     return res.status(500).json({
       success: false,
       message: error.message || 'Không thể tạo payment URL',
@@ -161,166 +147,192 @@ export const createMoMoPayment = async (req, res) => {
 };
 
 // ============================================
-// XỬ LÝ CALLBACK TỪ MOMO
+// XỬ LÝ CALLBACK VNPAY
 // ============================================
-/**
- * POST /api/payment/momo/callback
- * Nhận callback từ MoMo sau khi user thanh toán
- */
-export const handleMoMoCallback = async (req, res) => {
+export const handleVNPayCallback = async (req, res) => {
   try {
-    const callbackData = req.body;
-    const { signature, orderId: momoOrderId, amount, resultCode, message, transId } = callbackData;
-
-    // Verify signature - tạo lại params để verify (bỏ signature ra)
-    const { signature: _, ...verifyParams } = callbackData;
-    if (!momoService.verifySignature(verifyParams, signature)) {
-      return res.status(400).json({ resultCode: 1001, message: 'Invalid signature' });
+    // Lấy payload từ body hoặc query
+    const payload = Object.keys(req.body || {}).length ? req.body : req.query;
+    // Xác thực payload
+    const verifyResult = vnpayService.verifyCallback(payload);
+    // Kiểm tra xem xác thực có thành công không
+    if (!verifyResult.isSuccess) {
+      return res.status(400).json({// Trả về lỗi nếu xác thực không thành công
+        RspCode: '97',
+        Message: verifyResult.message || 'Invalid signature'// Thông báo lỗi
+      });
     }
 
-    // Tìm payment
-    const payment = await prisma.payment.findUnique({
-      where: { momoOrderId },
-      include: { order: true }
+    // Tìm bản ghi payment tương ứng trong DB để cập nhật trạng thái
+    const payment = await prisma.payment.findFirst({
+      where: {
+        paymentMethod: 'VNPAY',
+        transactionId: verifyResult.transactionId// Lấy transaction ID
+      },
+      include: { order: true }// Lấy thông tin đơn hàng
     });
 
     if (!payment) {
-      return res.status(404).json({ resultCode: 1002, message: 'Payment not found' });
+      return res.status(404).json({// Trả về lỗi nếu không tìm thấy payment
+        RspCode: '01',// Mã phản hồi là 01
+        Message: 'Payment not found'// Thông báo lỗi
+      });
     }
 
-    // Kiểm tra số tiền
-    if (Math.round(Number(payment.amount)) !== Math.round(Number(amount))) {
-      return res.status(400).json({ resultCode: 1003, message: 'Amount mismatch' });
+    if (
+      verifyResult.amount &&// Kiểm tra số tiền có hợp lệ không
+      // Kiểm tra số tiền có khớp với số tiền trong payment không
+      Math.round(Number(payment.amount)) !== Math.round(Number(verifyResult.amount))
+    ) {
+      return res.status(400).json({// Trả về lỗi nếu số tiền không khớp
+        RspCode: '04',// Mã phản hồi là 04
+        Message: 'Amount invalid'// Thông báo lỗi
+      });
     }
 
-    // Xử lý kết quả
-    if (resultCode === 0) {
-      // Thanh toán thành công
+    if (verifyResult.responseCode === '00') {// Kiểm tra mã phản hồi có phải là 00 không
+      // Dùng transaction để đảm bảo cập nhật payment + order đồng thời trong DB
       await prisma.$transaction(async (tx) => {
         await tx.payment.update({
-          where: { id: payment.id },
-          data: { 
-            paymentStatus: 'PAID',
-            paidAt: new Date(),
-            transactionId: transId || payment.transactionId  // Transaction ID từ MoMo
+          where: { id: payment.id }, // Lấy ID của payment
+          data: {
+            paymentStatus: 'PAID',// Trạng thái thanh toán là PAID => Thanh toán thành công
+            paidAt: new Date(),// Lấy ngày giờ hiện tại
+            transactionId: verifyResult.transactionNo || payment.transactionId,// Lấy transaction ID
+            vnpayTransactionNo: verifyResult.transactionNo || payment.vnpayTransactionNo,// Lấy mã giao dịch VNPay
+            bankCode: verifyResult.bankCode || payment.bankCode,// Lấy mã ngân hàng
+            responseCode: verifyResult.responseCode,// Lấy mã phản hồi
+            payDate: parseVNPayDate(verifyResult.payDate) || payment.payDate// Lấy ngày thanh toán
           }
         });
 
         await tx.order.update({
-          where: { id: payment.orderId },
-          data: { paymentStatus: 'PAID' }
+          where: { id: payment.orderId }, // Lấy ID của đơn hàng
+          data: { paymentStatus: 'PAID' } // Trạng thái thanh toán là PAID => Thanh toán thành công
         });
       });
 
-      return res.json({ resultCode: 0, message: 'Success' });
-    } else {
-      // Thanh toán thất bại
-      await prisma.payment.update({
-        where: { id: payment.id },
-        data: { paymentStatus: 'FAILED' }
-      });
-
-      await prisma.order.update({
-        where: { id: payment.orderId },
-        data: { paymentStatus: 'FAILED' }
-      });
-
-      return res.json({ resultCode, message: message || 'Payment failed' });
+      return res.json({ RspCode: '00', Message: 'Success' });// Trả về kết quả thành công
     }
 
+    // Trường hợp thất bại cũng cần transaction để giữ DB nhất quán
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id }, // Lấy ID của payment
+        data: {
+          paymentStatus: 'FAILED',// Trạng thái thanh toán là FAILED => Thanh toán thất bại
+          responseCode: verifyResult.responseCode,// Lấy mã phản hồi
+          payDate: parseVNPayDate(verifyResult.payDate) || payment.payDate// Lấy ngày thanh toán
+        }
+      });
+      // Cập nhật trạng thái thanh toán của đơn hàng
+      await tx.order.update({
+        where: { id: payment.orderId }, // Lấy ID của đơn hàng
+        data: { paymentStatus: 'FAILED' } // Trạng thái thanh toán là FAILED => Thanh toán thất bại
+      });
+    });
+
+    return res.json({// Trả về kết quả thành công
+      RspCode: verifyResult.responseCode || '99',// Lấy mã phản hồi
+      Message: 'Payment failed'// Thông báo lỗi
+    });
   } catch (error) {
-    logger.error('MoMo callback error', { error: error.message, stack: error.stack });
-    return res.status(500).json({ resultCode: 1000, message: 'Server error' });
+    logger.error('VNPay callback error', { error: error.message, stack: error.stack });
+    return res.status(500).json({
+      RspCode: '99',
+      Message: 'Server error'
+    });
   }
 };
 
 // ============================================
-// XỬ LÝ REDIRECT TỪ MOMO (KHI USER HỦY HOẶC THANH TOÁN XONG)
+// XỬ LÝ RETURN VNPAY
 // ============================================
-/**
- * GET /api/payment/momo/result
- * Nhận redirect từ MoMo sau khi user thanh toán hoặc hủy
- * MoMo sẽ redirect về đây với query params: resultCode, orderId, message, etc.
- */
-export const handleMoMoRedirect = async (req, res) => {
+export const handleVNPayReturn = async (req, res) => {
   try {
-    const { resultCode, orderId: momoOrderId, message, amount } = req.query;
+    // Xác thực payload
+    const verifyResult = vnpayService.verifyCallback(req.query);
+    // Kiểm tra xem xác thực có thành công không
 
-    logger.info('MoMo redirect received', {
-      resultCode,
-      momoOrderId,
-      message,
-      amount
-    });
+    if (!verifyResult.isSuccess) {
+      return res.redirect(`${frontendUrl}/payment/result?error=invalid_signature`);// Trả về lỗi nếu xác thực không thành công
+    }
 
-    // Tìm payment theo momoOrderId
-    const payment = await prisma.payment.findUnique({
-      where: { momoOrderId },
-      include: { order: true }
+    // Tìm payment trong DB dựa trên transactionId mà VNPay gửi về
+    const payment = await prisma.payment.findFirst({
+      where: {
+        paymentMethod: 'VNPAY',// Phương thức thanh toán là VNPay
+        transactionId: verifyResult.transactionId// Lấy transaction ID
+      },
+      include: { order: true }// Lấy thông tin đơn hàng
     });
 
     if (!payment) {
-      logger.warn('Payment not found for redirect', { momoOrderId });
-      // Redirect về frontend với thông báo lỗi
-      return res.redirect(`${frontendUrl}/payment/result?error=payment_not_found`);
+      return res.redirect(`${frontendUrl}/payment/result?error=payment_not_found`);// Trả về lỗi nếu không tìm thấy payment
     }
 
-    // Nếu resultCode != 0, nghĩa là user đã hủy hoặc thanh toán thất bại
-    if (resultCode && Number(resultCode) !== 0) {
-      logger.info('Payment failed/cancelled from redirect', {
-        resultCode,
-        momoOrderId,
-        message
-      });
+    // Xử lý cập nhật trạng thái thanh toán
+    if (verifyResult.responseCode === '00') {// Kiểm tra mã phản hồi có phải là 00 không
+      if (payment.paymentStatus !== 'PAID') {// Kiểm tra trạng thái thanh toán có phải là PAID không
+        // Transaction đảm bảo payment + order được cập nhật đồng bộ trong DB
+        await prisma.$transaction(async (tx) => {
+          await tx.payment.update({
+            where: { id: payment.id }, // Lấy ID của payment
+            data: {
+              paymentStatus: 'PAID',// Trạng thái thanh toán là PAID => Thanh toán thành công
+              paidAt: new Date(),// Lấy ngày giờ hiện tại => Thanh toán thành công
+              transactionId: verifyResult.transactionNo || payment.transactionId,// Lấy transaction ID
+              vnpayTransactionNo: verifyResult.transactionNo || payment.vnpayTransactionNo,// Lấy mã giao dịch VNPay
+              bankCode: verifyResult.bankCode || payment.bankCode,// Lấy mã ngân hàng
+              responseCode: verifyResult.responseCode,// Lấy mã phản hồi
+              payDate: parseVNPayDate(verifyResult.payDate) || payment.payDate// Lấy ngày thanh toán
+            }
+          });
 
-      // Update payment status thành FAILED
+          await tx.order.update({
+            where: { id: payment.orderId }, // Lấy ID của đơn hàng
+            data: { paymentStatus: 'PAID' } // Trạng thái thanh toán là PAID => Thanh toán thành công
+          });
+        });
+      }
+
+      // Redirect về frontend với delay để đảm bảo người dùng đã thấy trang VNPay
+      // VNPay đã hiển thị trang kết quả của họ trước khi redirect về đây
+      return res.redirect(
+        `${frontendUrl}/payment/result?status=success&orderId=${payment.orderId}`// Trả về URL thanh toán thành công với ID đơn hàng
+      );
+    }
+
+    // Xử lý trường hợp thất bại
+    if (payment.paymentStatus !== 'FAILED') {
+      // Transaction đảm bảo rollback đồng bộ nếu một trong hai thao tác DB lỗi
       await prisma.$transaction(async (tx) => {
         await tx.payment.update({
-          where: { id: payment.id },
+          where: { id: payment.id }, // Lấy ID của payment
           data: {
-            paymentStatus: 'FAILED',
-            paidAt: null
+            paymentStatus: 'FAILED',// Trạng thái thanh toán là FAILED => Thanh toán thất bại
+            responseCode: verifyResult.responseCode,// Lấy mã phản hồi
+            payDate: parseVNPayDate(verifyResult.payDate) || payment.payDate// Lấy ngày thanh toán
           }
         });
 
         await tx.order.update({
-          where: { id: payment.orderId },
-          data: { paymentStatus: 'FAILED' }
+          where: { id: payment.orderId }, // Lấy ID của đơn hàng
+          data: { paymentStatus: 'FAILED' } // Trạng thái thanh toán là FAILED => Thanh toán thất bại
         });
       });
-
-      logger.success('Payment status updated to FAILED from redirect', {
-        paymentId: payment.id,
-        orderId: payment.orderId
-      });
-
-      // Redirect về frontend với thông báo thất bại
-      return res.redirect(
-        `${frontendUrl}/payment/result?status=failed&orderId=${payment.orderId}&message=${encodeURIComponent(message || 'Thanh toán thất bại')}`
-      );
     }
 
-    // Nếu resultCode === 0, thanh toán thành công (nhưng callback IPN đã xử lý rồi)
-    // Chỉ redirect về frontend với thông báo thành công
-    if (resultCode && Number(resultCode) === 0) {
-      return res.redirect(
-        `${frontendUrl}/payment/result?status=success&orderId=${payment.orderId}`
-      );
-    }
-
-    // Nếu không có resultCode, redirect về frontend
+    const message = verifyResult.responseCode === '24' ? 'Giao dịch bị hủy' : 'Thanh toán thất bại';// Lấy thông báo lỗi nếu giao dịch bị hủy hoặc thanh toán thất bại
+    // Redirect về frontend - VNPay đã hiển thị trang kết quả của họ trước khi redirect về đây
     return res.redirect(
-      `${frontendUrl}/payment/result?orderId=${payment.orderId}`
+      `${frontendUrl}/payment/result?status=failed&orderId=${payment.orderId}&message=${encodeURIComponent(
+        message
+      )}`// Trả về URL thanh toán thất bại với ID đơn hàng và thông báo lỗi
     );
-
   } catch (error) {
-    logger.error('MoMo redirect error', {
-      error: error.message,
-      stack: error.stack
-    });
-    return res.redirect(
-      `${frontendUrl}/payment/result?error=server_error`
-    );
+    logger.error('VNPay return error', { error: error.message, stack: error.stack });
+    return res.redirect(`${frontendUrl}/payment/result?error=server_error`);// Trả về lỗi nếu có lỗi
   }
 };
 
@@ -336,6 +348,7 @@ export const getPaymentStatus = async (req, res) => {
     const userId = req.user.id;
     const { orderId } = req.params;
 
+    // Lấy đơn hàng + payment tương ứng từ DB để trả về cho frontend
     const order = await prisma.order.findFirst({
       where: { id: Number(orderId), userId },
       include: { payments: true }
@@ -352,33 +365,43 @@ export const getPaymentStatus = async (req, res) => {
     const responsePayload = {
       success: true,
       data: {
-        paymentStatus: payment.paymentStatus,
-        paymentUrl: payment.paymentUrl,
-        amount: Number(payment.amount),
-        paidAt: payment.paidAt,
-        transactionId: payment.transactionId,
-        orderNumber: order.orderNumber,
-        orderId: order.id,
-        expiresAt: payment.expiresAt
+        paymentStatus: payment.paymentStatus,// Trạng thái thanh toán
+        paymentMethod: payment.paymentMethod || order.paymentMethod,// Phương thức thanh toán
+        paymentUrl: payment.paymentUrl,// URL thanh toán
+        amount: Number(payment.amount),// Số tiền
+        paidAt: payment.paidAt,// Ngày thanh toán
+        transactionId: payment.transactionId,// Transaction ID
+        orderNumber: order.orderNumber,// Số đơn hàng
+        orderId: order.id,// ID đơn hàng
+        expiresAt: payment.expiresAt,// Hạn sử dụng
+        // VNPay specific fields
+        bankCode: payment.bankCode,// Mã ngân hàng
+        vnpayTransactionNo: payment.vnpayTransactionNo,// Mã giao dịch VNPay
+        responseCode: payment.responseCode,// Mã phản hồi
       }
     };
 
-    console.log('[MoMo] Payment status response', responsePayload.data);
+    console.log('[Payment] Payment status response', responsePayload.data);
 
     return res.json({
       success: true,
       data: {
-        paymentStatus: payment.paymentStatus,
-        paymentUrl: payment.paymentUrl,
-        amount: Number(payment.amount),
-        paidAt: payment.paidAt
+        paymentStatus: payment.paymentStatus,// Trạng thái thanh toán
+        paymentMethod: payment.paymentMethod || order.paymentMethod,// Phương thức thanh toán
+        paymentUrl: payment.paymentUrl,// URL thanh toán
+        amount: Number(payment.amount),// Số tiền
+        paidAt: payment.paidAt,// Ngày thanh toán
+        transactionId: payment.transactionId,// Transaction ID
+        bankCode: payment.bankCode,// Mã ngân hàng
+        vnpayTransactionNo: payment.vnpayTransactionNo,// Mã giao dịch VNPay
+        responseCode: payment.responseCode,// Mã phản hồi
       }
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
+    return res.status(500).json({// Trả về lỗi nếu có lỗi
+      success: false,// Trả về lỗi
+      message: error.message,// Thông báo lỗi
     });
   }
 };

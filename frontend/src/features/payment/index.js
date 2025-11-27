@@ -1,20 +1,19 @@
 /**
- * Payment Module - MoMo Payment Integration
+ * Payment Module - Payment Integration
  * 
  * Cấu trúc:
- * - useMoMoPayment.js: Hook xử lý logic thanh toán MoMo
  * - PaymentResult.jsx: Trang hiển thị kết quả thanh toán
- * 
- * Thanh toán MoMo đã được tích hợp trực tiếp vào nút "Đặt hàng"
- * Không cần button riêng nữa!
+ * - vnpayPayment.js: Xử lý thanh toán VNPay
  * 
  * Cách sử dụng:
- * import { useMoMoPayment, PaymentResult } from '@/features/payment';
+ * import { PaymentResult, handleVNPayPayment, parseVNPayResult } from '@/features/payment';
  */
 
-export { useMoMoPayment } from './useMoMoPayment';
 export { default as PaymentResult } from './PaymentResult';
 
+// Export VNPay utilities
+export { handleVNPayPayment, parseVNPayResult } from './vnpayPayment';
+
 // Re-export API functions
-export { createMoMoPayment, getPaymentStatus } from '@/api/payment';
+export { getPaymentStatus } from '@/api/payment';
 

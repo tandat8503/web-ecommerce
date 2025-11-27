@@ -5,6 +5,7 @@ import { getPublicProductVariants } from '../../../api/adminproductVariant';
 import { getPublicProductImages } from '../../../api/adminProductImages';
 import { getPublicProducts } from '../../../api/adminProducts';
 import useCartStore from '../../../stores/cartStore';
+import { addToCart as addToCartAPI } from '../../../api/cart';
 
 /**
  * ========================================
@@ -16,7 +17,6 @@ import useCartStore from '../../../stores/cartStore';
  */
 export function useProductDetail(productId) {
   const navigate = useNavigate();
-  const { addToCart } = useCartStore();
 
   // =======================
   // STATE
@@ -237,7 +237,13 @@ export function useProductDetail(productId) {
     setQuantity(newQuantity);
   };
 
-  const handleBuyNow = async () => {
+  const handleBuyNow = async (e) => {
+    // Ngăn chặn event bubbling để tránh trigger các event khác
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     // Validation cơ bản trước khi mua ngay
     if (!isInStock) {
       alert('Sản phẩm đã hết hàng');
@@ -249,24 +255,28 @@ export function useProductDetail(productId) {
     }
     
     try {
-      // BƯỚC 1: Thêm sản phẩm vào giỏ hàng
-      // Logic thêm giỏ hàng đã được xử lý trong CartButton và cartStore
-      const result = await addToCart({
+      // BƯỚC 1: Gọi API trực tiếp để lấy cartItemId từ response
+      const response = await addToCartAPI({
         productId: Number(productId),
         variantId: selectedVariant?.id ? Number(selectedVariant.id) : null,
         quantity: quantity
       });
       
-      // BƯỚC 2: Lấy ID của cart item vừa thêm hoặc update
-      // result.data.cartItem.id là ID của cart item (không phải product ID)
-      const cartItemId = result?.data?.cartItem?.id;
+      // BƯỚC 2: Lấy cartItemId từ response (backend trả về cart_item với snake_case)
+      const cartItemId = response?.data?.cart_item?.id;
       
-      // BƯỚC 3: Chuyển đến trang checkout với chỉ sản phẩm này
+      // BƯỚC 3: Refresh cart trong store để UI cập nhật (CHỈ refresh, KHÔNG gọi API lại)
+      // Sử dụng fetchCart thay vì addToCart để tránh gọi API 2 lần
+      const { fetchCart } = useCartStore.getState();
+      fetchCart().catch(err => console.error('Lỗi refresh cart:', err));
+      
+      // BƯỚC 4: Chuyển đến trang checkout với CHỈ sản phẩm này
       // URL: /checkout?selected=<cartItemId>
       if (cartItemId) {
         navigate(`/checkout?selected=${cartItemId}`);
       } else {
-        // Fallback: nếu không có cartItemId, chuyển đến checkout với toàn bộ giỏ
+        // Fallback: nếu không có cartItemId, vẫn redirect với selected rỗng
+        // Checkout sẽ hiển thị thông báo không có sản phẩm
         navigate('/checkout');
       }
       

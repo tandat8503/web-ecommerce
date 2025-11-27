@@ -68,6 +68,8 @@ app.use(express.urlencoded({ extended: true }))
 // --- Routes ---
 Routes(app)
 
+
+
 // --- Health check ---
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -159,6 +161,12 @@ process.on('SIGINT', async () => {
   await prisma.$disconnect()
   process.exit(0)
 })
+
+
+
+
+
+
 
 // --- Start server ---
 const startServer = async () => {

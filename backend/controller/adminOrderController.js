@@ -54,6 +54,18 @@ export const listOrders = async (req, res) => {
         take: Number(limit), // Lấy số đơn mỗi trang
         include: {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          payments: {
+            orderBy: { createdAt: 'desc' },
+            select: {
+              id: true,
+              paymentMethod: true,
+              paymentStatus: true,
+              transactionId: true,
+              bankCode: true,
+              responseCode: true,
+              paidAt: true
+            }
+          },
           orderItems: {
             select: {
               id: true,
@@ -72,7 +84,7 @@ export const listOrders = async (req, res) => {
       prisma.order.count({ where }) // Đếm tổng số đơn
     ]);
 
-    // ✅ Parse shippingAddress từ JSON string thành object cho mỗi order
+    // đoạn code này để parse shippingAddress từ JSON string thành object cho mỗi order
     const itemsWithParsedAddress = items.map(order => {
       let parsedShippingAddress = order.shippingAddress;
       try {
@@ -278,13 +290,46 @@ export const updateOrder = async (req, res) => {
 
     // Cập nhật trong transaction để đảm bảo tính toàn vẹn dữ liệu
     const updated = await prisma.$transaction(async (tx) => {
-      // 1. Cập nhật trạng thái đơn hàng
+      // 1. Nếu chuyển sang CONFIRMED (từ PENDING), trừ tồn kho
+      if (status === 'CONFIRMED' && currentOrder.status === 'PENDING') {
+        // Lấy orderItems với variant để trừ tồn kho
+        const orderItems = await tx.orderItem.findMany({
+          where: { orderId: id },
+          include: {
+            variant: {
+              select: { id: true, stockQuantity: true }
+            }
+          }
+        });
+
+        // Trừ tồn kho cho từng item
+        for (const item of orderItems) {
+          if (item.variantId && item.variant) {
+            const currentStock = item.variant.stockQuantity;
+            if (currentStock < item.quantity) {
+              throw new Error(`Sản phẩm "${item.productName}" chỉ còn ${currentStock} sản phẩm, không đủ để xác nhận đơn hàng`);
+            }
+            await tx.productVariant.update({
+              where: { id: item.variantId },
+              data: { stockQuantity: { decrement: item.quantity } }
+            });
+            logger.info('Trừ tồn kho khi xác nhận đơn', { 
+              variantId: item.variantId, 
+              quantity: item.quantity,
+              oldStock: currentStock,
+              newStock: currentStock - item.quantity
+            });
+          }
+        }
+      }
+
+      // 2. Cập nhật trạng thái đơn hàng
       const order = await tx.order.update({
         where: { id },
         data: { status }
       });
 
-      // 2. Lưu lịch sử thay đổi trạng thái
+      // 3. Lưu lịch sử thay đổi trạng thái
       await tx.orderStatusHistory.create({
         data: { orderId: id, status }
       });
@@ -335,6 +380,7 @@ export const cancelOrder = async (req, res) => {
       where: { id },
       select: { 
         status: true,
+        paymentStatus: true,
         userId: true,
         orderItems: {
           select: {
@@ -365,7 +411,7 @@ export const cancelOrder = async (req, res) => {
         where: { id },
         data: { 
           status: 'CANCELLED',
-          paymentStatus: 'FAILED' // Cập nhật trạng thái thanh toán
+          paymentStatus: currentOrder.paymentStatus === 'PAID' ? 'PAID' : 'FAILED' // Giữ PAID nếu đã thanh toán thành công
         }
       });
 
@@ -374,37 +420,29 @@ export const cancelOrder = async (req, res) => {
         data: { orderId: id, status: 'CANCELLED' }
       });
 
-      // 3. Hoàn trả tồn kho cho các sản phẩm (xử lý trường hợp product/variant đã bị xóa)
-      for (const item of currentOrder.orderItems) {
-        try {
-          if (item.variantId) {
-            // Kiểm tra variant có tồn tại không
-            const variant = await tx.productVariant.findUnique({
-              where: { id: item.variantId }
-            });
-            if (variant) {
-              await tx.productVariant.update({
-                where: { id: item.variantId },
-                data: { stockQuantity: { increment: item.quantity } }
-              });
-            } else {
-              logger.warn('Variant không tồn tại khi hoàn trả tồn kho', { variantId: item.variantId, orderItemId: item.id });
+      // 3. Hoàn trả tồn kho chỉ khi đơn đã ở CONFIRMED (đã trừ tồn kho)
+      // Nếu đơn ở PENDING (chưa trừ tồn kho), không cần hoàn trả
+      if (currentOrder.status === 'CONFIRMED') {
+        const orderItems = await tx.orderItem.findMany({
+          where: { orderId: id },
+          include: {
+            variant: {
+              select: { id: true }
             }
-          } else if (item.productId) {
-            // Nếu không có variantId, không thể hoàn trả stock vì product không có field stockQuantity
-            // Stock được quản lý ở variant level
-            logger.warn('Không thể hoàn trả stock cho product không có variant', { 
-              productId: item.productId, 
-              orderItemId: item.id 
+          }
+        });
+
+        for (const item of orderItems) {
+          if (item.variantId && item.variant) {
+            await tx.productVariant.update({
+              where: { id: item.variantId },
+              data: { stockQuantity: { increment: item.quantity } }
+            });
+            logger.info('Hoàn trả tồn kho khi hủy đơn', { 
+              variantId: item.variantId, 
+              quantity: item.quantity 
             });
           }
-        } catch (err) {
-          // Nếu có lỗi khi hoàn trả tồn kho, log warning nhưng vẫn tiếp tục
-          logger.warn('Lỗi khi hoàn trả tồn kho', { 
-            productId: item.productId, 
-            variantId: item.variantId, 
-            error: err.message 
-          });
         }
       }
 

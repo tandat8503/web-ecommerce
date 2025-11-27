@@ -167,7 +167,11 @@ const ProductInfo = () => {
           />
           {/* Nút mua ngay */}
           <Button
-            onClick={handleBuyNow}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleBuyNow(e);
+            }}
             disabled={!isInStock || (variants.length > 0 && !selectedVariant)} // Disable khi hết hàng hoặc chưa chọn variant
             className="bg-black hover:bg-gray-800 text-white h-10 px-4 text-sm w-full cursor-pointer"
           >

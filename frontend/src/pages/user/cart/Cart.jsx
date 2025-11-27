@@ -3,7 +3,6 @@ import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { formatPrice } from "@/lib/utils";
@@ -16,19 +15,14 @@ export default function Cart() {
   const {
     cartItems,
     cartCount,
+    totalAmount,
     loading,
     updatingItems,
-    selectedItems,
-    handleUpdateQuantity,
-    handleRemoveItem,
-    handleClearAll,
-    handleSelectAll,
-    handleSelectItem,
-    handleDeleteSelected,
-    handleCheckout,
-    handleContinueShopping,
-    getSelectedTotalAmount,
-    getSelectedCount,
+    handleUpdateQuantity,//cập nhật số lượng sản phẩm
+    handleRemoveItem,//xóa sản phẩm khỏi giỏ hàng
+    handleClearAll,//xóa tất cả sản phẩm trong giỏ hàng
+    handleCheckout,//thanh toán đơn hàng
+    handleContinueShopping,//tiếp tục mua sắm
   } = useCart();
 
   if (loading) {
@@ -75,47 +69,37 @@ export default function Cart() {
       <div className="max-w-7xl mx-auto">
         <BreadcrumbNav />
 
-        {/* Toolbar */}
-        <Card className="mt-6 mb-6">
-          <CardContent className="py-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <Checkbox checked={selectedItems.size === cartItems.length && cartItems.length > 0} onCheckedChange={handleSelectAll} />
-                <span className="font-semibold">Chọn tất cả ({cartCount})</span>
-              </div>
-              <div className="flex gap-3">
-                {selectedItems.size > 0 && (
-                  <Button variant="outline" size="sm" onClick={handleDeleteSelected} className="text-red-600">
-                    <FaTrash className="mr-2 h-3.5 w-3.5" />
-                    Xóa đã chọn ({selectedItems.size})
-                  </Button>
-                )}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <FaTrash className="mr-2 h-3.5 w-3.5" />
-                      Xóa tất cả
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Xóa tất cả sản phẩm?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Bạn có chắc chắn muốn xóa tất cả <span className="font-bold">{cartCount} sản phẩm</span> khỏi giỏ hàng?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Hủy</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearAll} className="bg-red-500 hover:bg-red-600">
-                        Xác nhận
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Header */}
+        <div className="mt-6 mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">Giỏ hàng của bạn</h2>
+            <p className="text-gray-600 mt-1">Có {cartCount} sản phẩm trong giỏ hàng</p>
+          </div>
+          {cartCount > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FaTrash className="mr-2 h-3.5 w-3.5" />
+                  Xóa tất cả
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Xóa tất cả sản phẩm?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bạn có chắc chắn muốn xóa tất cả <span className="font-bold">{cartCount} sản phẩm</span> khỏi giỏ hàng?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Hủy</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearAll} className="bg-red-500 hover:bg-red-600">
+                    Xác nhận
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
 
         {/* Main Content */}
         <div className="flex flex-col gap-6">
@@ -123,7 +107,6 @@ export default function Cart() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-center">Chọn</TableHead>
                   <TableHead>Sản phẩm</TableHead>
                   <TableHead className="text-center">Màu sắc</TableHead>
                   <TableHead className="text-center">Kích thước</TableHead>
@@ -136,16 +119,12 @@ export default function Cart() {
               <TableBody>
                 {cartItems.map((item) => {
                     const isUpdating = updatingItems.has(item.id);
-                    const isSelected = selectedItems.has(item.id);
                     const variant = item.variant;
                     const imageUrl = item.product.primary_image || item.product.image_url || "/placeholder-product.jpg";
                     const hasDiscount = item.sale_price && item.sale_price < item.unit_price;
 
                     return (
-                      <TableRow key={item.id} className={isSelected ? 'bg-blue-50' : ''}>
-                        <TableCell className="text-center">
-                          <Checkbox checked={isSelected} onCheckedChange={(checked) => handleSelectItem(item.id, checked)} />
-                        </TableCell>
+                      <TableRow key={item.id}>
                         <TableCell>
                           <div className="flex gap-3 items-start">
                             <img src={imageUrl} alt={item.product.name} className="h-16 w-16 object-cover rounded border flex-shrink-0" />
@@ -222,19 +201,19 @@ export default function Cart() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tạm tính:</span>
-                    <span className="font-semibold">{formatPrice(getSelectedTotalAmount())}</span>
+                    <span className="font-semibold">{formatPrice(totalAmount)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Số lượng:</span>
-                    <Badge>{getSelectedCount()} sản phẩm</Badge>
+                    <Badge>{cartCount} sản phẩm</Badge>
                   </div>
                 </div>
                 <div className="border-t pt-3 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-lg font-semibold">Thành tiền:</span>
-                    <span className="text-xl font-bold text-red-600">{formatPrice(getSelectedTotalAmount())}</span>
+                    <span className="text-xl font-bold text-red-600">{formatPrice(totalAmount)}</span>
                   </div>
-                  <Button onClick={handleCheckout} className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-4 font-semibold text-sm" disabled={selectedItems.size === 0}>
+                  <Button onClick={handleCheckout} className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-4 font-semibold text-sm" disabled={cartCount === 0}>
                     <FaCheckCircle className="mr-2" />
                     Thanh toán 
                   </Button>
