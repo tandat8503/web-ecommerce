@@ -4,8 +4,76 @@ import { toast } from "@/lib/utils";
 import useCartStore from "@/stores/cartStore";
 import { getAddresses, addAddress } from "@/api/address";
 import { createOrder } from "@/api/orders";
-import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
 import { createMoMoPayment } from "@/api/payment";
+import { useGHNPlaces } from "@/hooks/useGHNPlaces";
+import { calculateShippingFee as calculateGHNShippingFee } from "@/api/shipping";
+import { updateCartItem, removeFromCart } from "@/api/cart";
+
+const DEFAULT_SHIPPING_FEE = 30000;
+const DEFAULT_WEIGHT_PER_ITEM = 500; // gram
+const DEFAULT_DIMENSION_CM = 30;
+
+const mmToCm = (value) => {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) return null;
+  return Math.max(DEFAULT_DIMENSION_CM, Math.ceil(parsed / 10));
+};
+
+/**
+ * Tính toán metrics vận chuyển từ danh sách items
+ * Sử dụng kích thước thực tế từ product_variant (width, depth, height)
+ * 
+ * Logic:
+ * - Lấy kích thước lớn nhất cho mỗi chiều khi có nhiều sản phẩm
+ * - GHN yêu cầu: length >= width >= height
+ * - Chuyển đổi từ mm (trong DB) sang cm (GHN yêu cầu)
+ */
+const buildShippingMetrics = (items) => {
+  const metrics = {
+    weight: 0,
+    length: DEFAULT_DIMENSION_CM,
+    width: DEFAULT_DIMENSION_CM,
+    height: DEFAULT_DIMENSION_CM,
+  };
+
+  items.forEach((item) => {
+    const quantity = item.quantity || 1;
+    metrics.weight += DEFAULT_WEIGHT_PER_ITEM * quantity;
+
+    // ✅ Sử dụng kích thước từ product_variant nếu có
+    const variant = item.variant;
+    if (variant) {
+      // Chuyển đổi từ mm sang cm
+      // variant.width = chiều rộng (mm) → dùng làm length (chiều dài)
+      // variant.depth = chiều sâu (mm) → dùng làm width (chiều rộng)
+      // variant.height = chiều cao (mm) → dùng làm height (chiều cao)
+      const lengthCm = mmToCm(variant.width);
+      const widthCm = mmToCm(variant.depth);
+      const heightCm = mmToCm(variant.height);
+      
+      // Lấy kích thước lớn nhất cho mỗi chiều (khi có nhiều sản phẩm)
+      if (lengthCm) metrics.length = Math.max(metrics.length, lengthCm);
+      if (widthCm) metrics.width = Math.max(metrics.width, widthCm);
+      if (heightCm) metrics.height = Math.max(metrics.height, heightCm);
+    }
+  });
+
+  if (metrics.weight === 0) {
+    metrics.weight = DEFAULT_WEIGHT_PER_ITEM;
+  }
+
+  // GHN giới hạn 30kg cho dịch vụ chuẩn
+  metrics.weight = Math.min(metrics.weight, 30000);
+
+  // Đảm bảo length >= width >= height (yêu cầu của GHN)
+  const dimensions = [metrics.length, metrics.width, metrics.height].sort((a, b) => b - a);
+  metrics.length = dimensions[0];
+  metrics.width = dimensions[1];
+  metrics.height = dimensions[2];
+
+  return metrics;
+};
 
 /**
  * ========================================
@@ -15,7 +83,9 @@ import { createMoMoPayment } from "@/api/payment";
 export function useCheckout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items: cartItems, fetchCart } = useCartStore();
+  const { items: cartItems, fetchCart, updateCartItem: updateCartItemStore, removeFromCart: removeFromCartStore } = useCartStore();
+  const [updatingQuantity, setUpdatingQuantity] = useState(false);
+  const [removingItem, setRemovingItem] = useState(null);
 
   // 📦 STATE CƠ BẢN
   const [addresses, setAddresses] = useState([]);
@@ -23,6 +93,9 @@ export function useCheckout() {
   const [paymentMethod, setPaymentMethod] = useState("COD");
   const [customerNote, setCustomerNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [shippingFee, setShippingFee] = useState(0);
+  const [shippingFeeLoading, setShippingFeeLoading] = useState(false);
+  const [shippingFeeError, setShippingFeeError] = useState(null);
 
   // 🏠 STATE FORM ĐỊA CHỈ (chỉ hiện khi chưa có địa chỉ)
   const [showAddressForm, setShowAddressForm] = useState(false);
@@ -43,7 +116,7 @@ export function useCheckout() {
   });
   const [savingAddress, setSavingAddress] = useState(false);
 
-  const { provinces, districts, wards, fetchDistricts, fetchWards } = useVietnamesePlaces();
+  const { provinces, districts, wards, fetchDistricts, fetchWards } = useGHNPlaces();
 
   // 🛒 Lấy danh sách sản phẩm được chọn từ URL: /checkout?selected=1,2,3
   const selectedCartItemIds = useMemo(() => {
@@ -63,12 +136,119 @@ export function useCheckout() {
       const price = Number(item?.final_price ?? item?.product?.price ?? 0);
       return sum + price * item.quantity;
     }, 0);
-    return { subtotal, shippingFee: 0, discount: 0, total: subtotal };
-  }, [checkoutItems]);
+    const fee = Number(shippingFee) || 0;
+    return { subtotal, shippingFee: fee, discount: 0, total: subtotal + fee };
+  }, [checkoutItems, shippingFee]);
 
   const selectedAddress = useMemo(() => {
-    return addresses.find((a) => a.id === selectedAddressId) || null;
+    const addr = addresses.find((a) => a.id === selectedAddressId) || null;
+    
+    // Debug: Log địa chỉ để kiểm tra có mã GHN không - chỉ log trong development
+    if (addr && process.env.NODE_ENV === 'development') {
+      console.log('🔍 Selected Address:', {
+        id: addr.id,
+        city: addr.city,
+        district: addr.district,
+        ward: addr.ward,
+        provinceId: addr.provinceId,
+        districtId: addr.districtId,
+        wardCode: addr.wardCode,
+        hasGHNCodes: Boolean(addr.districtId && addr.wardCode)
+      });
+    }
+    
+    return addr;
   }, [addresses, selectedAddressId]);
+
+  const canCalculateShipping =
+    Boolean(selectedAddress?.districtId && selectedAddress?.wardCode) &&
+    checkoutItems.length > 0;
+
+  useEffect(() => {
+    if (!canCalculateShipping) {
+      setShippingFee(0);
+      
+      // Thông báo chi tiết hơn về lý do không thể tính phí
+      if (selectedAddress && checkoutItems.length > 0) {
+        const missingFields = [];
+        if (!selectedAddress.districtId) missingFields.push('districtId');
+        if (!selectedAddress.wardCode) missingFields.push('wardCode');
+        
+      // Log để debug - chỉ log trong development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️ Không thể tính phí vận chuyển vì thiếu mã GHN:', {
+          addressId: selectedAddress.id,
+          address: `${selectedAddress.streetAddress}, ${selectedAddress.ward}, ${selectedAddress.district}, ${selectedAddress.city}`,
+          missingFields,
+          districtId: selectedAddress.districtId,
+          wardCode: selectedAddress.wardCode,
+        });
+      }
+        
+        setShippingFeeError(
+          `Địa chỉ chưa có mã GHN (thiếu: ${missingFields.join(', ')}). Vui lòng vào "Hồ sơ" → "Địa chỉ" → "Sửa" địa chỉ này để cập nhật.`
+        );
+      } else {
+        setShippingFeeError(null);
+      }
+      
+      setShippingFeeLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchShippingFee = async () => {
+      try {
+        setShippingFeeLoading(true);
+        setShippingFeeError(null);
+        const metrics = buildShippingMetrics(checkoutItems);
+
+        const response = await calculateGHNShippingFee({
+          toDistrictId: selectedAddress.districtId,
+          toWardCode: selectedAddress.wardCode,
+          weight: metrics.weight,
+          length: metrics.length,
+          width: metrics.width,
+          height: metrics.height,
+          serviceTypeId: 2,
+        });
+
+        if (cancelled) return;
+
+        if (response.data?.success) {
+          const data = response.data.data || response.data;
+          const fee =
+            data.shippingFee ??
+            data.totalFee ??
+            data.serviceFee ??
+            0;
+          setShippingFee(Number(fee) || 0);
+        } else {
+          const fallbackFee = Number(response.data?.shippingFee ?? DEFAULT_SHIPPING_FEE);
+          setShippingFee(fallbackFee);
+          setShippingFeeError(response.data?.message || "Không tính được phí vận chuyển. Dùng phí mặc định.");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setShippingFee(DEFAULT_SHIPPING_FEE);
+        setShippingFeeError(error.response?.data?.message || "Không tính được phí vận chuyển. Đã áp dụng phí mặc định.");
+      } finally {
+        if (!cancelled) {
+          setShippingFeeLoading(false);
+        }
+      }
+    };
+
+    fetchShippingFee();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedAddress?.districtId,
+    selectedAddress?.wardCode,
+    checkoutItems,
+    canCalculateShipping,
+  ]);
 
   // 🔄 Tải giỏ hàng
   useEffect(() => {
@@ -106,30 +286,52 @@ export function useCheckout() {
   const handleAddressChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }));
   };
-//hàm xử lý thay đổi tỉnh
+  // ✅ Đồng bộ logic với useAddress.js - Xử lý thay đổi tỉnh/quận/phường
   const handleProvinceChange = (code) => {
-    const province = provinces.find((p) => String(p.code) === code);
+    const province = provinces.find(
+      (p) => String(p.code) === code || String(p.ProvinceID) === code
+    );
     if (!province) return;
-    setSelectedCodes({ provinceCode: code, districtCode: "", wardCode: "" });
-    setAddressForm((prev) => ({ ...prev, city: province.name, district: "", ward: "" }));
-    fetchDistricts(code);
+    const provinceCode = String(province.code || province.ProvinceID);
+    const provinceName = province.name || province.ProvinceName;
+    
+    // Reset districts và wards khi đổi tỉnh
+    setSelectedCodes({ provinceCode, districtCode: "", wardCode: "" });
+    setAddressForm((prev) => ({ ...prev, city: provinceName, district: "", ward: "" }));
+    
+    // Load quận/huyện của tỉnh này
+    fetchDistricts(provinceCode);
   };
-//hàm xử lý thay đổi quận
+
   const handleDistrictChange = (code) => {
-    const district = districts.find((d) => String(d.code) === code);
+    const district = districts.find(
+      (d) => String(d.code) === code || String(d.DistrictID) === code
+    );
     if (!district) return;
-    setSelectedCodes((prev) => ({ ...prev, districtCode: code, wardCode: "" }));
-    setAddressForm((prev) => ({ ...prev, district: district.name, ward: "" }));
-    fetchWards(code);
+    const districtCode = String(district.code || district.DistrictID);
+    const districtName = district.name || district.DistrictName;
+    
+    // Reset wards khi đổi quận
+    setSelectedCodes((prev) => ({ ...prev, districtCode, wardCode: "" }));
+    setAddressForm((prev) => ({ ...prev, district: districtName, ward: "" }));
+    
+    // Load phường/xã của quận này
+    fetchWards(districtCode);
   };
-//hàm xử lý thay đổi phường
+
   const handleWardChange = (code) => {
-    const ward = wards.find((w) => String(w.code) === code);
+    const ward = wards.find(
+      (w) => String(w.code) === code || String(w.WardCode) === code
+    );
     if (!ward) return;
-    setSelectedCodes((prev) => ({ ...prev, wardCode: code }));
-    setAddressForm((prev) => ({ ...prev, ward: ward.name }));
+    const wardName = ward.name || ward.WardName;
+    const wardCodeValue = String(ward.code || ward.WardCode);
+    
+    // Lưu mã ward (WardCode từ GHN là string)
+    setSelectedCodes((prev) => ({ ...prev, wardCode: wardCodeValue }));
+    setAddressForm((prev) => ({ ...prev, ward: wardName }));
   };
-//hàm xử lý lưu địa chỉ
+  //hàm xử lý lưu địa chỉ - Đồng bộ với useAddress.js
   const handleSaveAddress = async () => {
     // Validate
     if (!addressForm.fullName.trim()) return toast.error("Vui lòng nhập họ tên");
@@ -139,12 +341,38 @@ export function useCheckout() {
     }
     if (!addressForm.streetAddress.trim()) return toast.error("Vui lòng nhập địa chỉ cụ thể");
 
+    // Kiểm tra đã chọn đầy đủ mã GHN
+    if (!selectedCodes.provinceCode || !selectedCodes.districtCode || !selectedCodes.wardCode) {
+      return toast.error("Vui lòng chọn lại Tỉnh/Quận/Phường từ dropdown để có mã GHN");
+    }
+
     try {
       setSavingAddress(true);
-      const res = await addAddress({
+      
+      // ✅ Đồng bộ logic với useAddress.js - Lưu mã GHN đúng cách
+      const addressData = {
         ...addressForm,
+        addressType: addressForm.addressType?.toUpperCase() || "HOME",
         isDefault: addresses.length === 0, // Địa chỉ đầu tiên = mặc định
-      });
+        // ✅ Lưu mã GHN từ selectedCodes (giống useAddress.js)
+        provinceId: selectedCodes.provinceCode ? Number(selectedCodes.provinceCode) : null,
+        districtId: selectedCodes.districtCode ? Number(selectedCodes.districtCode) : null,
+        wardCode: selectedCodes.wardCode || null,
+      };
+
+      // Log để debug - chỉ log trong development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('💾 Lưu địa chỉ với mã GHN:', {
+          city: addressForm.city,
+          district: addressForm.district,
+          ward: addressForm.ward,
+          provinceId: addressData.provinceId,
+          districtId: addressData.districtId,
+          wardCode: addressData.wardCode,
+        });
+      }
+
+      const res = await addAddress(addressData);
       toast.success("Thêm địa chỉ thành công");
       
       // Reload địa chỉ và chọn địa chỉ vừa tạo
@@ -156,6 +384,47 @@ export function useCheckout() {
       toast.error(error.response?.data?.message || "Không thể lưu địa chỉ");
     } finally {
       setSavingAddress(false);
+    }
+  };
+
+  // 🛍️ CẬP NHẬT SỐ LƯỢNG SẢN PHẨM
+  const handleUpdateQuantity = async (cartItemId, newQuantity) => {
+    if (newQuantity < 1) {
+      toast.error("Số lượng phải lớn hơn 0");
+      return;
+    }
+
+    try {
+      setUpdatingQuantity(true);
+      await updateCartItemStore({ cartItemId, quantity: newQuantity });
+      await fetchCart(); // Reload cart để cập nhật checkoutItems
+      // Phí vận chuyển sẽ tự động được tính lại nhờ useEffect phụ thuộc vào checkoutItems
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Không thể cập nhật số lượng");
+    } finally {
+      setUpdatingQuantity(false);
+    }
+  };
+
+  // 🗑️ XÓA SẢN PHẨM KHỎI CHECKOUT
+  const handleRemoveItem = async (cartItemId) => {
+    try {
+      setRemovingItem(cartItemId);
+      await removeFromCartStore(cartItemId);
+      await fetchCart(); // Reload cart để cập nhật checkoutItems
+      
+      // Nếu không còn sản phẩm nào, chuyển về trang giỏ hàng
+      const remainingItems = checkoutItems.filter(item => item.id !== cartItemId);
+      if (remainingItems.length === 0) {
+        toast.info("Đã xóa tất cả sản phẩm. Chuyển về giỏ hàng...");
+        setTimeout(() => {
+          navigate("/cart");
+        }, 1000);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Không thể xóa sản phẩm");
+    } finally {
+      setRemovingItem(null);
     }
   };
 
@@ -222,6 +491,10 @@ export function useCheckout() {
     selectedAddressId,//id địa chỉ được chọn
     checkoutItems,//sản phẩm được chọn
     summary,//tổng tiền
+    shippingFee,
+    shippingFeeLoading,
+    shippingFeeError,
+    canCalculateShipping,
     paymentMethod,//phương thức thanh toán
     customerNote,//ghi chú khách hàng
     submitting,//trạng thái đang đặt hàng
@@ -244,6 +517,10 @@ export function useCheckout() {
     handleDistrictChange,//xử lý thay đổi quận
     handleWardChange,//xử lý thay đổi phường
     handleSaveAddress,//xử lý lưu địa chỉ
+    handleUpdateQuantity,//cập nhật số lượng sản phẩm
+    handleRemoveItem,//xóa sản phẩm
+    updatingQuantity,//trạng thái đang cập nhật số lượng
+    removingItem,//id sản phẩm đang xóa
     handlePlaceOrder,//xử lý đặt hàng
     setShowAddressForm,//set hiện form địa chỉ
   };

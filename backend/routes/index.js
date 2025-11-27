@@ -27,6 +27,7 @@ import adminCouponRoutes from "./adminCouponRoutes.js"; // Routes quản lý mã
 import notificationRoutes from "./notificationRoutes.js"; // Routes quản lý thông báo
 import productCommentRoutes from "./productCommentRoutes.js"; // Routes bình luận sản phẩm
 import productReviewRoutes from "./productReviewRoutes.js"; // Routes đánh giá sản phẩm
+import ghnRoutes from "./ghnRoutes.js"; // Routes GHN API (lấy địa chỉ & tính phí vận chuyển)
 
 /**
  * Function cấu hình tất cả routes cho ứng dụng
@@ -49,6 +50,7 @@ const routes = (app) => {
   app.use("/api/product-images", adminProductImageRoutes); // Product image endpoints (public + admin)
   app.use("/api/product-comments", productCommentRoutes); // Product comment endpoints (public + user + admin)
   app.use("/api/product-reviews", productReviewRoutes); // Product review endpoints (public + user + admin)
+  app.use("/api/ghn", ghnRoutes); // GHN API endpoints (lấy địa chỉ & tính phí vận chuyển)
  
   // ==================== USER ROUTES ====================
   // Các routes yêu cầu authentication nhưng không cần quyền admin

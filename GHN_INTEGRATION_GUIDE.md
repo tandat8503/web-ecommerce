@@ -1,45 +1,29 @@
-# 📦 Hướng Dẫn Tích Hợp GHN (Giao Hàng Nhanh)
+# 📦 Hướng Dẫn Tích Hợp GHN - API Địa Chỉ & Tính Phí Vận Chuyển
 
 ## Mục Lục
 1. [Tổng Quan](#tổng-quan)
 2. [Chuẩn Bị](#chuẩn-bị)
-3. [Cấu Trúc Cần Thay Đổi](#cấu-trúc-cần-thay-đổi)
-4. [Backend Integration](#backend-integration)
-5. [Frontend Integration](#frontend-integration)
-6. [Webhook & Tracking](#webhook--tracking)
-7. [Testing](#testing)
-8. [Troubleshooting](#troubleshooting)
+3. [API 1: Lấy Địa Chỉ (Tỉnh/Quận/Phường)](#api-1-lấy-địa-chỉ-tỉnhquậnphường)
+4. [API 2: Tính Phí Vận Chuyển](#api-2-tính-phí-vận-chuyển)
+5. [Backend Implementation](#backend-implementation)
+6. [Frontend Implementation](#frontend-implementation)
+7. [Database Schema Updates](#database-schema-updates)
+8. [Testing](#testing)
 
 ---
 
 ## Tổng Quan
 
-### GHN là gì?
-GHN (Giao Hàng Nhanh) là dịch vụ vận chuyển hàng hóa tại Việt Nam, cung cấp API để tích hợp vào hệ thống e-commerce.
+### Mục tiêu tích hợp
+Tích hợp 2 API chính của GHN:
+1. **API Lấy Địa Chỉ** - Lấy danh sách Tỉnh/Thành phố, Quận/Huyện, Phường/Xã với mã GHN
+2. **API Tính Phí Vận Chuyển** - Tính phí ship dựa trên địa chỉ và thông tin đơn hàng
 
-### Những gì cần tích hợp?
-
-#### ✅ Bắt buộc:
-1. **Tính phí vận chuyển (Shipping Fee Calculation)**
-   - Lấy giá cước vận chuyển dựa trên: địa chỉ giao hàng, trọng lượng, giá trị đơn hàng
-   - Hiển thị phí ship trước khi khách đặt hàng
-
-2. **Tạo đơn hàng vận chuyển (Create Shipping Order)**
-   - Khi admin xác nhận đơn hàng → Tự động tạo đơn trên GHN
-   - Lưu mã vận đơn (tracking code) vào database
-
-3. **Theo dõi đơn hàng (Order Tracking)**
-   - Hiển thị trạng thái vận chuyển từ GHN
-   - Cập nhật trạng thái đơn hàng tự động
-
-#### ⚡ Tùy chọn (nâng cao):
-4. **Webhook cập nhật trạng thái**
-   - GHN gửi webhook khi có thay đổi trạng thái
-   - Tự động cập nhật status trong database
-
-5. **Đối soát COD**
-   - Tính toán tiền thu hộ
-   - Báo cáo đối soát với GHN
+### Tại sao dùng API GHN thay vì API khác?
+- ✅ Mã địa chỉ GHN chính xác, phù hợp với hệ thống tính phí
+- ✅ Đảm bảo tính nhất quán khi tính phí vận chuyển
+- ✅ Hỗ trợ đầy đủ đơn vị hành chính cũ và mới
+- ✅ Cập nhật tự động từ GHN
 
 ---
 
@@ -48,21 +32,23 @@ GHN (Giao Hàng Nhanh) là dịch vụ vận chuyển hàng hóa tại Việt Na
 ### 1. Đăng ký tài khoản GHN
 - Truy cập: https://khachhang.ghn.vn/
 - Đăng ký tài khoản và xác thực thông tin
-- Đăng nhập vào hệ thống
 
 ### 2. Lấy Token API
 1. Đăng nhập vào https://khachhang.ghn.vn/
 2. Chọn mục **"Chủ cửa hàng"**
 3. Nhấn **"Xem"** trong phần **"Token API"**
-4. Copy mã Token (VD: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
+4. Copy mã Token
 
 ### 3. Lấy Shop ID
 - Vào phần **"Quản lý cửa hàng"** trong dashboard GHN
-- Copy **Shop ID** (VD: `123456`)
+- Copy **Shop ID**
 
 ### 4. Xác định địa chỉ kho hàng
-- Địa chỉ cửa hàng/kho hàng của bạn (để tính phí ship)
-- Thông tin cần: Tỉnh/Thành phố, Quận/Huyện, Phường/Xã, Địa chỉ chi tiết
+Thông tin cần có:
+- Tỉnh/Thành phố
+- Quận/Huyện  
+- Phường/Xã
+- Địa chỉ chi tiết
 
 ### 5. Cài đặt biến môi trường
 Thêm vào file `.env` của backend:
@@ -78,73 +64,214 @@ GHN_WAREHOUSE_PROVINCE_ID=79  # Hồ Chí Minh
 GHN_WAREHOUSE_DISTRICT_ID=1454  # Quận 1
 GHN_WAREHOUSE_WARD_CODE=1A0401  # Phường Bến Nghé
 GHN_WAREHOUSE_ADDRESS=Số 123, Đường ABC
-
-# Webhook URL (nếu có)
-GHN_WEBHOOK_URL=https://yourdomain.com/api/ghn/webhook
 ```
 
-**Lưu ý:** 
+**Lưu ý:**
 - Môi trường test: `https://dev-online-gateway.ghn.vn`
 - Môi trường production: `https://online-gateway.ghn.vn`
 
 ---
 
-## Cấu Trúc Cần Thay Đổi
+## API 1: Lấy Địa Chỉ (Tỉnh/Quận/Phường)
 
-### 1. Database Schema - Cập nhật Order Model
+### Endpoints GHN
 
-Order model hiện tại đã có các field cần thiết:
-- ✅ `shippingFee` - Đã có
-- ✅ `shippingAddress` - Đã có (ward, district, city)
-- ✅ `trackingCode` - Đã có nhưng chưa được sử dụng
+#### 1.1. Lấy danh sách Tỉnh/Thành phố
+- **Endpoint:** `GET /shiip/public-api/master-data/province`
+- **Method:** GET
+- **Headers:**
+  ```
+  Token: {GHN_TOKEN}
+  Content-Type: application/json
+  ```
+- **Response:**
+  ```json
+  {
+    "code": 200,
+    "message": "Success",
+    "data": [
+      {
+        "ProvinceID": 202,
+        "ProvinceName": "Hồ Chí Minh",
+        "CountryID": 1,
+        "Code": 8,
+        "NameExtension": [
+          "Hồ Chí Minh",
+          "TP.Hồ Chí Minh",
+          "TP. Hồ Chí Minh",
+          "TP Hồ Chí Minh",
+          "Thành phố Hồ Chí Minh",
+          "HCM",
+          "hochiminh",
+          "saigon",
+          "sg"
+        ],
+        "IsEnable": 1,
+        "RegionID": 1,
+        "CanUpdateCOD": "false",
+        "Status": 1
+      },
+      ...
+    ]
+  }
+  ```
+- **Tài liệu:** https://api.ghn.vn/home/docs/detail?id=91
 
-**Cần thêm:**
+#### 1.2. Lấy danh sách Quận/Huyện
+- **Endpoint:** `GET /shiip/public-api/master-data/district`
+- **Method:** GET (hoặc POST)
+- **Query Params:** `province_id` (ProvinceID)
+- **Headers:**
+  ```
+  Token: {GHN_TOKEN}
+  Content-Type: application/json
+  ```
+- **Response:**
+  ```json
+  {
+    "code": 200,
+    "message": "Success",
+    "data": [
+      {
+        "DistrictID": 3695,
+        "ProvinceID": 202,
+        "DistrictName": "Thành Phố Thủ Đức",
+        "Code": 3695,
+        "Type": 3,
+        "SupportType": 3,
+        "NameExtension": [
+          "TP Thủ Đức",
+          "thành phố thủ đức",
+          "TP. Thủ Đức",
+          "TP. Thu Duc",
+          "thuduc"
+        ],
+        "IsEnable": 1,
+        "CanUpdateCOD": "false",
+        "Status": 1
+      },
+      ...
+    ]
+  }
+  ```
+- **Tài liệu:** https://api.ghn.vn/home/docs/detail?id=93
 
-```prisma
-model Order {
-  // ... existing fields ...
-  
-  // GHN Integration
-  ghnOrderCode     String?  @map("ghn_order_code")      // Mã đơn hàng GHN
-  ghnShopId        String?  @map("ghn_shop_id")         // Shop ID trên GHN
-  shippingMethod   String?  @map("shipping_method")     // Phương thức ship (EXPRESS, STANDARD, ...)
-  codAmount        Decimal? @map("cod_amount")          @db.Decimal(12, 2)  // Tiền thu hộ (nếu COD)
-  
-  @@map("orders")
-}
-```
-
-**Migration:**
-```bash
-cd backend
-npx prisma migrate dev --name add_ghn_fields
-```
-
-### 2. Thêm Model cho Lịch sử Vận chuyển (optional nhưng khuyến nghị)
-
-```prisma
-model ShippingHistory {
-  id          Int      @id @default(autoincrement())
-  orderId     Int      @map("order_id")
-  status      String   // Trạng thái vận chuyển từ GHN
-  message     String?  // Thông điệp
-  updatedAt   DateTime @default(now()) @map("updated_at")
-  order       Order    @relation(fields: [orderId], references: [id])
-  
-  @@index([orderId])
-  @@map("shipping_history")
-}
-
-// Thêm vào Order model:
-model Order {
-  // ... existing fields ...
-  shippingHistories ShippingHistory[]
-}
-```
+#### 1.3. Lấy danh sách Phường/Xã
+- **Endpoint:** `POST /shiip/public-api/master-data/ward?district_id`
+- **Method:** POST (⚠️ Lưu ý: API này dùng POST, không phải GET)
+- **Request Body:**
+  ```json
+  {
+    "district_id": 1454
+  }
+  ```
+- **Headers:**
+  ```
+  Token: {GHN_TOKEN}
+  Content-Type: application/json
+  ```
+- **Response:**
+  ```json
+  {
+    "code": 200,
+    "message": "Success",
+    "data": [
+      {
+        "WardCode": "90768",
+        "DistrictID": 3695,
+        "WardName": "Phường An Khánh",
+        "NameExtension": ["P. An Khánh", "P. An Khanh", "ankhanh"],
+        "CanUpdateCOD": "true",
+        "SupportType": 3,
+        "Status": 1
+      },
+      ...
+    ]
+  }
+  ```
+- **Tài liệu:** https://api.ghn.vn/home/docs/detail?id=92
 
 ---
 
-## Backend Integration
+## API 2: Tính Phí Vận Chuyển
+
+### Endpoint GHN
+- **Endpoint:** `POST /shiip/public-api/v2/shipping-order/fee`
+- **Method:** POST
+- **Headers:**
+  ```
+  Token: {GHN_TOKEN}
+  ShopId: {GHN_SHOP_ID}
+  Content-Type: application/json
+  ```
+- **Request Body:**
+  ```json
+  {
+    "service_type_id": 2,
+    "from_district_id": 1454,
+    "to_district_id": 1455,
+    "to_ward_code": "1A0402",
+    "height": 20,
+    "length": 20,
+    "weight": 500,
+    "width": 20,
+    "insurance_value": 0,
+    "coupon": null
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "code": 200,
+    "message": "Success",
+    "data": {
+      "total": 30000,
+      "service_fee": 25000,
+      "insurance_fee": 0,
+      "pick_station_fee": 0,
+      "coupon_value": 0,
+      "r2s_fee": 0,
+      "return_again": 0,
+      "document_return": 0,
+      "double_check": 0,
+      "cod_fee": 0,
+      "pick_remote_areas_fee": 0,
+      "deliver_remote_areas_fee": 0,
+      "cod_failed_fee": 0
+    }
+  }
+  ```
+
+### Parameters giải thích:
+- `service_type_id`: Loại dịch vụ (1: Nhanh, 2: Chuẩn, 3: Tiết kiệm)
+- `from_district_id`: ID quận/huyện gửi hàng (địa chỉ kho)
+- `to_district_id`: ID quận/huyện nhận hàng
+- `to_ward_code`: Mã phường/xã nhận hàng (WardCode từ API Get Wards)
+- `weight`: Trọng lượng (gram)
+- `length`, `width`, `height`: Kích thước (cm)
+- `insurance_value`: Giá trị khai báo (VNĐ)
+- `cod_amount`: Tiền thu hộ (nếu COD)
+
+### Response Fields giải thích:
+- `total`: Tổng phí vận chuyển (VNĐ)
+- `service_fee`: Phí dịch vụ vận chuyển
+- `insurance_fee`: Phí khai giá hàng hóa
+- `pick_station_fee`: Phí gửi hàng tại bưu cục
+- `coupon_value`: Giá trị khuyến mãi
+- `r2s_fee`: Phí giao lại hàng
+- `cod_fee`: Phí thu tiền COD
+- `pick_remote_areas_fee`: Phí lấy hàng vùng xa
+- `deliver_remote_areas_fee`: Phí giao hàng vùng xa
+
+- **Tài liệu:** https://api.ghn.vn/home/docs/detail?id=95
+
+**Lưu ý:** 
+- Cần lấy `service_type_id` từ API Get Service (https://api.ghn.vn/home/docs/detail?id=94) để biết dịch vụ nào khả dụng
+- `from_district_id` phải là địa chỉ kho hàng của bạn (đã cấu hình trong `.env`)
+
+---
+
+## Backend Implementation
 
 ### 1. Tạo GHN Service
 
@@ -158,24 +285,145 @@ const GHN_API_URL = process.env.GHN_API_URL || 'https://dev-online-gateway.ghn.v
 const GHN_TOKEN = process.env.GHN_TOKEN;
 const GHN_SHOP_ID = process.env.GHN_SHOP_ID;
 
-// Helper: Lấy mã tỉnh/quận/phường từ tên (cần mapping hoặc dùng API GHN)
-const getProvinceId = async (provinceName) => {
-  // GHN có API lấy danh sách tỉnh
-  // Hoặc dùng mapping table trong DB
-  // Tạm thời hardcode một số tỉnh phổ biến
-  const provinceMapping = {
-    'Hồ Chí Minh': 79,
-    'Hà Nội': 1,
-    'Đà Nẵng': 48,
-    // ... thêm các tỉnh khác
-  };
-  return provinceMapping[provinceName] || null;
+/**
+ * API 1: Lấy danh sách Tỉnh/Thành phố
+ */
+export const getProvinces = async () => {
+  try {
+    const response = await axios.get(
+      `${GHN_API_URL}/shiip/public-api/master-data/province`,
+      {
+        headers: {
+          'Token': GHN_TOKEN,
+        },
+      }
+    );
+
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || 'Không thể lấy danh sách tỉnh/thành phố');
+    }
+
+    return {
+      success: true,
+      data: response.data.data || [],
+    };
+  } catch (error) {
+    logger.error('GHN get provinces error', {
+      error: error.message,
+      response: error.response?.data,
+    });
+    return {
+      success: false,
+      data: [],
+      error: error.message,
+    };
+  }
 };
 
 /**
- * Tính phí vận chuyển
+ * API 1: Lấy danh sách Quận/Huyện
+ * Theo tài liệu: https://api.ghn.vn/home/docs/detail?id=93
+ */
+export const getDistricts = async (provinceId) => {
+  try {
+    if (!provinceId) {
+      return {
+        success: false,
+        data: [],
+        error: 'Province ID is required',
+      };
+    }
+
+    const response = await axios.get(
+      `${GHN_API_URL}/shiip/public-api/master-data/district`,
+      {
+        params: {
+          province_id: provinceId,
+        },
+        headers: {
+          'Token': GHN_TOKEN,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || 'Không thể lấy danh sách quận/huyện');
+    }
+
+    return {
+      success: true,
+      data: response.data.data || [],
+    };
+  } catch (error) {
+    logger.error('GHN get districts error', {
+      error: error.message,
+      provinceId,
+      response: error.response?.data,
+    });
+    return {
+      success: false,
+      data: [],
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * API 1: Lấy danh sách Phường/Xã
+ * Theo tài liệu: https://api.ghn.vn/home/docs/detail?id=92
+ * Dùng POST method với district_id trong body
+ */
+export const getWards = async (districtId) => {
+  try {
+    if (!districtId) {
+      return {
+        success: false,
+        data: [],
+        error: 'District ID is required',
+      };
+    }
+
+    // Theo tài liệu GHN, API này dùng POST với district_id trong body
+    const response = await axios.post(
+      `${GHN_API_URL}/shiip/public-api/master-data/ward?district_id`,
+      {
+        district_id: districtId,
+      },
+      {
+        headers: {
+          'Token': GHN_TOKEN,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || 'Không thể lấy danh sách phường/xã');
+    }
+
+    return {
+      success: true,
+      data: response.data.data || [],
+    };
+  } catch (error) {
+    logger.error('GHN get wards error', {
+      error: error.message,
+      districtId,
+      response: error.response?.data,
+    });
+    return {
+      success: false,
+      data: [],
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * API 2: Tính phí vận chuyển
  * @param {Object} params
- * @param {Number} params.toDistrictId - Mã quận/huyện đích
+ * @param {Number} params.toDistrictId - ID quận/huyện đích
  * @param {String} params.toWardCode - Mã phường/xã đích
  * @param {Number} params.weight - Trọng lượng (gram)
  * @param {Number} params.length - Chiều dài (cm)
@@ -197,8 +445,15 @@ export const calculateShippingFee = async (params) => {
       serviceTypeId = 2, // 2 = Chuẩn
     } = params;
 
+    if (!toDistrictId || !toWardCode) {
+      return {
+        success: false,
+        error: 'toDistrictId and toWardCode are required',
+        shippingFee: 0,
+      };
+    }
+
     const fromDistrictId = Number(process.env.GHN_WAREHOUSE_DISTRICT_ID);
-    const fromWardCode = process.env.GHN_WAREHOUSE_WARD_CODE;
 
     const response = await axios.post(
       `${GHN_API_URL}/shiip/public-api/v2/shipping-order/fee`,
@@ -213,6 +468,7 @@ export const calculateShippingFee = async (params) => {
         length: length,
         weight: weight,
         width: width,
+        cod_amount: codAmount,
       },
       {
         headers: {
@@ -246,6 +502,7 @@ export const calculateShippingFee = async (params) => {
   } catch (error) {
     logger.error('GHN calculate shipping fee error', {
       error: error.message,
+      params,
       response: error.response?.data,
     });
     
@@ -258,527 +515,196 @@ export const calculateShippingFee = async (params) => {
   }
 };
 
-/**
- * Lấy danh sách dịch vụ vận chuyển khả dụng
- */
-export const getAvailableServices = async (toDistrictId, toWardCode) => {
-  try {
-    const fromDistrictId = Number(process.env.GHN_WAREHOUSE_DISTRICT_ID);
-    
-    const response = await axios.post(
-      `${GHN_API_URL}/shiip/public-api/v2/shipping-order/available-services`,
-      {
-        shop_id: Number(GHN_SHOP_ID),
-        from_district: fromDistrictId,
-        to_district: toDistrictId,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Token': GHN_TOKEN,
-        },
-      }
-    );
-
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || 'Không thể lấy danh sách dịch vụ');
-    }
-
-    return {
-      success: true,
-      services: response.data.data || [],
-    };
-  } catch (error) {
-    logger.error('GHN get available services error', {
-      error: error.message,
-    });
-    return {
-      success: false,
-      services: [],
-      error: error.message,
-    };
-  }
-};
-
-/**
- * Tạo đơn hàng vận chuyển trên GHN
- * @param {Object} params
- */
-export const createShippingOrder = async (params) => {
-  try {
-    const {
-      orderId,
-      orderNumber,
-      toName,
-      toPhone,
-      toAddress,
-      toWardCode,
-      toDistrictId,
-      toProvinceId,
-      weight,
-      length,
-      width,
-      height,
-      codAmount,
-      items,
-      note,
-      serviceTypeId = 2,
-    } = params;
-
-    const fromDistrictId = Number(process.env.GHN_WAREHOUSE_DISTRICT_ID);
-    const fromWardCode = process.env.GHN_WAREHOUSE_WARD_CODE;
-    const fromAddress = process.env.GHN_WAREHOUSE_ADDRESS;
-
-    // Mô tả hàng hóa
-    const itemsDescription = items
-      .map((item) => `${item.productName} x${item.quantity}`)
-      .join(', ');
-
-    const requestBody = {
-      payment_type_id: codAmount > 0 ? 1 : 2, // 1: COD, 2: Shop thu tiền
-      note: note || '',
-      required_note: 'KHONGCHOXEMHANG',
-      to_name: toName,
-      to_phone: toPhone,
-      to_address: toAddress,
-      to_ward_code: toWardCode,
-      to_district_id: toDistrictId,
-      to_province_id: toProvinceId,
-      weight: weight || 500,
-      length: length || 20,
-      width: width || 20,
-      height: height || 20,
-      cod_amount: codAmount || 0,
-      service_type_id: serviceTypeId,
-      service_id: null,
-      items: items.map((item) => ({
-        name: item.productName,
-        code: item.productSku || '',
-        quantity: item.quantity,
-        price: Math.round(Number(item.unitPrice)),
-        weight: Math.round((item.weight || 100) * item.quantity),
-      })),
-      client_order_code: orderNumber,
-      content: itemsDescription,
-    };
-
-    const response = await axios.post(
-      `${GHN_API_URL}/shiip/public-api/v2/shipping-order/create`,
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Token': GHN_TOKEN,
-          'ShopId': GHN_SHOP_ID,
-        },
-      }
-    );
-
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || 'Không thể tạo đơn hàng vận chuyển');
-    }
-
-    const ghnOrderCode = response.data.data.order_code;
-    const trackingCode = response.data.data.order_code; // GHN dùng order_code làm tracking code
-
-    logger.info('GHN create shipping order success', {
-      orderId,
-      orderNumber,
-      ghnOrderCode,
-      trackingCode,
-    });
-
-    return {
-      success: true,
-      ghnOrderCode,
-      trackingCode,
-      expectedDeliveryTime: response.data.data.expected_delivery_time || null,
-      fee: response.data.data.total_fee || 0,
-    };
-  } catch (error) {
-    logger.error('GHN create shipping order error', {
-      error: error.message,
-      response: error.response?.data,
-      orderId: params.orderId,
-    });
-    
-    throw error;
-  }
-};
-
-/**
- * Lấy thông tin đơn hàng vận chuyển
- */
-export const getShippingOrderInfo = async (ghnOrderCode) => {
-  try {
-    const response = await axios.get(
-      `${GHN_API_URL}/shiip/public-api/v2/shipping-order/detail`,
-      {
-        params: {
-          order_code: ghnOrderCode,
-        },
-        headers: {
-          'Token': GHN_TOKEN,
-          'ShopId': GHN_SHOP_ID,
-        },
-      }
-    );
-
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || 'Không thể lấy thông tin đơn hàng');
-    }
-
-    return {
-      success: true,
-      data: response.data.data,
-      status: response.data.data.status,
-      currentStatus: response.data.data.current_status,
-    };
-  } catch (error) {
-    logger.error('GHN get shipping order info error', {
-      error: error.message,
-      ghnOrderCode,
-    });
-    throw error;
-  }
-};
-
-/**
- * Lấy lịch sử vận chuyển
- */
-export const getShippingHistory = async (ghnOrderCode) => {
-  try {
-    const response = await axios.get(
-      `${GHN_API_URL}/shiip/public-api/v2/shipping-order/leadtime`,
-      {
-        params: {
-          order_codes: [ghnOrderCode],
-        },
-        headers: {
-          'Token': GHN_TOKEN,
-          'ShopId': GHN_SHOP_ID,
-        },
-      }
-    );
-
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || 'Không thể lấy lịch sử vận chuyển');
-    }
-
-    return {
-      success: true,
-      history: response.data.data || [],
-    };
-  } catch (error) {
-    logger.error('GHN get shipping history error', {
-      error: error.message,
-      ghnOrderCode,
-    });
-    return {
-      success: false,
-      history: [],
-      error: error.message,
-    };
-  }
-};
-
-/**
- * Hủy đơn hàng vận chuyển
- */
-export const cancelShippingOrder = async (ghnOrderCode) => {
-  try {
-    const response = await axios.post(
-      `${GHN_API_URL}/shiip/public-api/v2/switch-status/cancel`,
-      {
-        order_codes: [ghnOrderCode],
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Token': GHN_TOKEN,
-          'ShopId': GHN_SHOP_ID,
-        },
-      }
-    );
-
-    if (response.data.code !== 200) {
-      throw new Error(response.data.message || 'Không thể hủy đơn hàng');
-    }
-
-    return {
-      success: true,
-    };
-  } catch (error) {
-    logger.error('GHN cancel shipping order error', {
-      error: error.message,
-      ghnOrderCode,
-    });
-    throw error;
-  }
-};
-
 export default {
+  getProvinces,
+  getDistricts,
+  getWards,
   calculateShippingFee,
-  getAvailableServices,
-  createShippingOrder,
-  getShippingOrderInfo,
-  getShippingHistory,
-  cancelShippingOrder,
 };
 ```
 
-### 2. Tạo Controller cho Shipping
+### 2. Tạo Controller
 
-**File:** `backend/controller/shippingController.js`
+**File:** `backend/controller/ghnController.js`
 
 ```javascript
 import ghnService from '../services/shipping/ghnService.js';
-import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 
 /**
- * Tính phí vận chuyển
- * POST /api/shipping/calculate-fee
+ * Lấy danh sách Tỉnh/Thành phố
+ * GET /api/ghn/provinces
  */
-export const calculateShippingFee = async (req, res) => {
+export const getProvinces = async (req, res) => {
   try {
-    const { addressId, items } = req.body;
+    const result = await ghnService.getProvinces();
     
-    if (!addressId) {
-      return res.status(400).json({ message: 'Vui lòng chọn địa chỉ giao hàng' });
-    }
-
-    // Lấy địa chỉ
-    const address = await prisma.address.findUnique({
-      where: { id: Number(addressId) },
-    });
-
-    if (!address) {
-      return res.status(404).json({ message: 'Không tìm thấy địa chỉ' });
-    }
-
-    // TODO: Cần mapping tên tỉnh/quận/phường sang mã GHN
-    // Tạm thời dùng API hoặc bảng mapping
-    // Để đơn giản, có thể lưu mã GHN vào bảng Address khi tạo địa chỉ
-    
-    // Tính tổng trọng lượng (giả định mỗi sản phẩm 500g nếu không có)
-    const totalWeight = items?.reduce((sum, item) => {
-      return sum + (item.weight || 500) * (item.quantity || 1);
-    }, 0) || 500;
-
-    // TODO: Cần có mapping district/ward code từ địa chỉ
-    // Ví dụ: Lưu thêm districtCode, wardCode vào bảng Address
-    const result = await ghnService.calculateShippingFee({
-      toDistrictId: address.districtCode || null, // Cần thêm field này
-      toWardCode: address.wardCode || null, // Cần thêm field này
-      weight: totalWeight,
-      length: 20,
-      width: 20,
-      height: 20,
-      codAmount: 0, // Sẽ tính sau nếu COD
-    });
-
     if (!result.success) {
-      // Fallback: Trả về phí mặc định
-      return res.json({
-        success: true,
-        shippingFee: result.shippingFee || 30000,
-        estimatedDeliveryTime: null,
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể lấy danh sách tỉnh/thành phố',
         error: result.error,
       });
     }
 
     return res.json({
       success: true,
-      shippingFee: result.shippingFee,
-      serviceFee: result.serviceFee,
-      insuranceFee: result.insuranceFee,
-      totalFee: result.totalFee,
-      estimatedDeliveryTime: result.estimatedDeliveryTime,
+      message: 'Lấy danh sách tỉnh/thành phố thành công',
+      data: result.data,
+    });
+  } catch (error) {
+    logger.error('Get provinces error', { error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Lấy danh sách Quận/Huyện
+ * GET /api/ghn/districts?province_id=79
+ */
+export const getDistricts = async (req, res) => {
+  try {
+    const { province_id } = req.query;
+    
+    if (!province_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp province_id',
+      });
+    }
+
+    const result = await ghnService.getDistricts(Number(province_id));
+    
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể lấy danh sách quận/huyện',
+        error: result.error,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Lấy danh sách quận/huyện thành công',
+      data: result.data,
+    });
+  } catch (error) {
+    logger.error('Get districts error', { error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Lấy danh sách Phường/Xã
+ * Hỗ trợ cả GET (query params) và POST (body) để frontend dễ sử dụng
+ * GET /api/ghn/wards?district_id=1454
+ * POST /api/ghn/wards với body: { district_id: 1454 }
+ */
+export const getWards = async (req, res) => {
+  try {
+    // Hỗ trợ cả GET (query params) và POST (body)
+    const district_id = req.query.district_id || req.body.district_id;
+    
+    if (!district_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp district_id',
+      });
+    }
+
+    const result = await ghnService.getWards(Number(district_id));
+    
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể lấy danh sách phường/xã',
+        error: result.error,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Lấy danh sách phường/xã thành công',
+      data: result.data,
+    });
+  } catch (error) {
+    logger.error('Get wards error', { error: error.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Tính phí vận chuyển
+ * POST /api/ghn/calculate-shipping-fee
+ */
+export const calculateShippingFee = async (req, res) => {
+  try {
+    const {
+      toDistrictId,
+      toWardCode,
+      weight,
+      length,
+      width,
+      height,
+      codAmount,
+      serviceTypeId,
+    } = req.body;
+
+    if (!toDistrictId || !toWardCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp toDistrictId và toWardCode',
+      });
+    }
+
+    const result = await ghnService.calculateShippingFee({
+      toDistrictId: Number(toDistrictId),
+      toWardCode,
+      weight: weight ? Number(weight) : undefined,
+      length: length ? Number(length) : undefined,
+      width: width ? Number(width) : undefined,
+      height: height ? Number(height) : undefined,
+      codAmount: codAmount ? Number(codAmount) : undefined,
+      serviceTypeId: serviceTypeId ? Number(serviceTypeId) : undefined,
+    });
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Không thể tính phí vận chuyển',
+        shippingFee: result.shippingFee || 30000,
+        error: result.error,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Tính phí vận chuyển thành công',
+      data: {
+        shippingFee: result.shippingFee,
+        serviceFee: result.serviceFee,
+        insuranceFee: result.insuranceFee,
+        totalFee: result.totalFee,
+        estimatedDeliveryTime: result.estimatedDeliveryTime,
+      },
     });
   } catch (error) {
     logger.error('Calculate shipping fee error', { error: error.message });
     return res.status(500).json({
-      message: 'Lỗi tính phí vận chuyển',
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Tạo đơn hàng vận chuyển (chỉ admin)
- * POST /api/admin/shipping/create/:orderId
- */
-export const createShippingOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { serviceTypeId } = req.body;
-
-    // Lấy đơn hàng
-    const order = await prisma.order.findUnique({
-      where: { id: Number(orderId) },
-      include: {
-        orderItems: {
-          include: {
-            product: true,
-            variant: true,
-          },
-        },
-        user: true,
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
-    }
-
-    // Kiểm tra đã tạo đơn vận chuyển chưa
-    if (order.ghnOrderCode) {
-      return res.status(400).json({
-        message: 'Đơn hàng đã được tạo trên GHN',
-        ghnOrderCode: order.ghnOrderCode,
-      });
-    }
-
-    // Parse shipping address
-    let shippingAddress;
-    try {
-      shippingAddress = typeof order.shippingAddress === 'string'
-        ? JSON.parse(order.shippingAddress)
-        : order.shippingAddress;
-    } catch (e) {
-      return res.status(400).json({ message: 'Địa chỉ giao hàng không hợp lệ' });
-    }
-
-    // TODO: Cần có mapping district/ward code
-    // Tính trọng lượng và kích thước
-    let totalWeight = 0;
-    order.orderItems.forEach((item) => {
-      const itemWeight = item.variant?.weight || 500; // gram
-      totalWeight += itemWeight * item.quantity;
-    });
-
-    // Tạo đơn vận chuyển trên GHN
-    const result = await ghnService.createShippingOrder({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      toName: shippingAddress.fullName,
-      toPhone: shippingAddress.phone,
-      toAddress: shippingAddress.streetAddress,
-      toWardCode: shippingAddress.wardCode, // Cần có
-      toDistrictId: shippingAddress.districtCode, // Cần có
-      toProvinceId: shippingAddress.provinceCode, // Cần có
-      weight: totalWeight,
-      length: 20,
-      width: 20,
-      height: 20,
-      codAmount: order.paymentMethod === 'COD' ? Number(order.totalAmount) : 0,
-      items: order.orderItems.map((item) => ({
-        productName: item.productName,
-        productSku: item.productSku,
-        quantity: item.quantity,
-        unitPrice: Number(item.unitPrice),
-        weight: item.variant?.weight || 500,
-      })),
-      note: order.customerNote || '',
-      serviceTypeId: serviceTypeId || 2,
-    });
-
-    // Cập nhật đơn hàng với mã GHN
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        ghnOrderCode: result.ghnOrderCode,
-        trackingCode: result.trackingCode,
-        shippingMethod: serviceTypeId === 1 ? 'EXPRESS' : serviceTypeId === 2 ? 'STANDARD' : 'ECONOMY',
-        codAmount: order.paymentMethod === 'COD' ? order.totalAmount : null,
-      },
-    });
-
-    logger.info('GHN order created', {
-      orderId: order.id,
-      ghnOrderCode: result.ghnOrderCode,
-    });
-
-    return res.json({
-      success: true,
-      message: 'Tạo đơn hàng vận chuyển thành công',
-      data: {
-        ghnOrderCode: result.ghnOrderCode,
-        trackingCode: result.trackingCode,
-        expectedDeliveryTime: result.expectedDeliveryTime,
-      },
-    });
-  } catch (error) {
-    logger.error('Create shipping order error', {
-      error: error.message,
-      orderId: req.params.orderId,
-    });
-    return res.status(500).json({
-      message: 'Lỗi tạo đơn hàng vận chuyển',
-      error: error.message,
-    });
-  }
-};
-
-/**
- * Lấy thông tin đơn hàng vận chuyển
- * GET /api/shipping/track/:orderId
- */
-export const trackOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const userId = req.user?.id; // User hoặc admin
-
-    const order = await prisma.order.findUnique({
-      where: { id: Number(orderId) },
-      select: {
-        id: true,
-        orderNumber: true,
-        userId: true,
-        ghnOrderCode: true,
-        trackingCode: true,
-      },
-    });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
-    }
-
-    // Kiểm tra quyền: User chỉ xem đơn của mình
-    if (userId && order.userId !== userId && req.user?.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Không có quyền truy cập' });
-    }
-
-    if (!order.ghnOrderCode) {
-      return res.json({
-        success: false,
-        message: 'Đơn hàng chưa được gửi vận chuyển',
-      });
-    }
-
-    // Lấy thông tin từ GHN
-    const orderInfo = await ghnService.getShippingOrderInfo(order.ghnOrderCode);
-    const history = await ghnService.getShippingHistory(order.ghnOrderCode);
-
-    return res.json({
-      success: true,
-      data: {
-        ghnOrderCode: order.ghnOrderCode,
-        trackingCode: order.trackingCode,
-        status: orderInfo.status,
-        currentStatus: orderInfo.currentStatus,
-        history: history.history || [],
-        orderInfo: orderInfo.data,
-      },
-    });
-  } catch (error) {
-    logger.error('Track order error', {
-      error: error.message,
-      orderId: req.params.orderId,
-    });
-    return res.status(500).json({
-      message: 'Lỗi lấy thông tin vận chuyển',
+      success: false,
+      message: 'Lỗi server',
       error: error.message,
     });
   }
@@ -787,456 +713,440 @@ export const trackOrder = async (req, res) => {
 
 ### 3. Tạo Routes
 
-**File:** `backend/routes/shippingRoutes.js`
+**File:** `backend/routes/ghnRoutes.js`
 
 ```javascript
 import express from 'express';
-import * as shippingController from '../controller/shippingController.js';
-import { authenticate } from '../middleware/auth.js';
+import * as ghnController from '../controller/ghnController.js';
 
 const router = express.Router();
 
-// Public routes (hoặc yêu cầu auth)
-router.post('/calculate-fee', authenticate, shippingController.calculateShippingFee);
-router.get('/track/:orderId', authenticate, shippingController.trackOrder);
+// API 1: Lấy địa chỉ
+router.get('/provinces', ghnController.getProvinces);
+router.get('/districts', ghnController.getDistricts);
+router.get('/wards', ghnController.getWards);
+
+// API 2: Tính phí vận chuyển
+router.post('/calculate-shipping-fee', ghnController.calculateShippingFee);
 
 export default router;
 ```
 
-**File:** `backend/routes/adminShippingRoutes.js`
+### 4. Cập nhật Routes Index
+
+**File:** `backend/routes/index.js`
+
+Thêm vào function routes:
 
 ```javascript
-import express from 'express';
-import * as shippingController from '../controller/shippingController.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
-
-const router = express.Router();
-
-// Admin routes
-router.post('/create/:orderId', authenticate, requireAdmin, shippingController.createShippingOrder);
-
-export default router;
-```
-
-**Cập nhật:** `backend/routes/index.js`
-
-```javascript
-import shippingRoutes from './shippingRoutes.js';
-import adminShippingRoutes from './adminShippingRoutes.js';
+import ghnRoutes from './ghnRoutes.js';
 
 const routes = (app) => {
   // ... existing routes ...
   
-  app.use('/api/shipping', shippingRoutes);
-  app.use('/api/admin/shipping', adminShippingRoutes);
+  // GHN APIs (có thể public hoặc yêu cầu auth)
+  app.use('/api/ghn', ghnRoutes);
   
   // ... existing routes ...
 };
 ```
 
-### 4. Cập nhật Order Controller
+---
 
-Cập nhật `backend/controller/orderController.js` để tính phí ship từ GHN:
+## Database Schema Updates
 
-```javascript
-import ghnService from '../services/shipping/ghnService.js';
+### Cập nhật Address Model để lưu mã GHN
 
-// Trong hàm createOrder, thay đổi phần tính shippingFee:
-// BƯỚC 4: Tính tổng đơn
-const discountAmount = 0;
+**File:** `backend/prisma/schema.prisma`
 
-// Tính phí ship từ GHN (nếu có địa chỉ)
-let shippingFee = 0;
-if (shippingAddress) {
-  try {
-    // TODO: Cần mapping district/ward code
-    const shippingResult = await ghnService.calculateShippingFee({
-      toDistrictId: shippingAddress.districtCode,
-      toWardCode: shippingAddress.wardCode,
-      weight: 500, // Tính từ items thực tế
-      // ... other params
-    });
-    
-    if (shippingResult.success) {
-      shippingFee = shippingResult.shippingFee;
-    }
-  } catch (error) {
-    logger.warn('Failed to calculate shipping fee, using default', { error: error.message });
-    shippingFee = 30000; // Fallback
-  }
+Cập nhật model Address:
+
+```prisma
+model Address {
+  id            Int         @id @default(autoincrement())
+  userId        Int         @map("user_id")
+  fullName      String      @map("full_name")
+  phone         String
+  streetAddress String      @map("street_address")
+  ward          String
+  district      String
+  city          String
+  
+  // Thêm các field mã GHN
+  provinceId    Int?        @map("province_id")        // ProvinceID từ GHN
+  districtId    Int?        @map("district_id")        // DistrictID từ GHN
+  wardCode      String?     @map("ward_code")          // WardCode từ GHN
+  
+  addressType   AddressType @default(HOME) @map("address_type")
+  isDefault     Boolean     @default(false) @map("is_default")
+  note          String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  user          User        @relation(fields: [userId], references: [id], onDelete: NoAction)
+
+  @@index([userId], map: "addresses_user_id_fkey")
+  @@map("addresses")
 }
-
-const totalAmount = subtotal + shippingFee - discountAmount;
 ```
 
-### 5. Webhook Handler
+**Migration:**
 
-**File:** `backend/controller/ghnWebhookController.js`
-
-```javascript
-import prisma from '../config/prisma.js';
-import logger from '../utils/logger.js';
-
-/**
- * Webhook từ GHN khi có thay đổi trạng thái
- * POST /api/ghn/webhook
- */
-export const handleGHNWebhook = async (req, res) => {
-  try {
-    const { OrderCode, Status, UpdatedDate } = req.body;
-
-    if (!OrderCode) {
-      return res.status(400).json({ message: 'Missing OrderCode' });
-    }
-
-    // Tìm đơn hàng theo GHN order code
-    const order = await prisma.order.findFirst({
-      where: { ghnOrderCode: OrderCode },
-    });
-
-    if (!order) {
-      logger.warn('GHN webhook: Order not found', { OrderCode });
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    // Mapping trạng thái GHN sang trạng thái Order
-    const statusMapping = {
-      'ready_to_pick': 'CONFIRMED',
-      'picking': 'PROCESSING',
-      'storing': 'PROCESSING',
-      'transporting': 'PROCESSING',
-      'sorting': 'PROCESSING',
-      'delivering': 'PROCESSING',
-      'delivered': 'DELIVERED',
-      'return': 'CANCELLED',
-      'cancel': 'CANCELLED',
-    };
-
-    const newStatus = statusMapping[Status] || order.status;
-
-    // Cập nhật trạng thái đơn hàng
-    if (newStatus !== order.status) {
-      await prisma.$transaction(async (tx) => {
-        await tx.order.update({
-          where: { id: order.id },
-          data: { status: newStatus },
-        });
-
-        await tx.orderStatusHistory.create({
-          data: {
-            orderId: order.id,
-            status: newStatus,
-          },
-        });
-      });
-
-      logger.info('GHN webhook: Order status updated', {
-        orderId: order.id,
-        OrderCode,
-        oldStatus: order.status,
-        newStatus,
-      });
-    }
-
-    // Lưu lịch sử vận chuyển (nếu có model ShippingHistory)
-    // await prisma.shippingHistory.create({...});
-
-    return res.json({ success: true });
-  } catch (error) {
-    logger.error('GHN webhook error', {
-      error: error.message,
-      body: req.body,
-    });
-    return res.status(500).json({ message: 'Webhook error' });
-  }
-};
+```bash
+cd backend
+npx prisma migrate dev --name add_ghn_address_codes
 ```
 
-**Route:** Thêm vào `backend/routes/index.js`
+**Cập nhật Address Controller:**
+
+Khi tạo/cập nhật địa chỉ, lưu thêm mã GHN:
 
 ```javascript
-import * as ghnWebhookController from './controller/ghnWebhookController.js';
-
-// Webhook route (không cần auth, nhưng nên verify IP hoặc signature)
-app.post('/api/ghn/webhook', ghnWebhookController.handleGHNWebhook);
+// Trong addAddress và updateAddress
+const address = await prisma.address.create({
+  data: {
+    // ... existing fields ...
+    provinceId: req.body.provinceId || null,
+    districtId: req.body.districtId || null,
+    wardCode: req.body.wardCode || null,
+  },
+});
 ```
 
 ---
 
-## Frontend Integration
+## Frontend Implementation
 
-### 1. API Client
+### 1. Tạo API Client
 
-**File:** `frontend/src/api/shipping.js`
+**File:** `frontend/src/api/ghn.js`
 
 ```javascript
 import api from './index';
 
-export const calculateShippingFee = (data) => {
-  return api.post('/shipping/calculate-fee', data);
+// API 1: Lấy địa chỉ
+export const getProvinces = () => {
+  return api.get('/ghn/provinces');
 };
 
-export const trackOrder = (orderId) => {
-  return api.get(`/shipping/track/${orderId}`);
+export const getDistricts = (provinceId) => {
+  return api.get('/ghn/districts', {
+    params: { province_id: provinceId },
+  });
+};
+
+export const getWards = (districtId) => {
+  return api.get('/ghn/wards', {
+    params: { district_id: districtId },
+  });
+};
+
+// API 2: Tính phí vận chuyển
+export const calculateShippingFee = (data) => {
+  return api.post('/ghn/calculate-shipping-fee', data);
 };
 ```
 
-### 2. Cập nhật Checkout Hook
+### 2. Tạo Hook mới để dùng API GHN
+
+**File:** `frontend/src/hooks/useGHNPlaces.js`
+
+```javascript
+import { useState, useEffect } from 'react';
+import { getProvinces, getDistricts, getWards } from '@/api/ghn';
+
+/**
+ * Hook để lấy danh sách địa chỉ từ GHN API
+ * Thay thế cho useVietnamesePlaces khi cần mã GHN
+ */
+export const useGHNPlaces = () => {
+  const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Load tỉnh/thành phố khi component mount
+  useEffect(() => {
+    fetchProvinces();
+  }, []);
+
+  const fetchProvinces = async () => {
+    try {
+      setLoading(true);
+      const response = await getProvinces();
+      if (response.data?.success) {
+        // Format dữ liệu để tương thích với code hiện tại
+        const formatted = (response.data.data || []).map((p) => ({
+          code: p.ProvinceID,
+          name: p.ProvinceName,
+          ghnCode: p.Code,
+          ProvinceID: p.ProvinceID, // Giữ nguyên để dùng sau
+        }));
+        setProvinces(formatted);
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải tỉnh/thành:', error);
+      setProvinces([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDistricts = async (provinceId) => {
+    if (!provinceId) {
+      setDistricts([]);
+      setWards([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await getDistricts(provinceId);
+      if (response.data?.success) {
+        // Format dữ liệu
+        const formatted = (response.data.data || []).map((d) => ({
+          code: d.DistrictID,
+          name: d.DistrictName,
+          ghnCode: d.Code,
+          ProvinceID: d.ProvinceID,
+          DistrictID: d.DistrictID, // Giữ nguyên để dùng sau
+        }));
+        setDistricts(formatted);
+        setWards([]); // Reset wards khi đổi tỉnh
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải quận/huyện:', error);
+      setDistricts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWards = async (districtId) => {
+    if (!districtId) {
+      setWards([]);
+      return;
+    }
+    try {
+      setLoading(true);
+      const response = await getWards(districtId);
+      if (response.data?.success) {
+        // Format dữ liệu
+        const formatted = (response.data.data || []).map((w) => ({
+          code: w.WardCode, // WardCode là string
+          name: w.WardName,
+          WardCode: w.WardCode, // Giữ nguyên để dùng sau
+          DistrictID: w.DistrictID,
+        }));
+        setWards(formatted);
+      }
+    } catch (error) {
+      console.error('Lỗi khi tải phường/xã:', error);
+      setWards([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    provinces,
+    districts,
+    wards,
+    loading,
+    fetchDistricts,
+    fetchWards,
+  };
+};
+```
+
+### 3. Tạo Hook tính phí vận chuyển
+
+**File:** `frontend/src/hooks/useShippingFee.js`
+
+```javascript
+import { useState } from 'react';
+import { calculateShippingFee as calculateGHNFee } from '@/api/ghn';
+
+/**
+ * Hook để tính phí vận chuyển từ GHN
+ */
+export const useShippingFee = () => {
+  const [shippingFee, setShippingFee] = useState(0);
+  const [calculating, setCalculating] = useState(false);
+  const [error, setError] = useState(null);
+
+  const calculate = async (params) => {
+    const {
+      toDistrictId,
+      toWardCode,
+      weight = 500,
+      length = 20,
+      width = 20,
+      height = 20,
+      codAmount = 0,
+      serviceTypeId = 2,
+    } = params;
+
+    if (!toDistrictId || !toWardCode) {
+      setShippingFee(0);
+      setError('Thiếu thông tin địa chỉ');
+      return;
+    }
+
+    try {
+      setCalculating(true);
+      setError(null);
+      
+      const response = await calculateGHNFee({
+        toDistrictId,
+        toWardCode,
+        weight,
+        length,
+        width,
+        height,
+        codAmount,
+        serviceTypeId,
+      });
+
+      if (response.data?.success) {
+        setShippingFee(response.data.data.shippingFee || 0);
+      } else {
+        setShippingFee(response.data?.data?.shippingFee || 30000); // Fallback
+        setError(response.data?.error || 'Không thể tính phí');
+      }
+    } catch (err) {
+      console.error('Lỗi tính phí vận chuyển:', err);
+      setShippingFee(30000); // Fallback
+      setError('Lỗi tính phí vận chuyển');
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const reset = () => {
+    setShippingFee(0);
+    setError(null);
+    setCalculating(false);
+  };
+
+  return {
+    shippingFee,
+    calculating,
+    error,
+    calculate,
+    reset,
+  };
+};
+```
+
+### 4. Cập nhật Checkout để dùng API GHN
 
 **File:** `frontend/src/pages/user/checkout/useCheckout.js`
 
-Thêm tính phí ship khi chọn địa chỉ:
+Thay đổi hook để dùng `useGHNPlaces` và tính phí ship:
 
 ```javascript
-import { calculateShippingFee } from '@/api/shipping';
+import { useGHNPlaces } from '@/hooks/useGHNPlaces';
+import { useShippingFee } from '@/hooks/useShippingFee';
 
-// Thêm state
-const [shippingFee, setShippingFee] = useState(0);
-const [calculatingShipping, setCalculatingShipping] = useState(false);
-
-// Hàm tính phí ship
-const calculateShipping = async (addressId) => {
-  if (!addressId) {
-    setShippingFee(0);
-    return;
-  }
-
-  try {
-    setCalculatingShipping(true);
-    const items = checkoutItems.map((item) => ({
-      quantity: item.quantity,
-      weight: item.variant?.weight || 500,
-    }));
-
-    const response = await calculateShippingFee({
-      addressId,
-      items,
-    });
-
-    if (response.data?.success) {
-      setShippingFee(response.data.shippingFee || 0);
-    }
-  } catch (error) {
-    console.error('Lỗi tính phí ship:', error);
-    setShippingFee(30000); // Fallback
-  } finally {
-    setCalculatingShipping(false);
-  }
-};
-
-// Gọi khi địa chỉ thay đổi
-useEffect(() => {
-  if (selectedAddressId) {
-    calculateShipping(selectedAddressId);
-  }
-}, [selectedAddressId, checkoutItems]);
-
-// Cập nhật summary
-const summary = useMemo(() => {
-  const subtotal = checkoutItems.reduce((sum, item) => {
-    const price = Number(item?.final_price ?? item?.product?.price ?? 0);
-    return sum + price * item.quantity;
-  }, 0);
+export function useCheckout() {
+  // ... existing code ...
   
-  return {
-    subtotal,
-    shippingFee,
-    discount: 0,
-    total: subtotal + shippingFee,
-  };
-}, [checkoutItems, shippingFee]);
-```
-
-### 3. Cập nhật UI Checkout
-
-**File:** `frontend/src/pages/user/checkout/Checkout.jsx`
-
-Thêm hiển thị phí ship trong phần tổng tiền:
-
-```jsx
-{/* Trong phần tổng tiền */}
-<div className="flex justify-between">
-  <span>Phí vận chuyển:</span>
-  <span>
-    {calculatingShipping ? (
-      <span className="text-gray-400">Đang tính...</span>
-    ) : (
-      formatPrice(summary.shippingFee)
-    )}
-  </span>
-</div>
-```
-
-### 4. Component Tracking Order
-
-**File:** `frontend/src/components/user/OrderTracking.jsx`
-
-```javascript
-import { useEffect, useState } from 'react';
-import { trackOrder } from '@/api/shipping';
-
-export default function OrderTracking({ orderId }) {
-  const [trackingData, setTrackingData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
+  // Thay đổi từ useVietnamesePlaces sang useGHNPlaces
+  const { provinces, districts, wards, fetchDistricts, fetchWards } = useGHNPlaces();
+  
+  // Thêm hook tính phí ship
+  const { shippingFee, calculating: calculatingShipping, calculate: calculateShippingFee } = useShippingFee();
+  
+  // Tính phí ship khi địa chỉ thay đổi
   useEffect(() => {
-    const fetchTracking = async () => {
-      try {
-        const response = await trackOrder(orderId);
-        if (response.data?.success) {
-          setTrackingData(response.data.data);
-        }
-      } catch (error) {
-        console.error('Lỗi lấy thông tin tracking:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (orderId) {
-      fetchTracking();
+    if (selectedAddress?.districtId && selectedAddress?.wardCode) {
+      calculateShippingFee({
+        toDistrictId: selectedAddress.districtId,
+        toWardCode: selectedAddress.wardCode,
+        weight: 500, // Tính từ items thực tế
+      });
     }
-  }, [orderId]);
-
-  if (loading) return <div>Đang tải...</div>;
-  if (!trackingData) return <div>Chưa có thông tin vận chuyển</div>;
-
-  return (
-    <div>
-      <h3>Theo dõi đơn hàng</h3>
-      <p>Mã vận đơn: {trackingData.trackingCode}</p>
-      <p>Trạng thái: {trackingData.currentStatus}</p>
-      
-      {/* Timeline */}
-      <div>
-        {trackingData.history.map((item, index) => (
-          <div key={index}>
-            <p>{item.status}</p>
-            <p>{item.time}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  }, [selectedAddress]);
+  
+  // Cập nhật summary với shippingFee
+  const summary = useMemo(() => {
+    const subtotal = checkoutItems.reduce((sum, item) => {
+      const price = Number(item?.final_price ?? item?.product?.price ?? 0);
+      return sum + price * item.quantity;
+    }, 0);
+    
+    return {
+      subtotal,
+      shippingFee,
+      discount: 0,
+      total: subtotal + shippingFee,
+    };
+  }, [checkoutItems, shippingFee]);
+  
+  // ... rest of code ...
 }
-```
-
----
-
-## Webhook & Tracking
-
-### 1. Cấu hình Webhook trên GHN
-
-1. Đăng nhập vào https://khachhang.ghn.vn/
-2. Vào **"Cài đặt"** → **"Webhook"**
-3. Nhập URL: `https://yourdomain.com/api/ghn/webhook`
-4. Chọn các sự kiện cần nhận:
-   - Đơn hàng được lấy
-   - Đơn hàng đang giao
-   - Đơn hàng đã giao
-   - Đơn hàng hủy
-
-### 2. Xác thực Webhook (bảo mật)
-
-Thêm xác thực IP hoặc signature trong webhook handler:
-
-```javascript
-// Chỉ cho phép IP của GHN
-const GHN_IP_WHITELIST = ['...']; // Danh sách IP GHN
-
-export const handleGHNWebhook = async (req, res) => {
-  const clientIp = req.ip || req.connection.remoteAddress;
-  
-  // TODO: Verify IP (hoặc signature nếu GHN hỗ trợ)
-  
-  // ... rest of code
-};
 ```
 
 ---
 
 ## Testing
 
-### 1. Test tính phí vận chuyển
+### 1. Test API Lấy Địa Chỉ
 
 ```bash
-# Test API
-curl -X POST http://localhost:5000/api/shipping/calculate-fee \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+# Test lấy tỉnh/thành phố
+curl http://localhost:5000/api/ghn/provinces
+
+# Test lấy quận/huyện
+curl "http://localhost:5000/api/ghn/districts?province_id=202"
+
+# Test lấy phường/xã (Lưu ý: API này dùng POST trong backend, nhưng frontend có thể gọi qua GET với query params)
+curl -X POST "http://localhost:5000/api/ghn/wards?district_id=3695" \
+  -H "Content-Type: application/json"
+```
+
+**Lưu ý:** API Get Wards của GHN yêu cầu POST method với `district_id` trong body, nhưng backend có thể wrap lại để frontend gọi đơn giản hơn.
+
+### 2. Test API Tính Phí Vận Chuyển
+
+```bash
+curl -X POST http://localhost:5000/api/ghn/calculate-shipping-fee \
   -H "Content-Type: application/json" \
   -d '{
-    "addressId": 1,
-    "items": [
-      {"quantity": 1, "weight": 500}
-    ]
+    "toDistrictId": 1455,
+    "toWardCode": "1A0402",
+    "weight": 500,
+    "length": 20,
+    "width": 20,
+    "height": 20
   }'
 ```
 
-### 2. Test tạo đơn vận chuyển
-
-Admin tạo đơn vận chuyển từ admin panel sau khi xác nhận đơn hàng.
-
-### 3. Test Webhook
-
-Sử dụng tool như ngrok để test webhook local:
-
-```bash
-ngrok http 5000
-# Copy URL và cấu hình trên GHN
-```
-
 ---
 
-## Troubleshooting
-
-### Lỗi thường gặp:
-
-1. **"Invalid Token"**
-   - Kiểm tra `GHN_TOKEN` trong `.env`
-   - Đảm bảo token đúng môi trường (dev/prod)
-
-2. **"District/Ward not found"**
-   - Cần mapping đúng mã tỉnh/quận/phường
-   - Sử dụng API GHN để lấy danh sách
-
-3. **"Cannot calculate shipping fee"**
-   - Kiểm tra địa chỉ kho hàng đã đúng chưa
-   - Kiểm tra địa chỉ giao hàng có mã GHN chưa
-
-4. **Webhook không nhận được**
-   - Kiểm tra URL webhook có public không
-   - Kiểm tra firewall/security settings
-
----
-
-## Checklist Tích Hợp
+## Checklist Implementation
 
 ### Backend
-- [ ] Thêm biến môi trường GHN
+- [ ] Thêm biến môi trường GHN vào `.env`
 - [ ] Tạo GHN Service (`services/shipping/ghnService.js`)
-- [ ] Tạo Shipping Controller
-- [ ] Tạo Routes
-- [ ] Cập nhật Order Controller để tính phí ship
-- [ ] Tạo Webhook Handler
-- [ ] Cập nhật Database Schema (nếu cần)
+- [ ] Tạo GHN Controller (`controller/ghnController.js`)
+- [ ] Tạo GHN Routes (`routes/ghnRoutes.js`)
+- [ ] Cập nhật Routes Index
+- [ ] Cập nhật Database Schema (thêm mã GHN vào Address)
+- [ ] Chạy migration
 
 ### Frontend
-- [ ] Tạo API client cho shipping
-- [ ] Cập nhật Checkout để tính phí ship
-- [ ] Hiển thị phí ship trong UI
-- [ ] Tạo component Tracking Order
-- [ ] Hiển thị tracking trong Order Detail
-
-### Admin
-- [ ] Tạo nút "Tạo đơn vận chuyển" trong Admin Orders
-- [ ] Hiển thị mã vận đơn trong Order Detail
-- [ ] Cập nhật trạng thái tự động từ webhook
+- [ ] Tạo API client (`api/ghn.js`)
+- [ ] Tạo hook `useGHNPlaces`
+- [ ] Tạo hook `useShippingFee`
+- [ ] Cập nhật Checkout để dùng API GHN
+- [ ] Cập nhật Address Form để lưu mã GHN
+- [ ] Hiển thị phí ship trong Checkout
 
 ### Testing
-- [ ] Test tính phí vận chuyển
-- [ ] Test tạo đơn vận chuyển
-- [ ] Test tracking order
-- [ ] Test webhook cập nhật trạng thái
+- [ ] Test API lấy tỉnh/quận/phường
+- [ ] Test API tính phí vận chuyển
+- [ ] Test UI chọn địa chỉ
+- [ ] Test tính phí ship khi đổi địa chỉ
 
 ---
 
@@ -1248,25 +1158,4 @@ ngrok http 5000
 
 ---
 
-## Lưu Ý Quan Trọng
-
-1. **Mapping Địa Chỉ:** GHN yêu cầu mã số (ID) cho tỉnh/quận/phường, không phải tên. Cần:
-   - Lưu mã GHN khi user chọn địa chỉ
-   - Hoặc dùng API GHN để lấy danh sách và mapping
-
-2. **Môi Trường:** 
-   - Dev: `https://dev-online-gateway.ghn.vn`
-   - Prod: `https://online-gateway.ghn.vn`
-
-3. **Trọng Lượng & Kích Thước:** 
-   - Cần lưu thông tin sản phẩm (weight, dimensions) để tính phí chính xác
-   - Hoặc dùng giá trị mặc định nhưng có thể không chính xác
-
-4. **Bảo Mật:** 
-   - Không commit token vào Git
-   - Xác thực webhook để tránh fake requests
-
----
-
 **Chúc bạn tích hợp thành công! 🚀**
-

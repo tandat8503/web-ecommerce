@@ -80,5 +80,24 @@ export const addressSchema = Joi.object({
     .messages({
       "string.max": "Ghi chú tối đa 255 ký tự",
     }),
+
+  provinceId: Joi.number().integer().positive().optional().allow(null)
+    .messages({
+      "number.base": "provinceId phải là số",
+      "number.integer": "provinceId phải là số nguyên",
+      "number.positive": "provinceId phải là số dương"
+    }),
+
+  districtId: Joi.number().integer().positive().optional().allow(null)
+    .messages({
+      "number.base": "districtId phải là số",
+      "number.integer": "districtId phải là số nguyên",
+      "number.positive": "districtId phải là số dương"
+    }),
+
+  wardCode: Joi.string().max(50).optional().allow(null, "")
+    .messages({
+      "string.max": "WardCode tối đa 50 ký tự"
+    }),
 });
 

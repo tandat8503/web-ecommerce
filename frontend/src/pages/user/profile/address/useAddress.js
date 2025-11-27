@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "@/lib/utils";
 import { getAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress } from "@/api/address";
-import { useVietnamesePlaces } from "@/hooks/useVietnamesePlaces";
+import { useGHNPlaces } from "@/hooks/useGHNPlaces";
 
 // ========== CONSTANTS ==========
 // Giá trị mặc định của form khi tạo địa chỉ mới
@@ -45,42 +45,38 @@ export function useAddress(isActive = true) {
   const [form, setForm] = useState(INIT_FORM);
   
   // Mã code của Tỉnh/Quận/Phường đã chọn (dùng để hiển thị trong dropdown)
-  // Lưu code thay vì tên vì dropdown cần code để map với API, lấy useVietnamesePlaces
+  // Lưu code thay vì tên vì dropdown cần code để map với API GHN
+  // Lưu cả ID và code để dùng cho GHN
   const [selectedCodes, setSelectedCodes] = useState({
-    provinceCode: "",   // Mã tỉnh/thành phố 
-    districtCode: "",   // Mã quận/huyện
-    wardCode: ""        // Mã phường/xã
+    provinceCode: "",   // ProvinceID từ GHN
+    districtCode: "",   // DistrictID từ GHN
+    wardCode: ""        // WardCode từ GHN
   });
 
-  // Hook quản lý danh sách Tỉnh/Quận/Phường từ API useVietnamesePlaces
-  // 
-  // API: https://provinces.open-api.vn/api
-  // API này trả về dữ liệu có CẢ name VÀ code:
+  // Hook quản lý danh sách Tỉnh/Quận/Phường từ GHN API
+  // API: /api/ghn/provinces, /api/ghn/districts, /api/ghn/wards
+  // GHN API trả về:
   // 
   // provinces = [
-  //   { code: "79", name: "Thành phố Hồ Chí Minh" },
-  //   { code: "01", name: "Thành phố Hà Nội" },
+  //   { ProvinceID: 202, ProvinceName: "Hồ Chí Minh", code: 202, name: "Hồ Chí Minh" },
   //   ...
   // ]
   // 
   // districts = [
-  //   { code: "760", name: "Quận 1" },
-  //   { code: "761", name: "Quận 2" },
+  //   { DistrictID: 1457, DistrictName: "Quận Phú Nhuận", code: 1457, name: "Quận Phú Nhuận" },
   //   ...
   // ]
   // 
   // wards = [
-  //   { code: "26734", name: "Phường Bến Nghé" },
-  //   { code: "26737", name: "Phường Đa Kao" },
+  //   { WardCode: "21708", WardName: "Phường 9", code: "21708", name: "Phường 9" },
   //   ...
   // ]
   // 
   // KHÁC BIỆT QUAN TRỌNG:
-  // - API tỉnh/quận/huyện: Có CẢ { code, name } ✅
-  // - Database của user: CHỈ lưu name (không lưu code) ❌
-  // - Dropdown cần: code để map giá trị đã chọn
-  // - Nên khi edit: Phải tìm lại code từ name trong danh sách provinces/districts/wards
-  const { provinces, districts, wards, fetchDistricts, fetchWards } = useVietnamesePlaces();
+  // - GHN API: Có ProvinceID, DistrictID, WardCode (mã GHN) ✅
+  // - Database của user: Lưu cả name VÀ mã GHN (provinceId, districtId, wardCode) ✅
+  // - Dropdown dùng: code (ProvinceID/DistrictID/WardCode) để map giá trị đã chọn
+  const { provinces, districts, wards, fetchDistricts, fetchWards } = useGHNPlaces();
 
   // ========== API CALLS ==========
   
@@ -148,6 +144,18 @@ export function useAddress(isActive = true) {
       // Form trả về "home" hoặc "office" (lowercase)
       // Nên phải convert sang uppercase
       const data = { ...formData, addressType: formData.addressType.toUpperCase() };
+      
+      // Thêm mã GHN vào data để lưu vào database
+      // Lấy từ selectedCodes (đã được set khi user chọn tỉnh/quận/phường)
+      if (selectedCodes.provinceCode) {
+        data.provinceId = Number(selectedCodes.provinceCode);
+      }
+      if (selectedCodes.districtCode) {
+        data.districtId = Number(selectedCodes.districtCode);
+      }
+      if (selectedCodes.wardCode) {
+        data.wardCode = selectedCodes.wardCode; // WardCode là string
+      }
       
       // Kiểm tra đang edit hay thêm mới
       if (editing) {
@@ -254,73 +262,94 @@ export function useAddress(isActive = true) {
    */
   const edit = async (addr) => {
     // ===== BƯỚC 1: Lưu địa chỉ đang sửa =====
-    // Lưu vào state để biết đang sửa địa chỉ nào (có ID để gọi API update)
     setEditing(addr);
     
     // ===== BƯỚC 2: Convert addressType =====
-    // Backend lưu "HOME"/"OFFICE" (chữ HOA)
-    // Form cần "home"/"office" (chữ thường)
-    // Nên phải convert về lowercase
     const formData = { ...addr, addressType: addr.addressType?.toLowerCase() || "home" };
-    setForm(formData); // Truyền formData vào AddressForm để hiển thị trong form
+    setForm(formData);
     
-    // ===== BƯỚC 3: Tìm mã TỈNH từ tên tỉnh =====
-    // addr.city = "Thành phố Hồ Chí Minh" (tên từ database)
-    // provinces = [{ code: "79", name: "Thành phố Hồ Chí Minh" }, ...] (từ API)
-    // Tìm province có name khớp với addr.city để lấy mã code
-    const province = provinces.find(p => p.name === addr.city);
+    // ===== BƯỚC 3: Set mã GHN từ database (nếu có) =====
+    // Ưu tiên dùng mã GHN từ database (provinceId, districtId, wardCode)
+    // Nếu không có thì tìm từ tên (fallback cho địa chỉ cũ)
+    let provinceId = addr.provinceId;
+    let districtId = addr.districtId;
+    let wardCode = addr.wardCode;
     
-    if (province) {
-      // ===== BƯỚC 4: Set mã tỉnh và load quận/huyện =====
-      // Lưu mã tỉnh vào selectedCodes để dropdown hiển thị đúng
-      setSelectedCodes(prev => ({ ...prev, provinceCode: String(province.code) }));
+    // Nếu có mã GHN từ database, dùng luôn
+    if (provinceId) {
+      // Set mã tỉnh vào selectedCodes
+      setSelectedCodes(prev => ({ 
+        ...prev,
+        provinceCode: String(provinceId), 
+        districtCode: "", // Reset để load lại
+        wardCode: ""      // Reset để load lại
+      }));
       
-      // Gọi API load danh sách quận/huyện của tỉnh này
-      // fetchDistricts() từ useVietnamesePlaces hook
-      // API: https://provinces.open-api.vn/api/p/79?depth=2
-      await fetchDistricts(String(province.code));
+      // Load quận/huyện của tỉnh này
+      await fetchDistricts(provinceId);
       
-      // ===== BƯỚC 5: Đợi state districts cập nhật =====
-      // Sau khi fetchDistricts() xong, state districts sẽ được cập nhật
-      // Nhưng React state update là async, không đồng bộ ngay
-      // Nên phải đợi 300ms để chắc chắn state đã cập nhật
-      setTimeout(() => {
-        // Tìm mã QUẬN từ tên quận
-        // addr.district = "Quận 1" (tên từ database)
-        // districts = [{ code: "760", name: "Quận 1" }, ...] (vừa load từ API)
-        const district = districts.find(d => d.name === addr.district);
-        
-        if (district) {
-          // ===== BƯỚC 6: Set mã quận và load phường/xã =====
-          // Lưu mã quận vào selectedCodes
-          setSelectedCodes(prev => ({ ...prev, districtCode: String(district.code) }));
+      // Đợi một chút để districts được cập nhật
+      setTimeout(async () => {
+        // Nếu có districtId, set và load wards
+        if (districtId) {
+          setSelectedCodes(prev => ({ 
+            ...prev,
+            districtCode: String(districtId),
+            wardCode: ""
+          }));
           
-          // Gọi API load danh sách phường/xã của quận này
-          // fetchWards() từ useVietnamesePlaces hook
-          // API: https://provinces.open-api.vn/api/d/760?depth=2
-          fetchWards(String(district.code));
+          // Load phường/xã của quận này
+          await fetchWards(districtId);
           
-          // ===== BƯỚC 7: Đợi state wards cập nhật =====
+          // Đợi một chút để wards được cập nhật, sau đó set wardCode nếu có
           setTimeout(() => {
-            // Tìm mã PHƯỜNG từ tên phường
-            // addr.ward = "Phường Bến Nghé" (tên từ database)
-            // wards = [{ code: "26734", name: "Phường Bến Nghé" }, ...] (vừa load từ API)
-            const ward = wards.find(w => w.name === addr.ward);
-            
-            if (ward) {
-              // ===== BƯỚC 8: Set mã phường =====
-              // Lưu mã phường vào selectedCodes
-              // Bây giờ selectedCodes có đầy đủ: provinceCode, districtCode, wardCode
-              // Dropdown sẽ hiển thị đúng giá trị đã chọn
-              setSelectedCodes(prev => ({ ...prev, wardCode: String(ward.code) }));
+            if (wardCode) {
+              setSelectedCodes(prev => ({ 
+                ...prev,
+                wardCode: String(wardCode)
+              }));
             }
-          }, 300); // Đợi 300ms để state wards cập nhật
+          }, 200);
         }
-      }, 300); // Đợi 300ms để state districts cập nhật
+      }, 200);
+      
+      // Mở dialog
+      setOpen(true);
+      return;
     }
     
-    // ===== BƯỚC 9: Mở dialog form =====
-    // Sau khi đã set xong tất cả selectedCodes, mở dialog để user sửa
+    // ===== FALLBACK: Tìm mã từ tên (cho địa chỉ cũ không có mã GHN) =====
+    // Tìm tỉnh từ tên
+    const province = provinces.find(p => p.name === addr.city || p.ProvinceName === addr.city);
+    
+    if (province) {
+      const provinceCode = String(province.code || province.ProvinceID);
+      setSelectedCodes(prev => ({ ...prev, provinceCode }));
+      
+      await fetchDistricts(provinceCode);
+      
+      setTimeout(() => {
+        const district = districts.find(d => d.name === addr.district || d.DistrictName === addr.district);
+        
+        if (district) {
+          const districtCode = String(district.code || district.DistrictID);
+          setSelectedCodes(prev => ({ ...prev, districtCode }));
+          
+          fetchWards(districtCode);
+          
+          setTimeout(() => {
+            const ward = wards.find(w => w.name === addr.ward || w.WardName === addr.ward);
+            
+            if (ward) {
+              const wardCodeValue = String(ward.code || ward.WardCode);
+              setSelectedCodes(prev => ({ ...prev, wardCode: wardCodeValue }));
+            }
+          }, 300);
+        }
+      }, 300);
+    }
+    
+    // Mở dialog
     setOpen(true);
   };
 
@@ -340,18 +369,19 @@ export function useAddress(isActive = true) {
    * 3. Cập nhật selectedCodes: set mã tỉnh, reset mã quận và phường
    * 4. Load danh sách quận/huyện của tỉnh đó
    */
-  //xử lý khi user chọn Tỉnh/TP trong dropdown , lấy từ API useVietnamesePlaces
+  // Xử lý khi user chọn Tỉnh/TP trong dropdown, lấy từ GHN API
   const handleProvinceChange = (value) => {
-    const province = provinces.find(p => String(p.code) === value);//lấy tỉnh từ mã code
+    const province = provinces.find(p => String(p.code) === value || String(p.ProvinceID) === value);
     if (province) {
+      const provinceName = province.name || province.ProvinceName;
       // Cập nhật form: set tên tỉnh, xóa quận và phường (vì đổi tỉnh mới)
-      setForm({ ...form, city: province.name, district: "", ward: "" });
+      setForm({ ...form, city: provinceName, district: "", ward: "" });
       
-      // Cập nhật selectedCodes: set mã tỉnh, reset mã quận và phường lấy từ API useVietnamesePlaces
+      // Cập nhật selectedCodes: set mã tỉnh, reset mã quận và phường
       setSelectedCodes({ provinceCode: value, districtCode: "", wardCode: "" });
       
-      // Load danh sách quận/huyện của tỉnh này
-      fetchDistricts(value); //lấy từ API useVietnamesePlaces
+      // Load danh sách quận/huyện của tỉnh này từ GHN API
+      fetchDistricts(value);
     }
   };
 
@@ -366,17 +396,18 @@ export function useAddress(isActive = true) {
    * 3. Cập nhật selectedCodes: set mã quận, reset mã phường
    * 4. Load danh sách phường/xã của quận đó
    */
-  //xử lý khi user chọn Quận/Huyện trong dropdown , lấy từ API useVietnamesePlaces
+  // Xử lý khi user chọn Quận/Huyện trong dropdown, lấy từ GHN API
   const handleDistrictChange = (value) => {
-    const district = districts.find(d => String(d.code) === value);
+    const district = districts.find(d => String(d.code) === value || String(d.DistrictID) === value);
     if (district) {
+      const districtName = district.name || district.DistrictName;
       // Cập nhật form: set tên quận, xóa phường (vì đổi quận mới)
-      setForm({ ...form, district: district.name, ward: "" });
+      setForm({ ...form, district: districtName, ward: "" });
       
       // Cập nhật selectedCodes: set mã quận, reset mã phường
       setSelectedCodes({ ...selectedCodes, districtCode: value, wardCode: "" });
       
-      // Load danh sách phường/xã của quận này
+      // Load danh sách phường/xã của quận này từ GHN API
       fetchWards(value);
     }
   };
@@ -393,12 +424,13 @@ export function useAddress(isActive = true) {
    * (Không cần load gì thêm vì phường là cấp cuối cùng)
    */
   const handleWardChange = (value) => {
-    const ward = wards.find(w => String(w.code) === value);
+    const ward = wards.find(w => String(w.code) === value || String(w.WardCode) === value);
     if (ward) {
+      const wardName = ward.name || ward.WardName;
       // Cập nhật form: set tên phường
-      setForm({ ...form, ward: ward.name });
+      setForm({ ...form, ward: wardName });
       
-      // Cập nhật selectedCodes: set mã phường
+      // Cập nhật selectedCodes: set mã phường (WardCode từ GHN)
       setSelectedCodes({ ...selectedCodes, wardCode: value });
     }
   };

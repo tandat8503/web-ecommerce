@@ -81,6 +81,10 @@ model Address {
   ward          String
   district      String
   city          String
+  // GHN Integration - Mã địa chỉ từ GHN API để tính phí vận chuyển
+  provinceId    Int?        @map("province_id")       // ProvinceID từ GHN API
+  districtId    Int?        @map("district_id")       // DistrictID từ GHN API
+  wardCode      String?     @map("ward_code")         // WardCode từ GHN API
   addressType   AddressType @default(HOME) @map("address_type")
   isDefault     Boolean     @default(false) @map("is_default")
   note          String?

@@ -9,7 +9,7 @@ import { Select } from "antd";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
 import { useCheckout } from "./useCheckout";
-import { FaHome, FaBriefcase } from "react-icons/fa";
+import { FaHome, FaBriefcase, FaPlus, FaMinus, FaTrash } from "react-icons/fa";
 
 export default function Checkout() {
   const {
@@ -18,6 +18,9 @@ export default function Checkout() {
     selectedAddressId,
     checkoutItems,
     summary,
+    shippingFeeLoading,
+    shippingFeeError,
+    canCalculateShipping,
     paymentMethod,
     customerNote,
     submitting,
@@ -36,6 +39,10 @@ export default function Checkout() {
     handleDistrictChange,
     handleWardChange,
     handleSaveAddress,
+    handleUpdateQuantity,
+    handleRemoveItem,
+    updatingQuantity,
+    removingItem,
     handlePlaceOrder,
     setShowAddressForm,
   } = useCheckout();
@@ -234,6 +241,7 @@ export default function Checkout() {
                 const imageUrl =
                   item.product?.primary_image || item.product?.image_url || "/placeholder-product.jpg";
                 const price = Number(item.final_price || item.product?.price || 0);
+                const isRemoving = removingItem === item.id;
 
                 return (
                   <div key={item.id} className="flex gap-3 py-3 border-b last:border-0">
@@ -246,6 +254,46 @@ export default function Checkout() {
                       </div>
                       <div className="text-sm text-orange-600 font-semibold mt-1">
                         {formatPrice(price)} x {item.quantity}
+                      </div>
+                      {/* ✅ Nút cập nhật số lượng và xóa */}
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 border rounded">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                            disabled={updatingQuantity || item.quantity <= 1}
+                          >
+                            <FaMinus className="h-3 w-3" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                            disabled={updatingQuantity}
+                          >
+                            <FaPlus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleRemoveItem(item.id)}
+                          disabled={isRemoving || updatingQuantity}
+                        >
+                          {isRemoving ? (
+                            <span className="text-xs">Đang xóa...</span>
+                          ) : (
+                            <>
+                              <FaTrash className="h-3 w-3 mr-1" />
+                              Xóa
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
                     <div className="text-right">
@@ -311,11 +359,33 @@ export default function Checkout() {
                 <span>Tạm tính</span>
                 <span className="font-semibold">{formatPrice(summary.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-sm items-center">
                 <span>Phí vận chuyển</span>
-                <Badge variant="outline" className="bg-green-100 text-green-700">
-                  Miễn phí
-                </Badge>
+                {shippingFeeLoading ? (
+                  <span className="text-gray-500 text-xs">Đang tính...</span>
+                ) : !selectedAddress ? (
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                    Chưa có địa chỉ
+                  </Badge>
+                ) : !canCalculateShipping ? (
+                  <div className="text-right">
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 mb-1 block">
+                      Cần cập nhật mã GHN
+                    </Badge>
+                    {shippingFeeError && (
+                      <p className="text-xs text-yellow-600 mt-1 max-w-[200px]">
+                        {shippingFeeError}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-right">
+                    {shippingFeeError && (
+                      <p className="text-xs text-red-500 mb-0.5">{shippingFeeError}</p>
+                    )}
+                    <span className="font-semibold">{formatPrice(summary.shippingFee)}</span>
+                  </div>
+                )}
               </div>
               <div className="flex justify-between border-t pt-3 font-bold">
                 <span>Tổng cộng</span>

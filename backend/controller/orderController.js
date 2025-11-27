@@ -1,6 +1,73 @@
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
 import { emitNewOrder } from '../config/socket.js';
+import { calculateShippingFee as ghnCalculateShippingFee } from '../services/shipping/ghnService.js';
+
+const DEFAULT_SHIPPING_FEE = 30000;
+const DEFAULT_WEIGHT_PER_ITEM = 500; // gram
+const DEFAULT_DIMENSION_CM = 30;
+
+const mmToCm = (value) => {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) return null;
+  return Math.max(DEFAULT_DIMENSION_CM, Math.ceil(parsed / 10));
+};
+
+/**
+ * Tính toán metrics vận chuyển từ danh sách cartItems
+ * Sử dụng kích thước thực tế từ product_variant (width, depth, height)
+ * 
+ * Logic:
+ * - Lấy kích thước lớn nhất cho mỗi chiều khi có nhiều sản phẩm
+ * - GHN yêu cầu: length >= width >= height
+ * - Chuyển đổi từ mm (trong DB) sang cm (GHN yêu cầu)
+ */
+const buildShipmentMetrics = (cartItems) => {
+  const metrics = {
+    weight: 0,
+    length: DEFAULT_DIMENSION_CM,
+    width: DEFAULT_DIMENSION_CM,
+    height: DEFAULT_DIMENSION_CM,
+  };
+
+  cartItems.forEach((item) => {
+    const quantity = item.quantity || 1;
+    metrics.weight += DEFAULT_WEIGHT_PER_ITEM * quantity;
+
+    // ✅ Sử dụng kích thước từ product_variant nếu có
+    const variant = item.variant;
+    if (variant) {
+      // Chuyển đổi từ mm sang cm
+      // variant.width = chiều rộng (mm) → dùng làm length (chiều dài)
+      // variant.depth = chiều sâu (mm) → dùng làm width (chiều rộng)
+      // variant.height = chiều cao (mm) → dùng làm height (chiều cao)
+      const lengthCm = mmToCm(variant.width);
+      const widthCm = mmToCm(variant.depth);
+      const heightCm = mmToCm(variant.height);
+      
+      // Lấy kích thước lớn nhất cho mỗi chiều (khi có nhiều sản phẩm)
+      if (lengthCm) metrics.length = Math.max(metrics.length, lengthCm);
+      if (widthCm) metrics.width = Math.max(metrics.width, widthCm);
+      if (heightCm) metrics.height = Math.max(metrics.height, heightCm);
+    }
+  });
+
+  if (metrics.weight === 0) {
+    metrics.weight = DEFAULT_WEIGHT_PER_ITEM;
+  }
+
+  // GHN giới hạn 30kg cho dịch vụ chuẩn
+  metrics.weight = Math.min(metrics.weight, 30000);
+
+  // Đảm bảo length >= width >= height (yêu cầu của GHN)
+  const dimensions = [metrics.length, metrics.width, metrics.height].sort((a, b) => b - a);
+  metrics.length = dimensions[0];
+  metrics.width = dimensions[1];
+  metrics.height = dimensions[2];
+
+  return metrics;
+};
 
 /**
  * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
@@ -75,6 +142,46 @@ export const createOrder = async (req, res) => {
     if (!cartItems.length) return res.status(400).json({ message: "Giỏ hàng trống" });
     if (!shippingAddress) return res.status(400).json({ message: "Địa chỉ không hợp lệ" });
 
+    const shipmentMetrics = buildShipmentMetrics(cartItems);
+
+    let shippingFee = DEFAULT_SHIPPING_FEE;
+    if (shippingAddress.districtId && shippingAddress.wardCode) {
+      try {
+        const feeResult = await ghnCalculateShippingFee({
+          toDistrictId: shippingAddress.districtId,
+          toWardCode: shippingAddress.wardCode,
+          weight: shipmentMetrics.weight,
+          length: shipmentMetrics.length,
+          width: shipmentMetrics.width,
+          height: shipmentMetrics.height,
+          serviceTypeId: 2,
+        });
+
+        if (feeResult?.success) {
+          shippingFee = feeResult.shippingFee ?? shippingFee;
+        } else {
+          logger.warn("GHN shipping fee fallback", {
+            reason: feeResult?.error || feeResult?.details,
+            userId,
+            addressId,
+          });
+        }
+      } catch (error) {
+        logger.warn("GHN shipping fee error", {
+          error: error.message,
+          userId,
+          addressId,
+        });
+      }
+    } else {
+      logger.warn("Shipping address missing GHN codes", {
+        addressId,
+        userId,
+        districtId: shippingAddress.districtId,
+        wardCode: shippingAddress.wardCode,
+      });
+    }
+
     // BƯỚC 3: Chuẩn hóa item và tính tiền
     let subtotal = 0;                 // tổng tiền hàng
     const orderItems = [];            // dữ liệu chi tiết đơn (phù hợp DB)
@@ -125,7 +232,6 @@ export const createOrder = async (req, res) => {
 
     // BƯỚC 4: Tính tổng đơn
     const discountAmount = 0; // bản cơ bản: chưa áp dụng giảm giá
-    const shippingFee = 0;    // bản cơ bản: phí ship 0
     //tổng tiền cuối cùng của đơn hàng = tổng tiền của đơn hàng + phí ship - giảm giá
     const totalAmount = subtotal + shippingFee - discountAmount;
 

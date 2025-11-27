@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Form, Input, Select, Radio, Checkbox, Button } from "antd";
 import { FaHome, FaBriefcase } from "react-icons/fa";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const { TextArea } = Input;
 
@@ -65,9 +65,9 @@ export function AddressForm({
   loading,               // Trạng thái loading (từ useAddress: loading state)
   form,                  // Dữ liệu form (từ useAddress: form state) - chứa fullName, phone, city, district, ward...
   selectedCodes,         // Mã code Tỉnh/Quận/Phường (từ useAddress: selectedCodes state)
-  provinces,             // Danh sách tỉnh (từ useAddress: provinces từ useVietnamesePlaces)
-  districts,             // Danh sách quận (từ useAddress: districts từ useVietnamesePlaces)
-  wards,                 // Danh sách phường (từ useAddress: wards từ useVietnamesePlaces)
+  provinces,             // Danh sách tỉnh (từ useAddress: provinces từ useGHNPlaces)
+  districts,             // Danh sách quận (từ useAddress: districts từ useGHNPlaces)
+  wards,                 // Danh sách phường (từ useAddress: wards từ useGHNPlaces)
   handleSubmit,          // Hàm xử lý submit (từ useAddress: handleSubmit function)
   handleProvinceChange,  // Hàm xử lý khi chọn tỉnh (từ useAddress: handleProvinceChange function)
   handleDistrictChange,  // Hàm xử lý khi chọn quận (từ useAddress: handleDistrictChange function)
@@ -133,8 +133,11 @@ export function AddressForm({
         }}
         onEscapeKeyDown={(e) => e.preventDefault()}//không đóng dialog khi nhấn ESC
       >
-        <DialogHeader>
+          <DialogHeader>
           <DialogTitle>{editing ? 'Sửa địa chỉ' : 'Thêm địa chỉ'}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {editing ? 'Cập nhật thông tin địa chỉ giao hàng' : 'Thêm địa chỉ giao hàng mới'}
+          </DialogDescription>
         </DialogHeader>
 
         <Form
@@ -183,7 +186,7 @@ export function AddressForm({
             - Form.Item name="district" PHẢI KHỚP với INIT_FORM.district trong useAddress.js
             - Form.Item name="ward" PHẢI KHỚP với INIT_FORM.ward trong useAddress.js
             - selectedCodes.provinceCode/districtCode/wardCode từ useAddress.js (dùng để hiển thị giá trị đã chọn)
-            - provinces/districts/wards từ useAddress.js (từ useVietnamesePlaces hook)
+            - provinces/districts/wards từ useAddress.js (từ useGHNPlaces hook)
             - onProvinceChange/onDistrictChange/onWardChange là các hàm từ useAddress.js
           */}
           <div className="grid grid-cols-3 gap-4">
@@ -196,11 +199,13 @@ export function AddressForm({
                 placeholder="Chọn Tỉnh/TP"
                 value={selectedCodes.provinceCode}
                 getPopupContainer={(trigger) => document.getElementById('address-form') || trigger.parentElement} // Render dropdown vào trong Form để không bị block bởi onInteractOutside
-                onChange={(value) => {//xử lý khi user chọn Tỉnh/TP trong dropdown, lấy từ API useVietnamesePlaces
-                  const province = provinces.find(p => String(p.code) === value);
+                onChange={(value) => {
+                  // Xử lý khi user chọn Tỉnh/TP, lấy từ GHN API
+                  const province = provinces.find(p => String(p.code) === value || String(p.ProvinceID) === value);
                   if (province) {
-                    antForm.setFieldsValue({ city: province.name, district: "", ward: "" });
-                    handleProvinceChange(value); //gọi hàm handleProvinceChange từ useAddress để cập nhật state selectedCodes
+                    const provinceName = province.name || province.ProvinceName;
+                    antForm.setFieldsValue({ city: provinceName, district: "", ward: "" });
+                    handleProvinceChange(value);
                   }
                 }}
               >
@@ -222,10 +227,12 @@ export function AddressForm({
                 value={selectedCodes.districtCode}
                 getPopupContainer={(trigger) => document.getElementById('address-form') || trigger.parentElement} // Render dropdown vào trong Form để không bị block bởi onInteractOutside
                 onChange={(value) => {
-                  const district = districts.find(d => String(d.code) === value);
+                  // Xử lý khi user chọn Quận/Huyện, lấy từ GHN API
+                  const district = districts.find(d => String(d.code) === value || String(d.DistrictID) === value);
                   if (district) {
-                    antForm.setFieldsValue({ district: district.name, ward: "" });
-                    handleDistrictChange(value); //gọi hàm handleDistrictChange từ useAddress
+                    const districtName = district.name || district.DistrictName;
+                    antForm.setFieldsValue({ district: districtName, ward: "" });
+                    handleDistrictChange(value);
                   }
                 }}
                 disabled={!selectedCodes.provinceCode}
@@ -248,10 +255,12 @@ export function AddressForm({
                 value={selectedCodes.wardCode}
                 getPopupContainer={(trigger) => document.getElementById('address-form') || trigger.parentElement} // Render dropdown vào trong Form để không bị block bởi onInteractOutside
                 onChange={(value) => {
-                  const ward = wards.find(w => String(w.code) === value);
+                  // Xử lý khi user chọn Phường/Xã, lấy từ GHN API
+                  const ward = wards.find(w => String(w.code) === value || String(w.WardCode) === value);
                   if (ward) {
-                    antForm.setFieldsValue({ ward: ward.name });
-                    handleWardChange(value); //gọi hàm handleWardChange từ useAddress
+                    const wardName = ward.name || ward.WardName;
+                    antForm.setFieldsValue({ ward: wardName });
+                    handleWardChange(value);
                   }
                 }}
                 disabled={!selectedCodes.districtCode}
@@ -283,20 +292,20 @@ export function AddressForm({
           </Form.Item>
 
           {/* Loại địa chỉ */}
-          <Form.Item
-            name="addressType"  // ⚠️ PHẢI KHỚP với INIT_FORM.addressType và backend field
-            label="Loại địa chỉ *"
-            rules={[{ required: true, message: "Vui lòng chọn loại địa chỉ" }]}
-          >
-            <Radio.Group>
-              <Radio value="home">  {/* value="home" khớp với INIT_FORM.addressType = "home" */}
-                <FaHome className="text-blue-500 inline mr-1" /> Nhà riêng
-              </Radio>
-              <Radio value="office">  {/* value="office" khớp với INIT_FORM.addressType có thể là "office" */}
-                <FaBriefcase className="text-orange-500 inline mr-1" /> Văn phòng
-              </Radio>
-            </Radio.Group>
-          </Form.Item>
+            <Form.Item
+              name="addressType"  // ⚠️ PHẢI KHỚP với INIT_FORM.addressType và backend field
+              label="Loại địa chỉ *"
+              rules={[{ required: true, message: "Vui lòng chọn loại địa chỉ" }]}
+            >
+              <Radio.Group>
+                <Radio value="home">
+                  <FaHome className="text-blue-500 inline mr-1" /> Nhà riêng
+                </Radio>
+                <Radio value="office">
+                  <FaBriefcase className="text-orange-500 inline mr-1" /> Văn phòng
+                </Radio>
+              </Radio.Group>
+            </Form.Item>
 
           {/* Ghi chú */}
           <Form.Item name="note" label="Ghi chú">  {/* ⚠️ PHẢI KHỚP với INIT_FORM.note và backend field */}

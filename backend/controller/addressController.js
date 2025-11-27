@@ -104,7 +104,21 @@ export const addAddress = async (req, res) => {
     logger.start(context.path, { userId: req.user.id });
     
     const userId = req.user.id;
-    const { fullName, phone, streetAddress, ward, district, city, addressType, isDefault, note } = req.body;
+    const { 
+      fullName, 
+      phone, 
+      streetAddress, 
+      ward, 
+      district, 
+      city, 
+      addressType, 
+      isDefault, 
+      note,
+      // GHN Integration - Mã địa chỉ từ GHN API
+      provinceId,    // ProvinceID từ GHN
+      districtId,    // DistrictID từ GHN
+      wardCode       // WardCode từ GHN
+    } = req.body;
 
     // Nếu user chưa có địa chỉ nào thì địa chỉ đầu tiên auto là mặc định
     const count = await prisma.address.count({ where: { userId } });
@@ -136,6 +150,10 @@ export const addAddress = async (req, res) => {
         ward: ward || null,
         district,
         city,
+        // GHN Integration - Lưu mã địa chỉ GHN
+        provinceId: provinceId ? Number(provinceId) : null,
+        districtId: districtId ? Number(districtId) : null,
+        wardCode: wardCode || null,
         addressType: addressType || 'HOME',
         isDefault: defaultStatus,
         note: note || null,
@@ -164,7 +182,21 @@ export const updateAddress = async (req, res) => {
     
     const userId = req.user.id;
     const { id } = req.params;
-    const { fullName, phone, streetAddress, ward, district, city, addressType, isDefault, note } = req.body;
+    const { 
+      fullName, 
+      phone, 
+      streetAddress, 
+      ward, 
+      district, 
+      city, 
+      addressType, 
+      isDefault, 
+      note,
+      // GHN Integration - Mã địa chỉ từ GHN API
+      provinceId,    // ProvinceID từ GHN
+      districtId,    // DistrictID từ GHN
+      wardCode       // WardCode từ GHN
+    } = req.body;
 
     if (!id || isNaN(id)) {
       logger.warn('Invalid address ID', { id });
@@ -198,6 +230,10 @@ export const updateAddress = async (req, res) => {
         ward: ward !== undefined ? ward : found.ward,
         district: district ?? found.district,
         city: city ?? found.city,
+        // GHN Integration - Cập nhật mã địa chỉ GHN
+        provinceId: provinceId !== undefined ? (provinceId ? Number(provinceId) : null) : found.provinceId,
+        districtId: districtId !== undefined ? (districtId ? Number(districtId) : null) : found.districtId,
+        wardCode: wardCode !== undefined ? (wardCode || null) : found.wardCode,
         addressType: addressType ?? found.addressType,
         isDefault: isDefault !== undefined ? isDefault : found.isDefault,
         note: note !== undefined ? note : found.note,

@@ -10,7 +10,9 @@
     "dev": "nodemon server.js",
     "seed": "node prisma/seed.js",
     "add-fulltext-index": "node scripts/add-fulltext-index.js",
-    "test-fulltext": "node scripts/test-fulltext-search.js"
+    "test-fulltext": "node scripts/test-fulltext-search.js",
+    "test-ghn": "node scripts/test-ghn-api.js",
+    "test-ghn-direct": "node scripts/test-ghn-direct.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
