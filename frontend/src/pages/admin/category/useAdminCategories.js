@@ -132,7 +132,12 @@ export function useAdminCategories() {
       toast.success("Xóa danh mục thành công");
       fetchCategories();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Có lỗi xảy ra");
+      const rawMessage = error.response?.data?.message || "";
+      if (/category has products/i.test(rawMessage)) {
+        toast.error("Không thể xóa danh mục vì vẫn còn sản phẩm.");
+      } else {
+        toast.error(rawMessage || "Có lỗi xảy ra khi xóa danh mục.");
+      }
     }
   };
 

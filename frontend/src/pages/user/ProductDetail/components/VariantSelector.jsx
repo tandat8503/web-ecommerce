@@ -18,7 +18,7 @@ const VariantSelector = () => {
     handleColorChange,    // Hàm xử lý khi người dùng chọn màu sắc
     handleDimensionsChange, // Hàm xử lý khi người dùng chọn kích thước
     uniqueColors,         // Danh sách các màu sắc khả dụng
-    uniqueDimensions      // Danh sách các kích thước khả dụng
+    availableDimensions   // Danh sách kích thước theo màu đã chọn
   } = useProductDetailContext();
 
   return (
@@ -54,7 +54,7 @@ const VariantSelector = () => {
           PHẦN 2: CHỌN KÍCH THƯỚC
           ============================================ */}
       {/* Chỉ hiển thị khi có kích thước khả dụng */}
-      {uniqueDimensions.length > 0 && (
+      {availableDimensions.length > 0 && (
         <div className="flex items-center gap-4">
           {/* Label hiển thị "Kích thước:" - ở bên trái, width cố định */}
           <label className="text-base font-medium text-gray-700 whitespace-nowrap min-w-[100px]">
@@ -63,7 +63,7 @@ const VariantSelector = () => {
           {/* Container chứa các nút kích thước - flex wrap để tự động xuống dòng khi cần */}
           <div className="flex flex-wrap gap-3 flex-1">
             {/* Map qua từng kích thước để tạo nút */}
-            {uniqueDimensions.map(dim => {
+            {availableDimensions.map(dim => {
               // Tách chuỗi kích thước (ví dụ: "1200x600x720") thành mảng [width, depth, height]
               const [width, depth, height] = dim.split('x');
               // Tạo text hiển thị với ký tự x

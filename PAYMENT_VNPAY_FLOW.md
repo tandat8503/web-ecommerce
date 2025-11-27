@@ -1,5 +1,30 @@
 ## Tổng quan luồng thanh toán VNPay trong dự án
 
+### Sơ đồ luồng (Sequence)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant FE as Frontend
+    participant BE as Backend
+    participant VNPay
+
+    User->>FE: Chọn thanh toán VNPay
+    FE->>BE: POST /api/payment/vnpay/create (orderId)
+    BE->>BE: Kiểm tra order + tạo payment session
+    BE-->>FE: Trả paymentUrl
+    FE->>User: Redirect tới paymentUrl
+    User->>VNPay: Thanh toán trên cổng VNPay
+    VNPay-->>BE: POST /api/payment/vnpay/callback (IPN)
+    BE->>BE: Xác thực & cập nhật Payment + Order
+    VNPay-->>FE: Redirect GET /api/payment/vnpay/return
+    FE->>BE: GET /api/payment/status/:orderId
+    BE-->>FE: Trả trạng thái thực tế
+    FE-->>User: Hiển thị kết quả (success/failed)
+```
+
+
+
 File này giải thích **từng bước** luồng thanh toán VNPay trong dự án (FE + BE), và mô tả **chức năng của từng hàm chính** liên quan.
 
 ---
@@ -12,19 +37,23 @@ File: `backend/routes/paymentRoutes.js`
   - Middleware: `authenticateToken`
   - Controller: `createVNPayPayment`
   - **Chức năng**: Tạo (hoặc tái sử dụng) session thanh toán VNPay mới cho một đơn hàng, lưu thông tin vào DB, trả về `paymentUrl` để frontend redirect người dùng sang VNPay.
+  - **Cách chạy thực tế**: FE gửi `orderId` lên BE → BE kiểm tra đơn + payment → trả lại `paymentUrl`. FE nhận được link và chuyển trình duyệt của khách sang VNPay.
 
 - **`POST /api/payment/vnpay/callback`**
   - Controller: `handleVNPayCallback`
   - **Chức năng**: Endpoint để VNPay **gọi ngầm (IPN)** về backend, báo kết quả thanh toán. Dùng để **cập nhật trạng thái Payment + Order trong DB** một cách chính thức.
+  - **Cách chạy thực tế**: Sau khi khách thanh toán xong, chính hệ thống VNPay sẽ gọi API này (mình không cần gọi thủ công). BE nhận payload, xác thực chữ ký, rồi đổi trạng thái `payments`/`orders` sang PAID hoặc FAILED.
 
 - **`GET /api/payment/vnpay/return`**
   - Controller: `handleVNPayReturn`
   - **Chức năng**: Endpoint để VNPay **redirect trình duyệt người dùng** quay lại backend sau khi thanh toán. Từ đây backend sẽ redirect tiếp sang frontend kèm theo các query param (`status`, `orderId`, `message`).
+  - **Cách chạy thực tế**: Khi VNPay đã hiển thị kết quả xong, họ chuyển hướng trình duyệt tới URL này. BE chỉ việc kiểm tra lại dữ liệu, rồi redirect tiếp sang `/payment/result?...` để FE hiển thị UI cho người dùng.
 
 - **`GET /api/payment/status/:orderId`**
   - Middleware: `authenticateToken`
   - Controller: `getPaymentStatus`
   - **Chức năng**: Cho frontend kiểm tra **trạng thái thanh toán thực tế** trong DB cho một đơn hàng.
+  - **Cách chạy thực tế**: Trang `PaymentResult.jsx` tự gọi API này (hoặc bất kỳ nơi nào bạn muốn kiểm tra). BE đọc DB và trả về `paymentStatus`, `bankCode`, `vnpayTransactionNo`, `paidAt`… để FE hiển thị chính xác.
 
 ---
 

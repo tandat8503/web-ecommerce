@@ -274,12 +274,9 @@ export const deleteProductVariant = async (req, res) => {
     const id = Number(req.params.id);
     logger.start(context.path, { id });
 
+    // Kiểm tra variant có tồn tại không
     const variant = await prisma.productVariant.findUnique({
-      where: { id },
-      include: {
-        orderItems: { take: 1 }, // Chỉ cần kiểm tra có đơn hàng không
-        cartItems: { take: 1 } // Chỉ cần kiểm tra có trong giỏ hàng không
-      }
+      where: { id }
     });
 
     if (!variant) {
@@ -288,8 +285,16 @@ export const deleteProductVariant = async (req, res) => {
     }
 
     // Kiểm tra xem variant có đang được sử dụng trong đơn hàng không
-    if (variant.orderItems && variant.orderItems.length > 0) {
-      logger.warn('Cannot delete variant with orders', { id });
+    // Đếm số lượng orderItems để đảm bảo chính xác
+    const orderItemsCount = await prisma.orderItem.count({
+      where: { variantId: id }
+    });
+
+    if (orderItemsCount > 0) {
+      logger.warn('Cannot delete variant with orders', { 
+        id, 
+        orderItemsCount 
+      });
       return res.status(400).json({ 
         message: 'Không thể xóa biến thể đã có trong đơn hàng. Vui lòng vô hiệu hóa biến thể thay vì xóa.' 
       });

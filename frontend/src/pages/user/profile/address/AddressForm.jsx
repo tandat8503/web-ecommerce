@@ -122,7 +122,7 @@ export function AddressForm({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto sm:max-w-[600px]"
+        className="max-h-[90vh] overflow-y-auto sm:max-w-[600px] mt-22"
         onInteractOutside={(e) => {
           // Cho phép click vào dropdown của Ant Design Select
           // Ant Design Select dropdown có class 'ant-select-dropdown'
@@ -144,7 +144,7 @@ export function AddressForm({
           form={antForm}
           layout="vertical"
           onFinish={handleFormSubmit}//xử lý submit form - gọi handleSubmit từ useAddress
-          className="space-y-4"
+          className="space-y-2"
           id="address-form" // Thêm ID để dùng cho getPopupContainer
         >
           {/* 
@@ -156,7 +156,7 @@ export function AddressForm({
             - Backend API cũng expect các field này: fullName, phone, city, district, ward, streetAddress, addressType, isDefault, note
           */}
           {/* Họ tên và Số điện thoại */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <Form.Item
               name="fullName"  // ⚠️ PHẢI KHỚP với INIT_FORM.fullName và backend field
               label="Họ tên *"
@@ -189,7 +189,7 @@ export function AddressForm({
             - provinces/districts/wards từ useAddress.js (từ useGHNPlaces hook)
             - onProvinceChange/onDistrictChange/onWardChange là các hàm từ useAddress.js
           */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <Form.Item
               name="city"  // ⚠️ PHẢI KHỚP với INIT_FORM.city và backend field
               label="Tỉnh/TP *"
@@ -286,6 +286,7 @@ export function AddressForm({
           <Form.Item
             name="streetAddress"  // ⚠️ PHẢI KHỚP với INIT_FORM.streetAddress và backend field
             label="Địa chỉ cụ thể *"
+           
             rules={[{ required: true, message: "Vui lòng nhập địa chỉ cụ thể" }]}
           >
             <Input placeholder="Số nhà, tên đường..." />
