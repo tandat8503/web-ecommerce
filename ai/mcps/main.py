@@ -83,6 +83,15 @@ async def search_products(
     return await search_products_helper(query, limit, min_price, max_price, category, attributes)
 
 
+@mcp.tool(description="Get detailed product information including specifications, dimensions, materials, colors, and full description. Use this when user asks about product details, specs, configuration, or technical information.")
+async def get_product_details(
+    product_name_or_id: Annotated[str, "Product name (can be partial) or product ID"]
+) -> str:
+    """Get detailed product information including all specifications and attributes"""
+    from mcps.helpers import get_product_details_helper
+    return await get_product_details_helper(product_name_or_id)
+
+
 @mcp.tool(description="Analyze sentiment of customer feedback texts")
 async def analyze_sentiment(
     texts: Annotated[List[str], "List of texts to analyze for sentiment"],
@@ -440,7 +449,7 @@ Nội dung: {text}
         )
         
         # Get LLM client
-        llm_client = LLMClientFactory.get_client()
+        llm_client = LLMClientFactory.create_client()
         if not llm_client:
             # Fallback: return formatted context
             logger.warning("LLM client not available, returning formatted context")

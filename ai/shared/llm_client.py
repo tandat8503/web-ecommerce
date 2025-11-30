@@ -81,6 +81,7 @@ class GeminiProClient:
             candidate = response.candidates[0]
             finish_reason = candidate.finish_reason if hasattr(candidate, 'finish_reason') else None
             
+            # finish_reason values: 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
             if finish_reason == 3:  # SAFETY - content blocked
                 logger.warning(f"Gemini response blocked by safety filters (finish_reason={finish_reason})")
                 return {
@@ -89,28 +90,58 @@ class GeminiProClient:
                     "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này do bị chặn bởi bộ lọc an toàn."
                 }
             
-            # Try to get text content
+            # Try to get text content first (even if finish_reason=2, we may still have partial content)
+            content_text = None
             try:
-                content_text = response.text
-            except Exception as text_error:
-                logger.error(f"Failed to get text from response: {text_error}, finish_reason={finish_reason}")
-                # Fallback: try to extract from parts manually
+                # Try direct text access first
+                if hasattr(response, 'text') and response.text:
+                    content_text = response.text
+            except Exception:
+                pass
+            
+            # If direct text access failed, try extracting from parts
+            if not content_text:
                 try:
                     if candidate.content and candidate.content.parts:
                         parts_text = []
                         for part in candidate.content.parts:
                             if hasattr(part, 'text') and part.text:
                                 parts_text.append(part.text)
-                        content_text = " ".join(parts_text) if parts_text else "Xin lỗi, không thể tạo phản hồi."
-                    else:
-                        content_text = "Xin lỗi, không thể tạo phản hồi."
-                except Exception as fallback_error:
-                    logger.error(f"Fallback text extraction also failed: {fallback_error}")
+                        content_text = " ".join(parts_text) if parts_text else None
+                except Exception as parts_error:
+                    logger.warning(f"Failed to extract from parts: {parts_error}")
+            
+            # If finish_reason=2 (MAX_TOKENS), we still return content if available, but with warning
+            if finish_reason == 2:  # MAX_TOKENS - response was truncated
+                if content_text:
+                    logger.warning(f"Gemini response truncated due to max_tokens limit (finish_reason={finish_reason}). Content may be incomplete.")
+                    # Return the partial content - it's still useful
+                    return {
+                        "success": True,
+                        "content": content_text + "\n\n*Lưu ý: Phản hồi có thể bị cắt do giới hạn độ dài. Vui lòng hỏi cụ thể hơn nếu cần thông tin đầy đủ.*",
+                        "candidates": response.candidates if hasattr(response, 'candidates') else [],
+                        "usage_metadata": response.usage_metadata if hasattr(response, 'usage_metadata') else {},
+                        "model": model_name,
+                        "finish_reason": finish_reason,
+                        "truncated": True
+                    }
+                else:
+                    # No content at all - this is an error
+                    logger.warning(f"Gemini response has no content despite finish_reason=2 (MAX_TOKENS)")
                     return {
                         "success": False,
-                        "error": f"Failed to extract text: {str(text_error)}",
-                        "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu."
+                        "error": f"Response truncated but no content available (finish_reason={finish_reason})",
+                        "content": "Xin lỗi, phản hồi quá dài và bị cắt. Vui lòng thử lại với câu hỏi cụ thể hơn hoặc chia nhỏ câu hỏi."
                     }
+            
+            # For other finish_reasons, check if we have content
+            if not content_text:
+                logger.warning(f"Gemini response has no valid content (finish_reason={finish_reason})")
+                return {
+                    "success": False,
+                    "error": f"Response has no valid content (finish_reason={finish_reason})",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
+                }
             
             return {
                 "success": True,
@@ -232,34 +263,57 @@ class GeminiProClient:
                     "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này do bị chặn bởi bộ lọc an toàn. Vui lòng thử lại với câu hỏi khác."
                 }
             
-            # Check if candidate has content parts
-            if not candidate.content or not candidate.content.parts:
-                logger.warning(f"Gemini response has no valid parts (finish_reason={finish_reason})")
-                return {
-                    "success": False,
-                    "error": f"Response has no valid parts (finish_reason={finish_reason})",
-                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
-                }
-            
-            # Try to get text content
+            # Try to get text content first (even if finish_reason=2, we may still have partial content)
+            content_text = None
             try:
-                content_text = response.text
-            except Exception as text_error:
-                logger.error(f"Failed to get text from response: {text_error}, finish_reason={finish_reason}")
-                # Fallback: try to extract from parts manually
+                # Try direct text access first
+                if hasattr(response, 'text') and response.text:
+                    content_text = response.text
+            except Exception:
+                pass
+            
+            # If direct text access failed, try extracting from parts
+            if not content_text:
                 try:
-                    parts_text = []
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            parts_text.append(part.text)
-                    content_text = " ".join(parts_text) if parts_text else "Xin lỗi, không thể tạo phản hồi."
-                except Exception as fallback_error:
-                    logger.error(f"Fallback text extraction also failed: {fallback_error}")
+                    if candidate.content and candidate.content.parts:
+                        parts_text = []
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                parts_text.append(part.text)
+                        content_text = " ".join(parts_text) if parts_text else None
+                except Exception as parts_error:
+                    logger.warning(f"Failed to extract from parts: {parts_error}")
+            
+            # If finish_reason=2 (MAX_TOKENS), we still return content if available, but with warning
+            if finish_reason == 2:  # MAX_TOKENS - response was truncated
+                if content_text:
+                    logger.warning(f"Gemini response truncated due to max_tokens limit (finish_reason={finish_reason}). Content may be incomplete.")
+                    # Return the partial content - it's still useful
+                    return {
+                        "success": True,
+                        "content": content_text + "\n\n*Lưu ý: Phản hồi có thể bị cắt do giới hạn độ dài. Vui lòng hỏi cụ thể hơn nếu cần thông tin đầy đủ.*",
+                        "usage_metadata": response.usage_metadata if hasattr(response, 'usage_metadata') else {},
+                        "model": model_name,
+                        "finish_reason": finish_reason,
+                        "truncated": True
+                    }
+                else:
+                    # No content at all - this is an error
+                    logger.warning(f"Gemini response has no content despite finish_reason=2 (MAX_TOKENS)")
                     return {
                         "success": False,
-                        "error": f"Failed to extract text: {str(text_error)}",
-                        "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại."
+                        "error": f"Response truncated but no content available (finish_reason={finish_reason})",
+                        "content": "Xin lỗi, phản hồi quá dài và bị cắt. Vui lòng thử lại với câu hỏi cụ thể hơn hoặc chia nhỏ câu hỏi."
                     }
+            
+            # For other finish_reasons, check if we have content
+            if not content_text:
+                logger.warning(f"Gemini response has no valid content (finish_reason={finish_reason})")
+                return {
+                    "success": False,
+                    "error": f"Response has no valid content (finish_reason={finish_reason})",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
+                }
             
             return {
                 "success": True,

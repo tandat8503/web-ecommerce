@@ -165,9 +165,12 @@ class BaseAgent:
             if user_id and self.agent_type == "user_chatbot":
                 user_context = await self._get_user_context(user_id)
             
-            # Get conversation history for context
-            conversation_summary = self.conversation_history.get_conversation_summary(session_id)
-            conv_context = self.conversation_history.get_context(session_id)
+            # Get conversation history for context (if available)
+            conversation_summary = ""
+            conv_context = {}
+            if hasattr(self, 'conversation_history') and self.conversation_history:
+                conversation_summary = self.conversation_history.get_conversation_summary(session_id)
+                conv_context = self.conversation_history.get_context(session_id)
             
             # Merge conversation context with provided context
             enhanced_context = {**(context or {}), **conv_context}
@@ -178,13 +181,14 @@ class BaseAgent:
             intent = await self._classify_intent(user_message)
             tool_result = await self._call_tools(intent, user_message, enhanced_context)
             
-            # Add user message to history
-            self.conversation_history.add_message(
-                session_id=session_id,
-                role="user",
-                content=user_message,
-                metadata={"intent": intent, "products": tool_result.get("products", [])}
-            )
+            # Add user message to history (if conversation_history is available)
+            if hasattr(self, 'conversation_history') and self.conversation_history:
+                self.conversation_history.add_message(
+                    session_id=session_id,
+                    role="user",
+                    content=user_message,
+                    metadata={"intent": intent, "products": tool_result.get("products", [])}
+                )
             
             # Generate response using LLM with conversation context
             if self.llm_client:
@@ -209,20 +213,21 @@ class BaseAgent:
                 response_text = str(response_data)
                 response_data = {"text": response_text, "type": "text"}
             
-            # Add assistant response to history
-            self.conversation_history.add_message(
-                session_id=session_id,
-                role="assistant",
-                content=response_text,
-                metadata={"intent": intent, "products": tool_result.get("products", [])}
-            )
-            
-            # Update context with latest products
-            if tool_result.get("products"):
-                self.conversation_history.update_context(session_id, {
-                    "last_products": tool_result.get("products", [])[:3],
-                    "last_product_name": tool_result.get("products", [])[0].get("name") if tool_result.get("products") else None
-                })
+            # Add assistant response to history (if conversation_history is available)
+            if hasattr(self, 'conversation_history') and self.conversation_history:
+                self.conversation_history.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=response_text,
+                    metadata={"intent": intent, "products": tool_result.get("products", [])}
+                )
+                
+                # Update context with latest products
+                if tool_result.get("products"):
+                    self.conversation_history.update_context(session_id, {
+                        "last_products": tool_result.get("products", [])[:3],
+                        "last_product_name": tool_result.get("products", [])[0].get("name") if tool_result.get("products") else None
+                    })
             
             return {
                 "success": True,
@@ -267,8 +272,18 @@ class BaseAgent:
             out_of_scope = tool_result.get("out_of_scope", False)
             greeting = tool_result.get("greeting", False)
             no_results = tool_result.get("no_results", False)
+            legal_consultation = tool_result.get("legal_consultation", False)
             products = tool_result.get("products", [])
             has_products = products and len(products) > 0
+            
+            # ✅ legal_consultation → Return response directly from Legal Assistant
+            if legal_consultation:
+                legal_message = tool_result.get("message", "")
+                return {
+                    "text": legal_message,
+                    "type": "text",
+                    "source": "legal_assistant"
+                }
             
             # ✅ out_of_scope → Return fixed response
             if out_of_scope:
@@ -486,42 +501,69 @@ class BaseAgent:
                     "suggest_contact": True  # Also suggest contact for lead collection
                 }
             
+            # ✅ Check if this is product_detail mode (user asking for specifications)
+            detail_mode = tool_result.get("detail_mode", False)
+            product_detail = tool_result.get("product_detail")
+            
             # ✅ Có products → Trust search engine results, let LLM handle filtering and ranking
             # Simplified: Take top 5 products from search results (search engine already did the hard work)
-            top_products = products[:5]  # Trust search engine ranking
+            top_products = products[:5] if products else []
             
-            # Format products với đầy đủ thông tin: tên, category, giá, giá sale, link, image
-            products_info = []
-            for p in top_products:
-                slug = p.get("slug", "")
-                name = p.get("name", "Sản phẩm")
-                category = p.get("category", "")
-                category_slug = p.get("category_slug", "")
-                original_price = float(p.get("price", 0))
-                sale_price = p.get("sale_price")
-                final_price = float(sale_price) if sale_price else original_price
-                
-                # Đảm bảo có slug - nếu không có, thử lấy từ id (fallback)
-                if not slug and p.get("id"):
-                    logger.warning(f"Product {p.get('id')} missing slug")
-                
-                # Frontend route is /san-pham/:id (not /product/:slug)
-                product_id = p.get("id")
-                product_link = f"/san-pham/{product_id}" if product_id else "/san-pham"
-                
-                products_info.append({
-                    "id": p.get("id"),
-                    "name": name,
-                    "category": category,
-                    "category_slug": category_slug,
-                    "price": original_price,
-                    "sale_price": float(sale_price) if sale_price else None,
-                    "final_price": final_price,
-                    "link": product_link,
-                    "slug": slug,
-                    "description": p.get("description", "")[:200],  # Truncate description
-                    "image_url": p.get("image_url") or p.get("image")  # Include image URL for display
-                })
+            # If detail_mode, use product_detail data instead
+            if detail_mode and product_detail:
+                # Format product detail for LLM
+                specs = product_detail.get("specs", {})
+                products_info = [{
+                    "id": product_detail.get("id"),
+                    "name": product_detail.get("name", "Sản phẩm"),
+                    "category": product_detail.get("category", ""),
+                    "brand": product_detail.get("brand", ""),
+                    "price": product_detail.get("price", 0),
+                    "sale_price": product_detail.get("sale_price"),
+                    "final_price": float(product_detail.get("sale_price")) if product_detail.get("sale_price") else float(product_detail.get("price", 0)),
+                    "link": f"/san-pham/{product_detail.get('id', '')}",
+                    "description": product_detail.get("description", ""),
+                    "image_url": product_detail.get("image_url", ""),
+                    "specs": {
+                        "materials": specs.get("materials", ""),
+                        "dimensions": specs.get("dimensions", ""),
+                        "colors": specs.get("colors", ""),
+                        "weights": specs.get("weights", "")
+                    }
+                }]
+            else:
+                # Format products với đầy đủ thông tin: tên, category, giá, giá sale, link, image
+                products_info = []
+                for p in top_products:
+                    slug = p.get("slug", "")
+                    name = p.get("name", "Sản phẩm")
+                    category = p.get("category", "")
+                    category_slug = p.get("category_slug", "")
+                    original_price = float(p.get("price", 0))
+                    sale_price = p.get("sale_price")
+                    final_price = float(sale_price) if sale_price else original_price
+                    
+                    # Đảm bảo có slug - nếu không có, thử lấy từ id (fallback)
+                    if not slug and p.get("id"):
+                        logger.warning(f"Product {p.get('id')} missing slug")
+                    
+                    # Frontend route is /san-pham/:id (not /product/:slug)
+                    product_id = p.get("id")
+                    product_link = f"/san-pham/{product_id}" if product_id else "/san-pham"
+                    
+                    products_info.append({
+                        "id": p.get("id"),
+                        "name": name,
+                        "category": category,
+                        "category_slug": category_slug,
+                        "price": original_price,
+                        "sale_price": float(sale_price) if sale_price else None,
+                        "final_price": final_price,
+                        "link": product_link,
+                        "slug": slug,
+                        "description": p.get("description", "")[:200],  # Truncate description
+                        "image_url": p.get("image_url") or p.get("image")  # Include image URL for display
+                    })
             
             # Build conversation context string
             conv_context_str = ""
@@ -596,7 +638,10 @@ class BaseAgent:
                 # Fallback to simple response without LLM
                 response_text = result.get("content", "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác.")
             else:
+                # Get content - even if truncated (finish_reason=2), we still use it
                 response_text = result.get("content", "Xin lỗi, tôi không thể tạo phản hồi.")
+                if result.get("truncated", False):
+                    logger.info("LLM response was truncated but still usable")
             
             # ✅ Return structured response with product cards
             if has_products:
@@ -741,11 +786,12 @@ class UserChatbotAgent(BaseAgent):
         try:
             prompt = USER_CHATBOT_EXTRACTION_PROMPT.format(user_message=user_message)
             
-            # Call LLM to extract parameters
+            # FIX 1: Tăng max_output_tokens để tránh bị cắt giữa chừng (finish_reason=2)
             result = await self.llm_client.generate_simple(
                 prompt=prompt,
-                system_instruction="Bạn là chuyên gia trích xuất thông tin. Chỉ trả về JSON, không có text thêm.",
-                temperature=0.3
+                system_instruction="You are a JSON extractor. Output JSON only.",
+                temperature=0.1,  # Lower temperature for more consistent extraction
+                max_tokens=1024  # Increased from default to avoid MAX_TOKENS error
             )
             
             # Check if LLM generation failed
@@ -767,36 +813,61 @@ class UserChatbotAgent(BaseAgent):
             content = result.get("content", "").strip()
             logger.info(f"LLM extraction response: {content[:200]}")  # Log first 200 chars
             
-            # Try to extract JSON from response
-            # LLM might wrap JSON in markdown code blocks
-            json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
+            # FIX 2: Parse JSON mạnh mẽ hơn bằng Regex (bắt JSON trong markdown code blocks hoặc plain text)
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
                 json_str = json_match.group(0)
                 try:
                     extracted = json.loads(json_str)
-                    logger.info(f"LLM extracted: query={extracted.get('query')}, price_min={extracted.get('price_min')}, price_max={extracted.get('price_max')}")
+                    logger.info(f"LLM extracted (raw): {extracted}")
                     
-                    # Validate and normalize
-                    result_dict = {
-                        "query": extracted.get("query") or user_message,
-                        "price_min": float(extracted.get("price_min")) if extracted.get("price_min") else None,
-                        "price_max": float(extracted.get("price_max")) if extracted.get("price_max") else None,
-                        "category_hint": extracted.get("category_hint"),
+                    # FIX 3: Chuẩn hóa key (đề phòng AI trả về price_max thay vì max_price)
+                    # Map các biến thể về chuẩn - sử dụng price_min và price_max để đồng bộ với code
+                    max_price_value = extracted.get("max_price") or extracted.get("price_max")
+                    min_price_value = extracted.get("min_price") or extracted.get("price_min")
+                    
+                    # Convert price to float if it's a number
+                    if max_price_value is not None:
+                        try:
+                            max_price_value = float(max_price_value)
+                        except (ValueError, TypeError):
+                            max_price_value = None
+                    
+                    if min_price_value is not None:
+                        try:
+                            min_price_value = float(min_price_value)
+                        except (ValueError, TypeError):
+                            min_price_value = None
+                    
+                    # Xử lý trường hợp query bị null hoặc rỗng
+                    query_value = extracted.get("query") or extracted.get("product_name") or user_message
+                    if not query_value or query_value.strip() == "":
+                        query_value = user_message
+                    
+                    final_params = {
+                        "query": query_value,
+                        "price_min": min_price_value,  # Use price_min to match code expectations
+                        "price_max": max_price_value,  # Use price_max to match code expectations
+                        "category_hint": extracted.get("category") or extracted.get("category_hint"),
                         "attributes": extracted.get("attributes", {}) or {}
                     }
                     
+                    logger.info(f"LLM extracted (normalized): query='{final_params['query']}', price_min={final_params['price_min']}, price_max={final_params['price_max']}")
+                    
                     # ✅ If LLM didn't extract price but user message has price, use fallback
-                    if result_dict["price_min"] is None and result_dict["price_max"] is None:
+                    if final_params["price_min"] is None and final_params["price_max"] is None:
                         from core.utils import extract_price_filter
                         min_price, max_price = extract_price_filter(user_message)
                         if min_price or max_price:
                             logger.info(f"LLM didn't extract price, using fallback: min_price={min_price}, max_price={max_price}")
-                            result_dict["price_min"] = min_price
-                            result_dict["price_max"] = max_price
+                            final_params["price_min"] = min_price
+                            final_params["price_max"] = max_price
                     
-                    return result_dict
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse JSON from LLM extraction: {json_str}")
+                    return final_params
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse JSON from LLM extraction: {json_str[:100]}... Error: {e}")
+                except Exception as e:
+                    logger.warning(f"Error processing extracted JSON: {e}")
             
             # Fallback: use simple extraction
             from core.utils import extract_price_filter, extract_search_query
@@ -867,16 +938,32 @@ class UserChatbotAgent(BaseAgent):
         if has_out_of_scope and not has_office_furniture_keywords:
             return "out_of_scope"
         
-        # ✅ Intent: product_detail - xem chi tiết sản phẩm cụ thể
-        detail_keywords = ["chi tiết", "xem chi tiết", "muốn xem", "thông tin về", "về sản phẩm", "sản phẩm", "có"]
-        if any(keyword in message for keyword in detail_keywords):
-            # Nếu message ngắn và có vẻ như là tên sản phẩm hoặc "có"
-            if len(message.split()) <= 5 or message.strip() in ["có", "co"]:
-                return "product_detail"
+        # ✅ Intent: price_inquiry - hỏi giá (KIỂM TRA TRƯỚC product_detail để tránh nhầm lẫn)
+        # Nếu có "giá" + số (triệu, tr, nghìn, k) → price_inquiry
+        import re
+        has_price_keyword = any(keyword in message for keyword in ["giá", "price", "cost", "giá cả", "giá tốt", "giá rẻ"])
+        has_price_number = bool(re.search(r'\d+\s*(?:triệu|tr|nghìn|k|triệu đồng|đồng)', message, re.IGNORECASE))
         
-        # ✅ Intent: price_inquiry - hỏi giá
-        if any(keyword in message for keyword in ["giá", "price", "cost", "giá cả", "giá tốt", "giá rẻ"]):
+        if has_price_keyword or has_price_number:
             return "price_inquiry"
+        
+        # ✅ Intent: product_detail - xem chi tiết/thông số/cấu hình sản phẩm cụ thể
+        # CHỈ khi KHÔNG có từ "giá" + số (để tránh nhầm với price_inquiry)
+        # VÀ không có từ "mua", "tìm", "có các" (để tránh nhầm với product_search)
+        detail_keywords = [
+            "chi tiết", "xem chi tiết", "muốn xem", "thông tin về",
+            "thông số", "cấu hình", "specs", "spec", "ram", "cpu", "màn hình", "kích thước",
+            "chất liệu", "màu sắc", "nặng bao nhiêu", "rõ hơn", "thông tin đầy đủ",
+            "kích cỡ", "kích cỡ nào", "màu gì", "chất liệu gì", "kích thước bao nhiêu",
+            "dimensions", "material", "color", "weight", "size", "configuration"
+        ]
+        # Chỉ classify product_detail nếu:
+        # 1. Có detail keywords
+        # 2. KHÔNG có price keywords
+        # 3. KHÔNG có search keywords (mua, tìm, có các sản phẩm nào)
+        has_search_keywords = any(keyword in message for keyword in ["mua", "tìm", "có các", "có loại", "sản phẩm nào"])
+        if any(keyword in message for keyword in detail_keywords) and not has_price_keyword and not has_search_keywords:
+            return "product_detail"
         
         # ✅ Intent: product_comparison - so sánh
         if any(keyword in message for keyword in ["so sánh", "compare", "khác biệt", "khác nhau"]):
@@ -929,10 +1016,15 @@ class UserChatbotAgent(BaseAgent):
         
         if intent == "product_detail":
             # ✅ Extract product name from message for detail view
-            # Remove common words: "xem chi tiết", "muốn xem", "thông tin về"
+            # Remove common words: "xem chi tiết", "muốn xem", "thông tin về", "thông số", "cấu hình"
             product_name = user_message
-            for word in ["xem chi tiết", "chi tiết", "muốn xem", "thông tin về", "về", "sản phẩm"]:
-                product_name = product_name.replace(word, "").strip()
+            detail_phrases = [
+                "xem chi tiết", "chi tiết", "muốn xem", "thông tin về", "về", "sản phẩm",
+                "thông số", "cấu hình", "specs", "spec", "kích thước", "chất liệu", "màu sắc",
+                "nặng bao nhiêu", "rõ hơn", "thông tin đầy đủ", "kích cỡ", "màu gì", "chất liệu gì"
+            ]
+            for phrase in detail_phrases:
+                product_name = product_name.replace(phrase, "").strip()
             
             # If just "có" or empty, check context for previous products
             if not product_name or product_name.lower() in ["có", "co"]:
@@ -941,26 +1033,101 @@ class UserChatbotAgent(BaseAgent):
                 if not product_name:
                     return {"success": False, "error": "Vui lòng cho tôi biết tên sản phẩm bạn muốn xem chi tiết."}
             
-            # Search with product name
-            query = extract_search_query(product_name) if product_name else product_name
-            result = await self.tool_client.call_tool("search_products", query=query, limit=5)
+            # Use get_product_details tool to get full specifications
+            # Clean product name - keep original for better matching
+            product_name_clean = product_name.strip()
+            if not product_name_clean:
+                product_name_clean = user_message  # Fallback to full message
             
-            # If found, return first product as detail
-            if result.get("success") and result.get("products"):
-                products = result["products"]
-                if products:
+            result = await self.tool_client.call_tool("get_product_details", product_name_or_id=product_name_clean)
+            
+            # Parse JSON result from tool
+            import json
+            try:
+                if isinstance(result, str):
+                    result_data = json.loads(result)
+                else:
+                    result_data = result
+                
+                if result_data.get("success") and result_data.get("product"):
+                    product = result_data["product"]
+                    # Convert to format expected by _generate_response
                     return {
                         "success": True,
-                        "products": [products[0]],  # Return only first match
+                        "product_detail": product,  # Full detail object
+                        "products": [{
+                            "id": product.get("id"),
+                            "name": product.get("name"),
+                            "price": product.get("price"),
+                            "sale_price": product.get("sale_price"),
+                            "description": product.get("description", ""),
+                            "image_url": product.get("image_url", ""),
+                            "category": product.get("category", ""),
+                            "brand": product.get("brand", ""),
+                            "specs": product.get("specs", {})
+                        }],
                         "detail_mode": True
                     }
-            
-            # ✅ Nếu không tìm thấy, đánh dấu no_results
-            if result.get("success") and (not result.get("products") or len(result.get("products", [])) == 0):
-                result["no_results"] = True
-                result["query"] = query
-            
-            return result
+                else:
+                    # Product not found - try search as fallback
+                    logger.info(f"Product detail not found for '{product_name_clean}', trying search as fallback")
+                    query = extract_search_query(product_name_clean) if product_name_clean else product_name_clean
+                    search_result = await self.tool_client.call_tool("search_products", query=query, limit=5)
+                    
+                    if search_result.get("success") and search_result.get("products"):
+                        products = search_result["products"]
+                        if products:
+                            # Use first result and try to get details
+                            first_product = products[0]
+                            detail_result = await self.tool_client.call_tool(
+                                "get_product_details", 
+                                product_name_or_id=str(first_product.get("id", first_product.get("name", "")))
+                            )
+                            if isinstance(detail_result, str):
+                                detail_data = json.loads(detail_result)
+                            else:
+                                detail_data = detail_result
+                            
+                            if detail_data.get("success") and detail_data.get("product"):
+                                product = detail_data["product"]
+                                return {
+                                    "success": True,
+                                    "product_detail": product,
+                                    "products": [{
+                                        "id": product.get("id"),
+                                        "name": product.get("name"),
+                                        "price": product.get("price"),
+                                        "sale_price": product.get("sale_price"),
+                                        "description": product.get("description", ""),
+                                        "image_url": product.get("image_url", ""),
+                                        "category": product.get("category", ""),
+                                        "brand": product.get("brand", ""),
+                                        "specs": product.get("specs", {})
+                                    }],
+                                    "detail_mode": True
+                                }
+                    
+                    # No results found
+                    return {
+                        "success": False,
+                        "error": f"Không tìm thấy sản phẩm '{product_name_clean}'. Vui lòng thử lại với tên sản phẩm khác.",
+                        "no_results": True,
+                        "query": product_name_clean
+                    }
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing product details JSON: {e}")
+                return {
+                    "success": False,
+                    "error": "Lỗi khi lấy thông tin sản phẩm. Vui lòng thử lại.",
+                    "no_results": True
+                }
+            except Exception as e:
+                logger.error(f"Error in product_detail tool call: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"Lỗi khi xử lý yêu cầu: {str(e)}",
+                    "no_results": True
+                }
         
         elif intent == "product_search":
             # ✅ NEW: Use LLM to extract search parameters instead of hard-coded logic
@@ -1069,16 +1236,41 @@ class UserChatbotAgent(BaseAgent):
                         category=category
                     )
                 
-                    if not result.get("products") or len(result.get("products", [])) == 0:
-                        result["no_results"] = True
-                        result["query"] = query
+                if not result.get("products") or len(result.get("products", [])) == 0:
+                    result["no_results"] = True
+                    result["query"] = query
             
             return result
         
         elif intent == "price_inquiry":
-            # Extract product name and search
-            query = extract_search_query(user_message)
-            result = await self.tool_client.call_tool("search_products", query=query, limit=5)
+            # ✅ Extract price and query using LLM extraction
+            extracted_params = await self._extract_search_params(user_message)
+            
+            query = extracted_params.get("query", user_message)
+            min_price = extracted_params.get("price_min")
+            max_price = extracted_params.get("price_max")
+            category = extracted_params.get("category_hint")
+            attributes = extracted_params.get("attributes", {})
+            
+            # ✅ Ensure query doesn't contain price phrases (clean it)
+            from core.utils import extract_price_filter
+            query = extract_search_query(query)  # Clean query to remove price phrases
+            
+            # ✅ Fallback: If LLM didn't extract price, try extract_price_filter
+            if min_price is None and max_price is None:
+                min_price, max_price = extract_price_filter(user_message)
+            
+            logger.info(f"Price inquiry - query='{query}', min_price={min_price}, max_price={max_price}")
+            
+            result = await self.tool_client.call_tool(
+                "search_products", 
+                query=query, 
+                limit=10,
+                min_price=min_price,
+                max_price=max_price,
+                category=category,
+                attributes=attributes
+            )
             
             # ✅ Kiểm tra nếu không tìm thấy sản phẩm
             if result.get("success") and (not result.get("products") or len(result.get("products", [])) == 0):
@@ -1117,6 +1309,8 @@ class AdminChatbotAgent(BaseAgent):
     
     def __init__(self):
         super().__init__("admin_chatbot", ADMIN_CHATBOT_SYSTEM_PROMPT)
+        # Lazy initialization of Legal Assistant (will be created on first use)
+        self._legal_assistant = None
     
     async def _classify_intent(self, user_message: str) -> str:
         """Classify admin intent"""
@@ -1132,10 +1326,22 @@ class AdminChatbotAgent(BaseAgent):
         elif any(keyword in message for keyword in ["hiệu suất", "performance", "kpi"]):
             return "performance_analysis"
         # Business law intents
-        elif any(keyword in message for keyword in ["luật", "law", "pháp luật", "quy định", "regulation", "đăng ký kinh doanh", "business registration", "giấy phép", "license"]):
+        elif any(keyword in message for keyword in [
+            "luật", "law", "pháp luật", "quy định", "regulation", 
+            "đăng ký kinh doanh", "business registration", "giấy phép", "license",
+            "điều kiện", "thành lập công ty", "doanh nghiệp", "văn bản", "nghị định", "thông tư",
+            "tiền lương", "lương làm thêm", "làm thêm giờ", "nghỉ lễ", "nghỉ phép",
+            "lao động", "bộ luật lao động", "luật lao động", "hợp đồng lao động",
+            "chế độ", "quyền lợi", "nghĩa vụ", "điều khoản", "khoản", "điều"
+        ]):
             return "business_law"
         # Tax intents
-        elif any(keyword in message for keyword in ["thuế", "tax", "vat", "gtgt", "thuế thu nhập", "income tax", "kê khai thuế", "tax filing", "ưu đãi thuế", "tax incentive"]):
+        elif any(keyword in message for keyword in [
+            "thuế", "tax", "vat", "gtgt", "thuế thu nhập", "income tax", 
+            "kê khai thuế", "tax filing", "ưu đãi thuế", "tax incentive",
+            "thu nhập", "đóng tiền", "nhà nước", "đóng thuế", "tính thuế",
+            "lương gross", "lương net", "bảo hiểm", "bhxh", "bhyt", "bhtn"
+        ]):
             return "tax_consultation"
         else:
             return "general_admin"
@@ -1155,21 +1361,31 @@ class AdminChatbotAgent(BaseAgent):
             return await self.tool_client.call_tool("generate_report", month=month, year=year)
         elif intent == "performance_analysis":
             return await self.tool_client.call_tool("get_sales_performance", days=30)
-        elif intent == "business_law":
-            # Business law questions - no tool needed, LLM will handle based on knowledge
+        elif intent == "business_law" or intent == "tax_consultation":
+            # Route to Legal Assistant service
+            try:
+                # Lazy initialization of Legal Assistant
+                if self._legal_assistant is None:
+                    from services.legal.legal_service import LegalAssistant
+                    self._legal_assistant = LegalAssistant()
+                
+                legal_response = await self._legal_assistant.process_query(user_message, region=1)
+                return {
+                    "success": True,
+                    "message": legal_response,
+                    "intent": intent,
+                    "legal_consultation": True,
+                    "source": "legal_assistant"
+                }
+            except Exception as e:
+                logger.error(f"Error calling Legal Assistant: {e}", exc_info=True)
+                # Fallback to generic response
             return {
                 "success": True,
-                "message": "Tôi sẽ tư vấn về pháp luật kinh doanh Việt Nam cho bạn.",
-                "intent": "business_law",
-                "requires_llm": True
-            }
-        elif intent == "tax_consultation":
-            # Tax consultation - no tool needed, LLM will handle based on knowledge
-            return {
-                "success": True,
-                "message": "Tôi sẽ tư vấn về thuế Việt Nam cho bạn.",
-                "intent": "tax_consultation",
-                "requires_llm": True
+                    "message": f"Tôi sẽ tư vấn về {'pháp luật kinh doanh' if intent == 'business_law' else 'thuế'} Việt Nam cho bạn. Tuy nhiên, hiện tại hệ thống tư vấn luật đang gặp sự cố. Vui lòng thử lại sau.",
+                    "intent": intent,
+                    "requires_llm": True,
+                    "error": str(e)
             }
         else:
             return {"success": True, "message": "Bạn cần thông tin kinh doanh gì?"}
@@ -1427,16 +1643,53 @@ class OrchestratorAgent:
             }
     
     async def _select_admin_agent(self, user_message: str) -> BaseAgent:
-        """Select the best admin agent based on message content"""
+        """Select the best admin agent based on message content with expanded keywords"""
         message = user_message.lower()
         
-        if any(keyword in message for keyword in ["báo cáo", "report", "xuất báo cáo", "tạo báo cáo"]):
+        # Expanded keywords for report generation
+        reporting_keywords = [
+            "báo cáo", "report", "xuất file", "tổng hợp", "thống kê", "biểu đồ",
+            "tạo báo cáo", "xuất báo cáo", "báo cáo doanh thu", "báo cáo sản phẩm",
+            "báo cáo khách hàng", "báo cáo sentiment", "export", "download report"
+        ]
+        
+        # Expanded keywords for sentiment analysis
+        sentiment_keywords = [
+            "sentiment", "cảm xúc", "feedback", "đánh giá", "khách hàng nói gì",
+            "review", "phản hồi", "bình luận", "comment", "ý kiến khách hàng",
+            "tâm trạng", "thái độ", "satisfaction", "hài lòng", "không hài lòng"
+        ]
+        
+        # Expanded keywords for business analytics
+        analytics_keywords = [
+            "doanh thu", "revenue", "kpi", "hiệu suất", "performance", "bán được",
+            "lợi nhuận", "đơn hàng", "tăng trưởng", "growth", "sales", "bán hàng",
+            "tình hình bán hàng", "tình hình kinh doanh", "số liệu", "thống kê bán hàng",
+            "doanh số", "tổng doanh thu", "doanh thu tháng", "doanh thu năm",
+            "hiệu quả kinh doanh", "chỉ số", "metrics", "analytics", "phân tích kinh doanh"
+        ]
+        
+        # Expanded keywords for legal/tax consultation
+        legal_keywords = [
+            "luật", "pháp luật", "văn bản", "nghị định", "thông tư", "điều kiện",
+            "quy định", "thành lập công ty", "doanh nghiệp", "thuế", "tính thuế",
+            "đóng thuế", "thuế tncn", "thuế thu nhập", "lương gross", "lương net",
+            "bảo hiểm", "bhxh", "bhyt", "bhtn", "thu nhập", "đóng bao nhiêu"
+        ]
+        
+        # Priority-based routing
+        if any(kw in message for kw in reporting_keywords):
             return self.agents["report_generator"]
-        elif any(keyword in message for keyword in ["sentiment", "cảm xúc", "feedback", "đánh giá"]):
+        elif any(kw in message for kw in sentiment_keywords):
             return self.agents["sentiment_analyzer"]
-        elif any(keyword in message for keyword in ["doanh thu", "revenue", "kpi", "hiệu suất", "performance"]):
+        elif any(kw in message for kw in analytics_keywords):
             return self.agents["business_analyst"]
+        elif any(kw in message for kw in legal_keywords):
+            # Legal queries should go to admin_chatbot which can route to legal assistant
+            # Note: Legal assistant is accessed via /api/legal/chat endpoint, not through orchestrator
+            return self.agents["admin_chatbot"]
         else:
+            # Default to admin chatbot for general queries
             return self.agents["admin_chatbot"]
 
 

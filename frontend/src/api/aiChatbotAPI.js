@@ -12,7 +12,17 @@ const AI_WS_URL = "ws://localhost:8000/ws"; // (chưa dùng, backend hiện khô
 // Create axios instance with default config
 const aiAxiosClient = axios.create({
   baseURL: AI_API_URL,
-  timeout: 30000,
+  timeout: 30000, // 30 seconds for regular queries
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Create axios instance for legal queries with longer timeout
+// Legal queries may take longer due to RAG search (20 documents) and LLM generation (5000 tokens)
+const legalAxiosClient = axios.create({
+  baseURL: AI_API_URL,
+  timeout: 120000, // 120 seconds (2 minutes) for legal queries
   headers: {
     "Content-Type": "application/json",
   },
@@ -395,7 +405,8 @@ export const aiChatbotAPI = {
    */
   askLegalAdvisor: async (query, region = 1) => {
     try {
-      const response = await aiAxiosClient.post("/api/legal/chat", {
+      // Use legalAxiosClient with longer timeout for legal queries
+      const response = await legalAxiosClient.post("/api/legal/chat", {
         query: query.trim(),
         region: region
       });

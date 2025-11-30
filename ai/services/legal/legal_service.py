@@ -24,7 +24,7 @@ class LegalAssistant:
         try:
             self.vector_service = LegalVectorService()
             self.tax_calculator = TaxCalculator()
-            self.llm_client = LLMClientFactory.get_client()
+            self.llm_client = LLMClientFactory.create_client()
             logger.info("✅ Legal Assistant initialized successfully")
         except Exception as e:
             logger.error(f"❌ Error initializing Legal Assistant: {e}", exc_info=True)
@@ -34,7 +34,7 @@ class LegalAssistant:
         """
         Process a legal/tax query and return appropriate response
         
-        This method intelligently determines if the query is:
+        This method uses LLM Router to intelligently determine if the query is:
         1. A tax calculation request (e.g., "Lương 50 triệu đóng thuế bao nhiêu?")
         2. A legal document query (e.g., "Điều kiện thành lập công ty là gì?")
         
@@ -46,30 +46,97 @@ class LegalAssistant:
             Response string with answer or calculation result
         """
         try:
-            query_lower = query.lower()
+            # Step 1: Use LLM Router to classify intent
+            intent = await self._classify_intent(query)
             
-            # Check if query is about tax calculation
-            tax_keywords = [
-                "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
-                "lương gross", "lương net", "lương bao nhiêu",
-                "đóng bảo hiểm", "bhxh", "bảo hiểm"
-            ]
-            
-            is_tax_query = any(keyword in query_lower for keyword in tax_keywords)
-            
-            # Check if query contains numbers (likely a calculation)
-            has_numbers = bool(re.search(r'\d+', query))
-            
-            if is_tax_query or (has_numbers and any(word in query_lower for word in ["triệu", "tr", "nghìn", "k"])):
-                # This is likely a tax calculation query
+            # Step 2: Route to appropriate handler
+            if intent == "CALCULATION":
                 return await self._handle_tax_query(query, region)
             else:
-                # This is a legal document query
                 return await self._handle_legal_query(query)
         
         except Exception as e:
             logger.error(f"Error processing query: {e}", exc_info=True)
-            return f"Xin lỗi, đã xảy ra lỗi khi xử lý câu hỏi: {str(e)}"
+            # Fallback to keyword-based classification if LLM fails
+            try:
+                query_lower = query.lower()
+                tax_keywords = [
+                    "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
+                    "lương gross", "lương net", "lương bao nhiêu",
+                    "đóng bảo hiểm", "bhxh", "bảo hiểm", "thu nhập"
+                ]
+                is_tax_query = any(keyword in query_lower for keyword in tax_keywords)
+                has_numbers = bool(re.search(r'\d+', query))
+                
+                if is_tax_query or (has_numbers and any(word in query_lower for word in ["triệu", "tr", "nghìn", "k", "triệu đồng"])):
+                    return await self._handle_tax_query(query, region)
+                else:
+                    return await self._handle_legal_query(query)
+            except Exception as fallback_error:
+                logger.error(f"Fallback classification also failed: {fallback_error}")
+                return f"Xin lỗi, đã xảy ra lỗi khi xử lý câu hỏi: {str(e)}"
+    
+    async def _classify_intent(self, query: str) -> str:
+        """
+        Use LLM to classify query intent (CALCULATION vs LEGAL_SEARCH)
+        
+        Args:
+            query: User query
+        
+        Returns:
+            "CALCULATION" or "LEGAL_SEARCH"
+        """
+        if not self.llm_client:
+            # Fallback to keyword-based if LLM not available
+            query_lower = query.lower()
+            tax_keywords = ["tính thuế", "đóng thuế", "thuế", "lương", "bảo hiểm", "thu nhập"]
+            has_numbers = bool(re.search(r'\d+', query))
+            
+            if any(keyword in query_lower for keyword in tax_keywords) and has_numbers:
+                return "CALCULATION"
+            return "LEGAL_SEARCH"
+        
+        router_prompt = f"""
+Phân loại câu hỏi sau vào 1 trong 2 nhóm:
+
+1. "CALCULATION": Nếu câu hỏi yêu cầu tính toán con số cụ thể (thuế, lương, bảo hiểm, số tiền phải đóng).
+   Ví dụ: "Lương 50 triệu đóng thuế bao nhiêu?", "Thu nhập 30 triệu thì đóng bao nhiêu tiền cho nhà nước?", 
+   "Tính thuế cho lương 20 triệu", "50 triệu đóng bảo hiểm bao nhiêu"
+
+2. "LEGAL_SEARCH": Các câu hỏi về quy định, luật lệ, thủ tục, điều kiện, hoặc lý thuyết pháp luật.
+   Ví dụ: "Điều kiện thành lập công ty là gì?", "Quy định về thuế GTGT", "Thủ tục đăng ký doanh nghiệp"
+
+Câu hỏi: "{query}"
+
+Chỉ trả về đúng 1 từ: CALCULATION hoặc LEGAL_SEARCH
+"""
+        
+        try:
+            result = await self.llm_client.generate_simple(
+                prompt=router_prompt,
+                temperature=0.1,  # Low temperature for consistent classification
+                max_tokens=50
+            )
+            
+            if result.get("success") and result.get("content"):
+                intent = result["content"].strip().upper()
+                if "CALCULATION" in intent:
+                    return "CALCULATION"
+                else:
+                    return "LEGAL_SEARCH"
+            else:
+                # Fallback
+                return "LEGAL_SEARCH"
+        except Exception as e:
+            logger.warning(f"LLM intent classification failed: {e}, using fallback")
+            # Fallback to keyword-based
+            query_lower = query.lower()
+            tax_keywords = ["tính thuế", "đóng thuế", "thuế", "lương", "bảo hiểm", "thu nhập", "tiền"]
+            has_numbers = bool(re.search(r'\d+', query))
+            
+            if any(keyword in query_lower for keyword in tax_keywords) and has_numbers:
+                return "CALCULATION"
+            return "LEGAL_SEARCH"
     
     async def _handle_tax_query(self, query: str, region: int = 1) -> str:
         """
@@ -123,19 +190,19 @@ class LegalAssistant:
             logger.error(f"Error handling tax query: {e}", exc_info=True)
             return f"Xin lỗi, đã xảy ra lỗi khi tính thuế: {str(e)}"
     
-    async def _handle_legal_query(self, query: str, top_k: int = 5) -> str:
+    async def _handle_legal_query(self, query: str, top_k: int = 20) -> str:
         """
         Handle legal document queries using RAG
         
         Args:
             query: User query about legal regulations
-            top_k: Number of documents to retrieve
+            top_k: Number of documents to retrieve (increased to 20 for comprehensive results)
         
         Returns:
             Legal consultation answer
         """
         try:
-            # Step 1: Search legal documents
+            # Step 1: Search legal documents (increased top_k for more comprehensive results)
             search_results = self.vector_service.search(
                 query=query,
                 top_k=top_k,
@@ -146,8 +213,11 @@ class LegalAssistant:
             if not search_results:
                 return "Xin lỗi, tôi không tìm thấy văn bản pháp luật nào liên quan đến câu hỏi của bạn. Vui lòng thử lại với từ khóa khác hoặc mô tả chi tiết hơn."
             
-            # Step 2: Construct context from search results
+            # Step 2: Construct context from search results (formatted for better LLM understanding)
+            # Group results by document to avoid semantic fragmentation
             context_parts = []
+            seen_docs = {}  # Track documents to group related chunks
+            
             for i, result in enumerate(search_results, 1):
                 metadata = result.get("metadata", {})
                 doc_name = metadata.get("doc_name", "Văn bản không rõ")
@@ -157,31 +227,43 @@ class LegalAssistant:
                 chapter = metadata.get("chapter", "")
                 clause = metadata.get("clause", "")
                 point = metadata.get("point", "")
-                text = result.get("text", "")
+                text = result.get("text", "").strip()
                 
-                # Build source citation
+                # Build source citation in a cleaner format
                 source_parts = []
                 if doc_type:
                     source_parts.append(doc_type)
                 source_parts.append(doc_name)
+                
+                # Build hierarchical reference (complete path for better context)
+                ref_parts = []
                 if chapter:
-                    source_parts.append(chapter)
+                    ref_parts.append(f"Chương {chapter}")
                 if article:
-                    source_parts.append(article)
+                    ref_parts.append(f"Điều {article}")
                 if article_title:
-                    source_parts.append(f'"{article_title}"')
+                    ref_parts.append(f'"{article_title}"')
                 if clause:
-                    source_parts.append(clause)
+                    ref_parts.append(f"Khoản {clause}")
                 if point:
-                    source_parts.append(f"Điểm {point}")
+                    ref_parts.append(f"Điểm {point}")
                 
                 source = " - ".join(source_parts)
+                reference = ", ".join(ref_parts) if ref_parts else ""
                 
-                context_parts.append(f"""
-Nguồn {i}: {source}
-Nội dung: {text}
-""")
+                # Create a document key for grouping
+                doc_key = f"{doc_name}_{article}_{clause}"
+                
+                # Format context entry with complete information (no truncation)
+                context_entry = f"---\n[Văn bản {i}] {source}"
+                if reference:
+                    context_entry += f"\nTham chiếu: {reference}"
+                # Include full text without truncation to preserve semantic meaning
+                context_entry += f"\nNội dung đầy đủ:\n{text}\n"
+                
+                context_parts.append(context_entry)
             
+            # Join all context parts with clear separators
             context = "\n".join(context_parts)
             
             # Step 3: LLM Generation
@@ -195,18 +277,22 @@ Nội dung: {text}
                 user_query=query
             )
             
-            # Generate answer using LLM
+            # Generate answer using LLM (increased max_tokens for comprehensive responses)
             result = await self.llm_client.generate_simple(
                 prompt=prompt,
                 temperature=0.3,  # Lower temperature for more factual responses
-                max_tokens=1500
+                max_tokens=5000  # Increased from 1500 to 5000 for comprehensive legal answers
             )
             
             if result.get("success") and result.get("content"):
+                # Even if truncated (finish_reason=2), return the content
+                if result.get("truncated", False):
+                    logger.info("Legal response was truncated but still usable")
                 return result["content"]
             else:
                 # Fallback: return formatted context
-                logger.warning("LLM generation failed, returning formatted context")
+                error_msg = result.get("error", "Unknown error")
+                logger.warning(f"LLM generation failed: {error_msg}, returning formatted context")
                 return f"Dựa vào các văn bản pháp luật sau đây:\n\n{context}\n\nTrả lời: {query}"
         
         except Exception as e:
@@ -216,7 +302,7 @@ Nội dung: {text}
     async def consult_legal_documents(
         self,
         query: str,
-        top_k: int = 5,
+        top_k: int = 20,
         doc_type: Optional[str] = None,
         status: str = "active"
     ) -> str:
@@ -225,7 +311,7 @@ Nội dung: {text}
         
         Args:
             query: Legal question
-            top_k: Number of documents to retrieve
+            top_k: Number of documents to retrieve (default: 20 for comprehensive results)
             doc_type: Filter by document type
             status: Filter by status
         

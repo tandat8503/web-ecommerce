@@ -607,3 +607,111 @@ async def _sql_product_search_fallback(
         logger.error(f"Error in SQL search: {e}", exc_info=True)
         return []
 
+
+async def get_product_details_helper(product_name_or_id: str) -> str:
+    """
+    Lấy thông tin chi tiết đầy đủ của sản phẩm để trả lời về cấu hình/thông số
+    
+    Args:
+        product_name_or_id: Tên sản phẩm (có thể là một phần) hoặc ID sản phẩm
+    
+    Returns:
+        JSON string với thông tin chi tiết sản phẩm
+    """
+    conn = None
+    try:
+        conn = await get_conn()
+        async with conn.cursor() as cur:
+            # Tìm sản phẩm khớp tên nhất hoặc theo ID
+            # Thử tìm theo ID trước (nếu là số)
+            is_id = product_name_or_id.isdigit()
+            
+            if is_id:
+                await cur.execute("""
+                    SELECT 
+                        p.id, p.name, p.description, p.price, p.sale_price,
+                        p.slug, p.image_url, p.view_count,
+                        c.name as category_name, c.slug as category_slug,
+                        b.name as brand_name,
+                        GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                        GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors,
+                        GROUP_CONCAT(DISTINCT pv.weight SEPARATOR ', ') as weights
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN brands b ON p.brand_id = b.id
+                    LEFT JOIN product_variants pv ON p.id = pv.product_id
+                    WHERE p.id = %s AND p.status = 'ACTIVE'
+                    GROUP BY p.id
+                    LIMIT 1
+                """, (int(product_name_or_id),))
+            else:
+                # Tìm theo tên (LIKE search)
+                await cur.execute("""
+                    SELECT 
+                        p.id, p.name, p.description, p.price, p.sale_price,
+                        p.slug, p.image_url, p.view_count,
+                        c.name as category_name, c.slug as category_slug,
+                        b.name as brand_name,
+                        GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                        GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors,
+                        GROUP_CONCAT(DISTINCT pv.weight SEPARATOR ', ') as weights
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN brands b ON p.brand_id = b.id
+                    LEFT JOIN product_variants pv ON p.id = pv.product_id
+                    WHERE (p.name LIKE %s OR p.description LIKE %s) AND p.status = 'ACTIVE'
+                    GROUP BY p.id
+                    ORDER BY 
+                        CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
+                        p.view_count DESC
+                    LIMIT 1
+                """, (f"%{product_name_or_id}%", f"%{product_name_or_id}%", f"{product_name_or_id}%"))
+            
+            row = await cur.fetchone()
+            
+            if not row:
+                return json.dumps({
+                    "success": False, 
+                    "error": "Không tìm thấy sản phẩm",
+                    "product_name_or_id": product_name_or_id
+                }, ensure_ascii=False)
+            
+            # Build product detail dictionary
+            product_detail = {
+                "success": True,
+                "product": {
+                    "id": row[0],
+                    "name": row[1],
+                    "description": row[2] or "",  # AI cần cái này để đọc thông số
+                    "price": float(row[3]) if row[3] else 0.0,
+                    "sale_price": float(row[4]) if row[4] else None,
+                    "slug": row[5] or "",
+                    "image_url": row[6] or "",
+                    "view_count": row[7] or 0,
+                    "category": row[8] or "",
+                    "category_slug": row[9] or "",
+                    "brand": row[10] or "",
+                    "specs": {
+                        "materials": row[11] or "",
+                        "dimensions": row[12] or "",
+                        "colors": row[13] or "",
+                        "weights": row[14] or ""
+                    }
+                }
+            }
+            
+            return json.dumps(product_detail, ensure_ascii=False)
+            
+    except Exception as e:
+        logger.error(f"Error getting product details: {e}", exc_info=True)
+        return json.dumps({
+            "success": False, 
+            "error": str(e),
+            "product_name_or_id": product_name_or_id
+        }, ensure_ascii=False)
+    finally:
+        if conn:
+            await release_conn(conn)
+

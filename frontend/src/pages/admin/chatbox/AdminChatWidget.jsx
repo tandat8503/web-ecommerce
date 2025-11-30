@@ -10,6 +10,8 @@ import {
   BarChartOutlined,
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiChatbotAPI, aiUtils, AIWebSocketClient } from "../../../api/aiChatbotAPI";
 import ReportProgressCard from "../../../components/reports/ReportProgressCard";
 import ReportCard from "../../../components/reports/ReportCard";
@@ -152,7 +154,11 @@ export default function AdminChatWidget() {
       "luật", "pháp luật", "văn bản", "nghị định", "thông tư",
       "điều kiện", "quy định", "thành lập công ty", "doanh nghiệp",
       "thuế", "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
-      "lương gross", "lương net", "bảo hiểm", "bhxh", "bhyt", "bhtn"
+      "lương gross", "lương net", "bảo hiểm", "bhxh", "bhyt", "bhtn",
+      "thu nhập", "đóng tiền", "nhà nước", "tiền lương", "lương làm thêm",
+      "làm thêm giờ", "nghỉ lễ", "nghỉ phép", "tiền thưởng", "phụ cấp",
+      "lao động", "bộ luật lao động", "luật lao động", "hợp đồng lao động",
+      "chế độ", "quyền lợi", "nghĩa vụ", "điều khoản", "khoản", "điều"
     ];
     const lowerText = text.toLowerCase();
     return legalKeywords.some((keyword) => lowerText.includes(keyword));
@@ -284,9 +290,20 @@ export default function AdminChatWidget() {
         // Fallback to HTTP API - Admin chatbot for business intelligence
         const response = await aiChatbotAPI.sendAdminMessage(userInput);
         
+        // Handle both string and object response formats
+        let responseText = "";
+        if (typeof response.response === "string") {
+          responseText = response.response;
+        } else if (response.response && typeof response.response === "object") {
+          // If response is an object with 'text' property
+          responseText = response.response.text || response.response.message || JSON.stringify(response.response);
+        } else {
+          responseText = response.message || "Xin lỗi, tôi không thể xử lý yêu cầu của bạn.";
+        }
+        
         const botMsg = {
           from: "bot",
-          text: response.response || response.message || "Xin lỗi, tôi không thể xử lý yêu cầu của bạn.",
+          text: responseText,
           timestamp: response.timestamp || new Date().toISOString(),
           metadata: {
             response_time: response.response_time,
@@ -428,7 +445,40 @@ export default function AdminChatWidget() {
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    <div className="text-sm whitespace-pre-line">{msg.text}</div>
+                    {msg.from === "bot" ? (
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            // Customize HTML tags rendering
+                            p: ({node, ...props}) => <p className="mb-2 last:mb-0 text-sm" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 text-sm" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 text-sm" {...props} />,
+                            li: ({node, ...props}) => <li className="mb-1 text-sm" {...props} />,
+                            a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
+                            strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
+                            em: ({node, ...props}) => <em className="italic" {...props} />,
+                            blockquote: ({node, ...props}) => (
+                              <blockquote className="border-l-4 border-purple-400 pl-4 italic text-gray-700 my-2 bg-purple-50 py-2 rounded-r" {...props} />
+                            ),
+                            h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-2 mt-2" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-2" {...props} />,
+                            h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-1 mt-1" {...props} />,
+                            code: ({node, inline, ...props}) => 
+                              inline ? (
+                                <code className="bg-gray-200 px-1 py-0.5 rounded text-xs font-mono" {...props} />
+                              ) : (
+                                <code className="block bg-gray-200 p-2 rounded text-xs font-mono overflow-x-auto" {...props} />
+                              ),
+                            pre: ({node, ...props}) => <pre className="bg-gray-200 p-2 rounded text-xs font-mono overflow-x-auto mb-2" {...props} />,
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <span className="text-sm whitespace-pre-wrap">{msg.text}</span>
+                    )}
                     <div className={`text-xs mt-1 ${
                       msg.from === "user" ? "text-purple-100" : "text-gray-500"
                     }`}>

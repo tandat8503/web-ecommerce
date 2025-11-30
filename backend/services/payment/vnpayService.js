@@ -7,7 +7,7 @@ const VNPAY_CONFIG = {
   tmnCode: 'VJ57K4RO', // Mã Terminal (Mã Merchant) do VNPAY cấp
   hashSecret: 'NLVI2586C7FZMM9M59W26NEN1Z9PJU6S', // Secret Key dùng để mã hóa/xác thực giao dịch
   // URL mà VNPAY sẽ gọi lại (Callback) sau khi khách hàng thanh toán xong
-  returnUrl: 'https://holley-ungaining-nonmischievously.ngrok-free.dev/api/payment/vnpay/return'
+  returnUrl: 'https://unmachinable-aryan-unific.ngrok-free.dev'
 };
 
 // Khởi tạo client VNPay
