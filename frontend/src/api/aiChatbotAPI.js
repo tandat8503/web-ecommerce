@@ -87,34 +87,104 @@ export const aiChatbotAPI = {
   },
 
   /**
-   * Send a message to the chatbot
+   * Send a message to the chatbot (main method)
    * @param {string} message - User message
    * @param {string} sessionId - Optional session ID
-   * @param {boolean} stream - Whether to stream response
+   * @param {string} userType - User type: "user" or "admin" (default: "user")
    * @returns {Promise<Object>} Bot response
    */
-  // User chatbot: tư vấn sản phẩm
-  sendUserMessage: async (message, sessionId = null) => {
+  sendMessage: async (message, sessionId = null, userType = "user", userId = null) => {
     try {
-      const payload = { role: "user", message: message.trim() };
-      const response = await aiAxiosClient.post("/chat/user", payload);
-      return response.data;
+      // Try to get user_id from localStorage if not provided
+      if (!userId && typeof window !== 'undefined') {
+        try {
+          const userData = localStorage.getItem('user');
+          if (userData) {
+            const user = JSON.parse(userData);
+            userId = user.id || user.userId || null;
+          }
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+      }
+      
+      const payload = {
+        message: message.trim(),
+        user_type: userType,
+        session_id: sessionId,
+        context: {},
+        ...(userId && { user_id: userId })
+      };
+      const startTime = Date.now();
+      const response = await aiAxiosClient.post("/chat", payload);
+      const responseTime = (Date.now() - startTime) / 1000; // in seconds
+      
+      // Transform response to match expected format
+      const data = response.data;
+      
+      // Update session_id if returned from backend
+      if (data.session_id && data.session_id !== sessionId) {
+        // Session ID was generated/updated by backend
+      }
+      
+      return {
+        response: data.response || data.message || "Xin lỗi, không thể xử lý yêu cầu.",
+        timestamp: data.timestamp || new Date().toISOString(),
+        response_time: responseTime,
+        metadata: {
+          model: data.agent_type || "professional_ai_chatbot",
+          session_id: data.session_id || sessionId,
+          success: data.success !== false,
+          agent_type: data.agent_type
+        },
+        data: data.data,
+        session_id: data.session_id || sessionId,
+        success: data.success !== false
+      };
     } catch (error) {
-      console.error("Send user message failed:", error);
+      console.error("Send message failed:", error);
+      
+      // Return error response in expected format
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        return {
+          response: errorData.response || errorData.error || "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn.",
+          timestamp: new Date().toISOString(),
+          response_time: 0,
+          metadata: {
+            model: "error",
+            session_id: sessionId,
+            success: false,
+            error: true,
+            error_message: errorData.error || error.message
+          },
+          success: false,
+          session_id: sessionId
+        };
+      }
+      
       throw error;
     }
   },
 
-  // Admin chatbot: intent nghiệp vụ (doanh thu/sentiment/report)
-  sendAdminMessage: async (message) => {
-    try {
-      const payload = { role: "admin", message: message.trim() };
-      const response = await aiAxiosClient.post("/chat/admin", payload);
-      return response.data;
-    } catch (error) {
-      console.error("Send admin message failed:", error);
-      throw error;
-    }
+  /**
+   * Send a message to the chatbot (user - product consultation)
+   * @param {string} message - User message
+   * @param {string} sessionId - Optional session ID
+   * @returns {Promise<Object>} Bot response
+   */
+  sendUserMessage: async (message, sessionId = null) => {
+    return await aiChatbotAPI.sendMessage(message, sessionId, "user");
+  },
+
+  /**
+   * Send a message to the chatbot (admin - business intelligence)
+   * @param {string} message - Admin message
+   * @param {string} sessionId - Optional session ID
+   * @returns {Promise<Object>} Bot response
+   */
+  sendAdminMessage: async (message, sessionId = null) => {
+    return await aiChatbotAPI.sendMessage(message, sessionId, "admin");
   },
 
   /**
@@ -315,6 +385,155 @@ export const aiChatbotAPI = {
       console.error("List reports failed:", error);
       throw error;
     }
+  },
+
+  /**
+   * Ask Legal Advisor - Tư vấn luật & Tính thuế
+   * @param {string} query - Legal question or tax calculation query
+   * @param {number} region - Region code (1-4) for minimum wage calculation
+   * @returns {Promise<Object>} Legal consultation response
+   */
+  askLegalAdvisor: async (query, region = 1) => {
+    try {
+      const response = await aiAxiosClient.post("/api/legal/chat", {
+        query: query.trim(),
+        region: region
+      });
+      
+      return {
+        success: response.data.success !== false,
+        response: response.data.response || "Xin lỗi, không thể xử lý yêu cầu.",
+        query_type: response.data.query_type || "legal",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          model: "legal_assistant",
+          query_type: response.data.query_type
+        }
+      };
+    } catch (error) {
+      console.error("Ask legal advisor failed:", error);
+      
+      if (error.response?.data) {
+        return {
+          success: false,
+          response: error.response.data.error || "Xin lỗi, có lỗi xảy ra khi tư vấn luật.",
+          query_type: "error",
+          timestamp: new Date().toISOString(),
+          metadata: {
+            error: true,
+            error_message: error.response.data.error || error.message
+          }
+        };
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Calculate Tax - Tính thuế trực tiếp
+   * @param {number} grossSalary - Gross salary in VND
+   * @param {number} dependents - Number of dependents
+   * @param {number} region - Region code (1-4)
+   * @returns {Promise<Object>} Tax calculation result
+   */
+  calculateTax: async (grossSalary, dependents = 0, region = 1) => {
+    try {
+      const response = await aiAxiosClient.post("/api/legal/calculate-tax", {
+        query: `Lương ${grossSalary / 1000000} triệu, ${dependents} con`,
+        region: region
+      });
+      
+      return {
+        success: response.data.success !== false,
+        result: response.data.result || null,
+        formatted: response.data.formatted || response.data.result,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          model: "tax_calculator",
+          gross_salary: grossSalary,
+          dependents: dependents,
+          region: region
+        }
+      };
+    } catch (error) {
+      console.error("Calculate tax failed:", error);
+      
+      if (error.response?.data) {
+        return {
+          success: false,
+          formatted: error.response.data.error || "Xin lỗi, có lỗi xảy ra khi tính thuế.",
+          timestamp: new Date().toISOString(),
+          metadata: {
+            error: true,
+            error_message: error.response.data.error || error.message
+          }
+        };
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Get Business Report - Lấy báo cáo phân tích kinh doanh
+   * @param {string} reportType - Report type: daily, monthly, weekly
+   * @param {number} month - Month (1-12)
+   * @param {number} year - Year
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<Object>} Business report data
+   */
+  getBusinessReport: async (reportType = "daily", month = null, year = null, startDate = null, endDate = null) => {
+    try {
+      const params = { type: reportType };
+      if (month) params.month = month;
+      if (year) params.year = year;
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      
+      const response = await aiAxiosClient.get("/api/analyst/report", { params });
+      
+      return {
+        success: response.data.success !== false,
+        report_type: reportType,
+        data: response.data.data || {},
+        agent_response: response.data.agent_response || "",
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Get business report failed:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get Revenue Analytics - Phân tích doanh thu
+   * @param {number} month - Month (1-12)
+   * @param {number} year - Year
+   * @param {string} startDate - Start date (YYYY-MM-DD)
+   * @param {string} endDate - End date (YYYY-MM-DD)
+   * @returns {Promise<Object>} Revenue analytics data
+   */
+  getRevenueAnalytics: async (month = null, year = null, startDate = null, endDate = null) => {
+    try {
+      const params = {};
+      if (month) params.month = month;
+      if (year) params.year = year;
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+      
+      const response = await aiAxiosClient.get("/api/analyst/revenue", { params });
+      
+      return {
+        success: response.data.success !== false,
+        data: response.data.data || {},
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Get revenue analytics failed:", error);
+      throw error;
+    }
   }
 };
 
@@ -358,12 +577,19 @@ export class AIWebSocketClient {
         };
 
         this.ws.onclose = () => {
-          console.log("WebSocket disconnected");
-          this.handleReconnect(sessionId);
+          // Suppress WebSocket disconnect logs - backend doesn't support WebSocket
+          // Only attempt reconnect if explicitly enabled
+          if (process.env.REACT_APP_ENABLE_WEBSOCKET === 'true') {
+            this.handleReconnect(sessionId);
+          }
         };
 
         this.ws.onerror = (error) => {
-          console.error("WebSocket error:", error);
+          // Suppress WebSocket errors - backend doesn't support WebSocket currently
+          // Only log if in development mode
+          if (process.env.NODE_ENV === 'development') {
+            console.warn("WebSocket not supported by backend (using HTTP fallback)");
+          }
           reject(error);
         };
 
@@ -429,15 +655,26 @@ export class AIWebSocketClient {
    * @param {string} sessionId - Session ID
    */
   handleReconnect(sessionId) {
+    // Only reconnect if WebSocket is explicitly enabled
+    if (process.env.REACT_APP_ENABLE_WEBSOCKET !== 'true') {
+      return; // Skip reconnection - WebSocket not supported
+    }
+    
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Reconnecting... attempt ${this.reconnectAttempts}`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Reconnecting... attempt ${this.reconnectAttempts}`);
+      }
       
       setTimeout(() => {
-        this.connect(sessionId).catch(console.error);
+        this.connect(sessionId).catch(() => {
+          // Suppress error - WebSocket not supported
+        });
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
-      console.error("Max reconnection attempts reached");
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("Max reconnection attempts reached (WebSocket not supported by backend)");
+      }
     }
   }
 

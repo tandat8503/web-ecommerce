@@ -9,11 +9,13 @@ import {
   DisconnectOutlined,
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
-import { aiChatbotAPI, aiUtils, AIWebSocketClient } from "../../../api/aiChatbotAPI";
+import { useNavigate } from "react-router-dom";
+import { aiChatbotAPI, aiUtils } from "../../../api/aiChatbotAPI";
 
-const { Text } = Typography;
+const { Text, Link } = Typography;
 
 export default function ChatWidget() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { 
@@ -31,8 +33,6 @@ export default function ChatWidget() {
   const [sessionId, setSessionId] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("checking");
-  const [wsClient, setWsClient] = useState(null);
-  const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef(null);
 
   // Initialize session and check connection
@@ -60,23 +60,11 @@ export default function ChatWidget() {
         setConnectionStatus(isAvailable ? "connected" : "disconnected");
 
         if (isAvailable) {
-          console.log("✅ Professional AI Chatbot connected");
+          console.log("✅ Professional AI Chatbot connected (HTTP mode)");
           
-          // Initialize WebSocket for real-time features
-          try {
-            const ws = new AIWebSocketClient();
-            await ws.connect(newSessionId);
-            
-            // Set up WebSocket event listeners
-            ws.addEventListener("message", handleWebSocketMessage);
-            ws.addEventListener("typing", handleTypingIndicator);
-            ws.addEventListener("error", handleWebSocketError);
-            
-            setWsClient(ws);
-          } catch (wsError) {
-            // WebSocket connection failed - use HTTP fallback
-            console.log("Using HTTP fallback for chat");
-          }
+          // Note: Backend currently doesn't support WebSocket
+          // Using HTTP API only - no WebSocket connection needed
+          // WebSocket can be enabled in the future if backend supports it
         }
         // Don't log warning - service not running is acceptable
       } catch (availabilityError) {
@@ -94,35 +82,6 @@ export default function ChatWidget() {
     }
   };
 
-  const handleWebSocketMessage = (data) => {
-    if (data.type === "message") {
-      const botMsg = {
-        from: "bot",
-        text: data.content,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          response_time: data.response_time,
-          model: data.model || "professional_ai_chatbot",
-          streaming: data.streaming || false
-        }
-      };
-      setMessages(prev => [...prev, botMsg]);
-      setTyping(false);
-      setStreaming(false);
-    }
-  };
-
-  const handleTypingIndicator = (data) => {
-    if (data.type === "typing") {
-      setTyping(data.typing);
-    }
-  };
-
-  const handleWebSocketError = (data) => {
-    console.error("WebSocket error:", data);
-    setTyping(false);
-    setStreaming(false);
-  };
 
   const handleSend = async () => {
     if (!input.trim() || typing) return;
@@ -137,26 +96,50 @@ export default function ChatWidget() {
     setTyping(true);
 
     try {
-      if (isConnected && wsClient) {
-        // Use WebSocket for real-time communication
-        wsClient.sendMessage(input);
-        setStreaming(true);
-      } else {
-        // Fallback to HTTP API
-        const response = await aiChatbotAPI.sendMessage(input, sessionId);
-        
-      const botMsg = {
-          from: "bot",
-          text: response.response,
-          timestamp: response.timestamp,
-          metadata: {
-            response_time: response.response_time,
-            model: response.metadata?.model || "professional_ai_chatbot"
-          }
-        };
-        setMessages(prev => [...prev, botMsg]);
-        setTyping(false);
+      // Use HTTP API (backend doesn't support WebSocket currently)
+      // Get user_id from localStorage if available
+      let userId = null;
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const user = JSON.parse(userData);
+          userId = user.id || user.userId || null;
+        }
+      } catch (e) {
+        // Ignore localStorage errors
       }
+      
+      const response = await aiChatbotAPI.sendMessage(input, sessionId, "user", userId);
+      
+      // Update session_id if returned from backend
+      if (response.session_id && response.session_id !== sessionId) {
+        setSessionId(response.session_id);
+      }
+      
+      // Handle structured response (new format) or string response (old format)
+      let responseData = response.response;
+      if (typeof responseData === 'string') {
+        // Old format - convert to structured
+        responseData = { text: responseData, type: "text" };
+      }
+      
+      const botMsg = {
+        from: "bot",
+        text: responseData.text || responseData || "Xin lỗi, không thể xử lý yêu cầu.",
+        timestamp: response.timestamp || new Date().toISOString(),
+        metadata: {
+          response_time: response.response_time || 0,
+          model: response.metadata?.model || response.metadata?.agent_type || "professional_ai_chatbot",
+          success: response.success !== false
+        },
+        // Add structured response data
+        type: responseData.type || "text",
+        data: responseData.data || null,
+        cross_sell: responseData.cross_sell || null,
+        suggest_contact: responseData.suggest_contact || false
+      };
+      setMessages(prev => [...prev, botMsg]);
+      setTyping(false);
     } catch (error) {
       console.error("Error sending message:", error);
       
@@ -173,7 +156,6 @@ export default function ChatWidget() {
       };
       setMessages(prev => [...prev, errorMsg]);
       setTyping(false);
-      setStreaming(false);
 
       // Show error notification
       message.error(aiUtils.getErrorMessage(error));
@@ -192,6 +174,135 @@ export default function ChatWidget() {
       hour: "2-digit",
       minute: "2-digit"
     });
+  };
+
+  /**
+   * Format price for display
+   */
+  const formatPrice = (price) => {
+    if (!price) return "Liên hệ";
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND"
+    }).format(price);
+  };
+
+  /**
+   * Render product card component
+   */
+  const renderProductCard = (product) => {
+    return (
+      <div
+        key={product.id}
+        className="border rounded-lg p-3 min-w-[180px] bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+        onClick={() => {
+          navigate(product.link || `/san-pham/${product.id || product.slug}`);
+          setOpen(false);
+        }}
+      >
+        {product.image_url && (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-32 object-cover rounded mb-2"
+            onError={(e) => {
+              e.target.src = "https://via.placeholder.com/180x128?text=No+Image";
+            }}
+          />
+        )}
+        <div className="font-semibold text-sm truncate mb-1" title={product.name}>
+          {product.name}
+        </div>
+        {product.category && (
+          <div className="text-xs text-gray-500 mb-2">{product.category}</div>
+        )}
+        <div className="flex items-center space-x-2">
+          {product.sale_price ? (
+            <>
+              <span className="text-red-500 font-bold text-sm">
+                {formatPrice(product.sale_price)}
+              </span>
+              <span className="text-gray-400 line-through text-xs">
+                {formatPrice(product.price)}
+              </span>
+            </>
+          ) : (
+            <span className="text-red-500 font-bold text-sm">
+              {formatPrice(product.price)}
+            </span>
+          )}
+        </div>
+        <Button
+          type="primary"
+          size="small"
+          className="w-full mt-2"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(product.link || `/san-pham/${product.id || product.slug}`);
+            setOpen(false);
+          }}
+        >
+          Xem ngay
+        </Button>
+      </div>
+    );
+  };
+
+  /**
+   * Parse text and render links as clickable elements
+   * Supports /san-pham/{id} and /product/{slug} formats
+   */
+  const renderMessageWithLinks = (text) => {
+    if (!text) return text;
+
+    // Pattern to match /san-pham/{id} or /product/{slug} links
+    const productLinkPattern = /(\/(?:san-pham|product)\/[a-zA-Z0-9\-_]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = productLinkPattern.exec(text)) !== null) {
+      // Add text before the link
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+
+      // Add clickable link
+      const linkPath = match[0];
+      parts.push(
+        <Link
+          key={match.index}
+          onClick={(e) => {
+            e.preventDefault();
+            // Navigate to product page
+            navigate(linkPath);
+            // Close chat widget after navigation
+            setOpen(false);
+          }}
+          style={{ 
+            color: "#1890ff",
+            textDecoration: "underline",
+            cursor: "pointer"
+          }}
+        >
+          {linkPath}
+        </Link>
+      );
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    // If no links found, return original text
+    if (parts.length === 0) {
+      return text;
+    }
+
+    return parts;
   };
 
   const getConnectionIcon = () => {
@@ -274,7 +385,72 @@ export default function ChatWidget() {
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    <div className="text-sm">{msg.text}</div>
+                    {/* Render text message */}
+                    <div className="text-sm whitespace-pre-wrap break-words">
+                      {msg.from === "bot" ? renderMessageWithLinks(msg.text) : msg.text}
+                    </div>
+                    
+                    {/* Render product cards if type is product_recommendation */}
+                    {msg.from === "bot" && msg.type === "product_recommendation" && msg.data && (
+                      <div className="mt-3">
+                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1">
+                          {msg.data.map((product) => renderProductCard(product))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Render cross-sell products */}
+                    {msg.from === "bot" && msg.cross_sell && msg.cross_sell.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-300">
+                        <div className="text-xs text-gray-600 mb-2 font-semibold">
+                          💡 Gợi ý thêm:
+                        </div>
+                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1">
+                          {msg.cross_sell.map((product) => renderProductCard(product))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Suggest contact form if needed */}
+                    {msg.from === "bot" && msg.suggest_contact && (
+                      <div className="mt-3 pt-3 border-t border-gray-300">
+                        <div className="text-xs text-gray-600 mb-2">
+                          💬 Mẫu này đang cháy hàng, bạn để lại số điện thoại, khi nào hàng về em nhắn Zalo cho bạn ngay ạ!
+                        </div>
+                        <Input
+                          placeholder="Nhập số điện thoại của bạn..."
+                          size="small"
+                          className="mt-2"
+                          onPressEnter={(e) => {
+                            const phone = e.target.value;
+                            if (phone) {
+                              // TODO: Send phone to backend for lead collection
+                              message.success("Cảm ơn bạn! Chúng tôi sẽ liên hệ sớm nhất có thể.");
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                        <Button
+                          type="primary"
+                          size="small"
+                          className="w-full mt-2"
+                          onClick={(e) => {
+                            const input = e.target.closest('.border-t').querySelector('input');
+                            const phone = input?.value;
+                            if (phone) {
+                              // TODO: Send phone to backend for lead collection
+                              message.success("Cảm ơn bạn! Chúng tôi sẽ liên hệ sớm nhất có thể.");
+                              input.value = "";
+                            } else {
+                              message.warning("Vui lòng nhập số điện thoại");
+                            }
+                          }}
+                        >
+                          Gửi số điện thoại
+                        </Button>
+                      </div>
+                    )}
+                    
                     <div className={`text-xs mt-1 ${
                       msg.from === "user" ? "text-blue-100" : "text-gray-500"
                     }`}>

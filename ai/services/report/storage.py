@@ -7,7 +7,7 @@ Lưu và retrieve generated reports
 import json
 import logging
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
 import hashlib

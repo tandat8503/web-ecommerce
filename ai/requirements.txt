@@ -1,22 +1,26 @@
 # Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi
+uvicorn
+pydantic
 
 # Database
-aiomysql==0.2.0
+aiomysql
 
 # AI/ML
-google-generativeai==0.3.2
-sentence-transformers==2.2.2
-chromadb==0.4.18
+google-generativeai
+sentence-transformers
+chromadb
 
 # MCP
-fastmcp==0.1.0
+fastmcp
 
 # Monitoring
-ddtrace==1.19.0
+ddtrace
 
 # Utilities
-python-dotenv==1.0.0
-jinja2==3.1.2
+python-dotenv
+jinja2
+
+# Legal document parsing
+PyMuPDF
+python-docx

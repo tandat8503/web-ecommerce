@@ -1,6 +1,11 @@
 from typing import Optional, List, Dict, Any
-from ...core.db import get_conn
 from fastapi import Depends
+
+# Import db - handle both relative and absolute imports
+try:
+    from core.db import get_conn
+except ImportError:
+    from ...core.db import get_conn
 
 
 class AnalystService:

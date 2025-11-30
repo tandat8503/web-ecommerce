@@ -21,7 +21,7 @@ export default function AdminChatWidget() {
   const [messages, setMessages] = useState([
     { 
       from: "bot", 
-      text: "Xin chào Admin! Tôi là AI Business Assistant. Tôi có thể giúp bạn:\n• Phân tích doanh thu và KPI\n• Phân tích sentiment khách hàng\n• Tạo báo cáo tự động\n• Phân tích hiệu suất sản phẩm\n\nBạn muốn hỏi gì ạ?",
+      text: "Xin chào Admin! Tôi là AI Business Assistant. Tôi có thể giúp bạn:\n• Phân tích doanh thu và KPI\n• Phân tích sentiment khách hàng\n• Tạo báo cáo tự động\n• Phân tích hiệu suất sản phẩm\n• Tư vấn luật pháp & Tính thuế\n\nBạn muốn hỏi gì ạ?",
       timestamp: new Date().toISOString(),
       metadata: {
         response_time: 0,
@@ -146,6 +146,18 @@ export default function AdminChatWidget() {
     return reportKeywords.some((keyword) => lowerText.includes(keyword));
   };
 
+  // Detect legal/tax query
+  const isLegalOrTaxQuery = (text) => {
+    const legalKeywords = [
+      "luật", "pháp luật", "văn bản", "nghị định", "thông tư",
+      "điều kiện", "quy định", "thành lập công ty", "doanh nghiệp",
+      "thuế", "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
+      "lương gross", "lương net", "bảo hiểm", "bhxh", "bhyt", "bhtn"
+    ];
+    const lowerText = text.toLowerCase();
+    return legalKeywords.some((keyword) => lowerText.includes(keyword));
+  };
+
   // Extract report type from request
   const extractReportType = (text) => {
     const lowerText = text.toLowerCase();
@@ -237,6 +249,31 @@ export default function AdminChatWidget() {
         // Start report generation
         await handleGenerateReport(reportType, userInput);
         return;
+      }
+
+      // Check if this is a legal/tax query
+      if (isLegalOrTaxQuery(userInput)) {
+        try {
+          const response = await aiChatbotAPI.askLegalAdvisor(userInput, 1); // Default region 1 (Vùng I)
+          
+          const botMsg = {
+            from: "bot",
+            text: response.response || "Xin lỗi, tôi không thể xử lý yêu cầu của bạn.",
+            timestamp: response.timestamp || new Date().toISOString(),
+            metadata: {
+              response_time: 0,
+              model: response.metadata?.model || "legal_assistant",
+              query_type: response.query_type || "legal",
+              success: response.success
+            }
+          };
+          setMessages(prev => [...prev, botMsg]);
+          setTyping(false);
+          return;
+        } catch (legalError) {
+          console.error("Legal advisor error:", legalError);
+          // Fall through to regular admin chatbot
+        }
       }
 
       if (isConnected && wsClient) {
@@ -447,7 +484,7 @@ export default function AdminChatWidget() {
                   onKeyPress={handleKeyPress}
                   placeholder={
                     isConnected 
-                      ? "Hỏi về doanh thu, sentiment, báo cáo..." 
+                      ? "Hỏi về doanh thu, sentiment, báo cáo, luật pháp, tính thuế..." 
                       : "AI không khả dụng..."
                   }
                   disabled={!isConnected || typing}
