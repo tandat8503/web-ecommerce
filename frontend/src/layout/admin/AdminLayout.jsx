@@ -5,7 +5,7 @@ import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import AdminHeader from "./AdminHeader";
 import AdminFooter from "./AdminFooter";
-import ChatWidget from "@/pages/user/chatbox/ChatWidget";
+import AdminChatWidget from "@/pages/admin/chatbox/AdminChatWidget";
 
 const { Content } = Layout;
 
@@ -22,7 +22,7 @@ const AdminLayout = () => {
             <Outlet />
           </div>
         </Content>
-        <ChatWidget />
+        <AdminChatWidget />
         <AdminFooter />
       </Layout>
     </Layout>

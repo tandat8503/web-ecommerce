@@ -7,7 +7,7 @@ Tracks và emits detailed progress events cho report generation
 import json
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime
 from enum import Enum
 

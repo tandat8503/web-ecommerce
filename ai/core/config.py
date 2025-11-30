@@ -41,7 +41,7 @@ class LLMConfig(BaseModel):
     model: str = Field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-3.5-turbo"))
     api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     gemini_api_key: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
-    gemini_model: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-1.5-flash"))
+    gemini_model: str = Field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))  # Use gemini-2.5-flash
     max_tokens: int = Field(default_factory=lambda: _getenv_int("LLM_MAX_TOKENS", 800))
     temperature: float = Field(default_factory=lambda: _getenv_float("LLM_TEMPERATURE", 0.6))
     base_url: str = Field(default_factory=lambda: os.getenv("LLM_BASE_URL", ""))  # e.g., Ollama http://localhost:11434

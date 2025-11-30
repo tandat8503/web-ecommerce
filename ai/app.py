@@ -4,10 +4,35 @@ Main Application for Web-ecommerce AI System
 Simple structure following ai-native-todo-task-agent
 """
 
+import sys
+import os
+from pathlib import Path
+
+# Add parent directory to path to allow imports
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    # Load .env file from the ai directory
+    env_path = current_dir / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ Loaded .env file from: {env_path}")
+    else:
+        # Try loading from current directory
+        load_dotenv()
+        print("✅ Loaded .env file from current directory")
+except ImportError:
+    print("⚠️  python-dotenv not installed, skipping .env file loading")
+except Exception as e:
+    print(f"⚠️  Error loading .env file: {e}")
+
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,14 +56,17 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="User message", max_length=2000)
     user_type: str = Field(default="user", description="User type: user or admin")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context")
+    session_id: Optional[str] = Field(None, description="Session ID for conversation history")
+    user_id: Optional[int] = Field(None, description="User ID for personalization (if logged in)")
 
 
 class ChatResponse(BaseModel):
     """Response model for chat endpoint"""
     success: bool = Field(..., description="Whether the request was successful")
-    response: str = Field(..., description="Response message")
+    response: Any = Field(..., description="Response message (string or structured dict)")
     agent_type: str = Field(..., description="Agent that processed the request")
     data: Optional[Dict[str, Any]] = Field(None, description="Response data")
+    session_id: Optional[str] = Field(None, description="Session ID for conversation history")
 
 
 class HealthResponse(BaseModel):
@@ -171,27 +199,48 @@ async def chat(request: ChatRequest):
     try:
         logger.info(f"Processing chat request: {request.user_type} - {request.message[:100]}...")
         
+        # Prepare context with session_id and user_id
+        context = request.context or {}
+        if request.session_id:
+            context["session_id"] = request.session_id
+        elif not context.get("session_id"):
+            # Generate default session_id if not provided
+            import uuid
+            context["session_id"] = str(uuid.uuid4())
+        
+        # Add user_id for personalization
+        if request.user_id:
+            context["user_id"] = request.user_id
+        
         # Process request through orchestrator
         result = await orchestrator.process_request(
             user_message=request.message,
             user_type=request.user_type,
-            context=request.context or {}
+            context=context
         )
         
         if result.get("success"):
             agent_result = result.get("result", {})
+            response_data = agent_result.get("response", {})
+            
+            # Handle both old string format and new structured format
+            if isinstance(response_data, str):
+                response_data = {"text": response_data, "type": "text"}
+            
             return ChatResponse(
                 success=True,
-                response=agent_result.get("response", "I apologize, but I couldn't process your request."),
+                response=response_data,  # Now returns structured response
                 agent_type=agent_result.get("agent_type", "unknown"),
-                data=agent_result.get("tool_result")
+                data=agent_result.get("tool_result"),
+                session_id=context.get("session_id")
             )
         else:
             return ChatResponse(
                 success=False,
                 response=result.get("response", "I apologize, but I encountered an error."),
                 agent_type="error",
-                data={"error": result.get("error")}
+                data={"error": result.get("error")},
+                session_id=context.get("session_id")
             )
         
     except Exception as e:
@@ -525,14 +574,285 @@ async def list_reports(report_type: Optional[str] = None, limit: int = 50):
     return {"reports": reports, "total": len(reports)}
 
 
+# =============================================================================
+# LEGAL ASSISTANT ENDPOINTS
+# =============================================================================
+
+class LegalChatRequest(BaseModel):
+    """Request model for legal consultation"""
+    query: str = Field(..., description="Legal question or tax calculation query", max_length=2000)
+    region: int = Field(default=1, description="Region code (1-4) for minimum wage calculation", ge=1, le=4)
+
+
+class LegalChatResponse(BaseModel):
+    """Response model for legal consultation"""
+    success: bool = Field(..., description="Whether the request was successful")
+    response: str = Field(..., description="Legal consultation answer or tax calculation result")
+    query_type: str = Field(..., description="Type of query: legal or tax")
+
+
+# Initialize Legal Assistant (lazy loading)
+_legal_assistant = None
+
+def get_legal_assistant():
+    """Get or create Legal Assistant instance"""
+    global _legal_assistant
+    if _legal_assistant is None:
+        try:
+            from services.legal.legal_service import LegalAssistant
+            _legal_assistant = LegalAssistant()
+            logger.info("✅ Legal Assistant initialized")
+        except Exception as e:
+            logger.error(f"❌ Error initializing Legal Assistant: {e}", exc_info=True)
+            raise
+    return _legal_assistant
+
+
+@app.post("/api/legal/chat", response_model=LegalChatResponse)
+async def legal_chat(request: LegalChatRequest):
+    """
+    Legal consultation endpoint - Handles both legal queries and tax calculations
+    
+    This endpoint intelligently determines if the query is:
+    - A tax calculation (e.g., "Lương 50 triệu đóng thuế bao nhiêu?")
+    - A legal document query (e.g., "Điều kiện thành lập công ty là gì?")
+    
+    Args:
+        request: Legal chat request with query and optional region
+    
+    Returns:
+        Legal consultation response
+    """
+    try:
+        logger.info(f"Processing legal query: {request.query[:100]}...")
+        
+        legal_assistant = get_legal_assistant()
+        
+        # Process query (automatically detects tax vs legal)
+        response_text = await legal_assistant.process_query(
+            query=request.query,
+            region=request.region
+        )
+        
+        # Determine query type
+        query_lower = request.query.lower()
+        tax_keywords = ["tính thuế", "đóng thuế", "thuế tncn", "lương gross", "lương net"]
+        query_type = "tax" if any(keyword in query_lower for keyword in tax_keywords) else "legal"
+        
+        return LegalChatResponse(
+            success=True,
+            response=response_text,
+            query_type=query_type
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in legal chat: {e}", exc_info=True)
+        return LegalChatResponse(
+            success=False,
+            response=f"Xin lỗi, đã xảy ra lỗi: {str(e)}",
+            query_type="error"
+        )
+
+
+@app.post("/api/legal/calculate-tax")
+async def calculate_tax_endpoint(request: LegalChatRequest):
+    """
+    Direct tax calculation endpoint
+    
+    Args:
+        request: Request with query containing salary information
+    
+    Returns:
+        Tax calculation result
+    """
+    try:
+        logger.info(f"Processing tax calculation: {request.query[:100]}...")
+        
+        legal_assistant = get_legal_assistant()
+        
+        # Extract salary and dependents from query
+        import re
+        query_lower = request.query.lower()
+        
+        salary_match = re.search(r'(\d+)\s*(?:triệu|tr|million|m)', query_lower)
+        dependents_match = re.search(r'(\d+)\s*(?:con|người phụ thuộc)', query_lower)
+        
+        if not salary_match:
+            return {
+                "success": False,
+                "error": "Không tìm thấy mức lương trong câu hỏi. Vui lòng cung cấp rõ ràng, ví dụ: 'Lương 50 triệu đóng thuế bao nhiêu?'"
+            }
+        
+        gross_salary = float(salary_match.group(1)) * 1_000_000
+        dependents = int(dependents_match.group(1)) if dependents_match else 0
+        
+        # Calculate tax
+        result = legal_assistant.calculate_tax(
+            gross_salary=gross_salary,
+            dependents=dependents,
+            region=request.region
+        )
+        
+        from services.legal.tax_calculator import format_tax_result
+        formatted_result = format_tax_result(result, result_type="personal_income")
+        
+        return {
+            "success": True,
+            "result": result,
+            "formatted": formatted_result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in tax calculation: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+# =============================================================================
+# BUSINESS ANALYST ENDPOINTS
+# =============================================================================
+
+class AnalystReportRequest(BaseModel):
+    """Request model for business analyst report"""
+    report_type: str = Field(default="daily", description="Report type: daily, monthly, weekly")
+    month: Optional[int] = Field(None, description="Month for report (1-12)", ge=1, le=12)
+    year: Optional[int] = Field(None, description="Year for report")
+    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
+
+
+@app.get("/api/analyst/report")
+async def get_business_report(
+    report_type: str = "daily",
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Generate business analyst report
+    
+    Args:
+        report_type: Type of report (daily, monthly, weekly)
+        month: Month for report (1-12)
+        year: Year for report
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+    
+    Returns:
+        Business report data
+    """
+    try:
+        logger.info(f"Generating {report_type} report...")
+        
+        from services.analyst.service import AnalystService
+        from agents import BusinessAnalystAgent
+        
+        # Use BusinessAnalystAgent to generate report
+        agent = BusinessAnalystAgent()
+        
+        context = {
+            "report_type": report_type,
+            "month": month,
+            "year": year,
+            "start_date": start_date,
+            "end_date": end_date
+        }
+        
+        # Process request through agent
+        result = await agent.process_request(
+            user_message=f"Tạo báo cáo {report_type}",
+            context=context
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "report_type": report_type,
+                "data": result.get("tool_result", {}),
+                "agent_response": result.get("result", {}).get("response", "")
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error")
+            }
+        
+    except Exception as e:
+        logger.error(f"Error generating business report: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@app.get("/api/analyst/revenue")
+async def get_revenue_analytics(
+    month: Optional[int] = None,
+    year: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Get revenue analytics for specified period
+    
+    Args:
+        month: Month for analysis (1-12)
+        year: Year for analysis
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+    
+    Returns:
+        Revenue analytics data
+    """
+    try:
+        from agents import BusinessAnalystAgent
+        
+        agent = BusinessAnalystAgent()
+        context = {
+            "month": month,
+            "year": year,
+            "start_date": start_date,
+            "end_date": end_date
+        }
+        
+        result = await agent.process_request(
+            user_message="Phân tích doanh thu",
+            context=context
+        )
+        
+        if result.get("success"):
+            return {
+                "success": True,
+                "data": result.get("tool_result", {})
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error")
+            }
+        
+    except Exception as e:
+        logger.error(f"Error getting revenue analytics: {e}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
+    
+    # Get port from environment variable
+    port = int(os.environ.get("AI_SERVICE_PORT", 8000))
     
     # Run the application
     uvicorn.run(
         "app:app",
         host="0.0.0.0",
-        port=8000,
+        port=port,
         reload=True,
         log_level="info"
     )

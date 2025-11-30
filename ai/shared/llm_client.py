@@ -9,21 +9,14 @@ import logging
 from typing import Any, Dict, List, Optional, Annotated, Literal, Union
 from datetime import datetime
 import httpx
-from google import genai
-from google.genai.types import (
-    GenerateContentConfig,
-    GoogleSearch,
-    GroundingChunk,
-    GroundingSupport,
-    HttpOptions,
-    Modality,
-    Tool,
-    FunctionDeclaration,
-    Schema,
-    Type,
-)
+import google.generativeai as genai
 from pydantic import BaseModel, Field
-from ..core.config import get_llm_config
+
+# Import config - handle both relative and absolute imports
+try:
+    from core.config import get_llm_config
+except ImportError:
+    from ..core.config import get_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,55 +24,105 @@ logger = logging.getLogger(__name__)
 class GeminiProClient:
     """Advanced Gemini Pro client with function calling and grounding support"""
     
-    def __init__(self, api_key: str):
-        self.client = genai.Client(api_key=api_key)
+    def __init__(self, api_key: str, model_name: str = None):
+        genai.configure(api_key=api_key)
         self.api_key = api_key
+        # Get model from config or use default
+        try:
+            from core.config import get_llm_config
+        except ImportError:
+            from ..core.config import get_llm_config
+        config = get_llm_config()
+        self.model_name = model_name or config.gemini_model or "gemini-2.5-flash"
         
     async def generate_with_tools(
         self,
         prompt: str,
-        tools: List[Tool],
+        tools: List[Any],
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
         max_tokens: int = 800,
-        model: str = "gemini-1.5-pro"
+        model: str = None
     ) -> Dict[str, Any]:
         """Generate content with function calling tools"""
         try:
-            config = GenerateContentConfig(
+            model_name = model or self.model_name
+            genai_model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_instruction
+            )
+            
+            # Configure generation config
+            generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
-                tools=tools,
             )
             
-            messages = []
+            # Build prompt with system instruction if provided
+            full_prompt = prompt
             if system_instruction:
-                messages.append({
-                    "role": "user",
-                    "parts": [{"text": f"System: {system_instruction}\n\nUser: {prompt}"}]
-                })
-            else:
-                messages.append({
-                    "role": "user", 
-                    "parts": [{"text": prompt}]
-                })
+                full_prompt = f"{system_instruction}\n\n{prompt}"
             
-            response = self.client.models.generate_content(
-                model=model,
-                contents=messages,
-                config=config
+            response = genai_model.generate_content(
+                full_prompt,
+                generation_config=generation_config
             )
+            
+            # Check for blocked or invalid responses
+            if not response.candidates or len(response.candidates) == 0:
+                logger.warning("Gemini response has no candidates")
+                return {
+                    "success": False,
+                    "error": "Response blocked or empty",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
+                }
+            
+            # Check finish_reason
+            candidate = response.candidates[0]
+            finish_reason = candidate.finish_reason if hasattr(candidate, 'finish_reason') else None
+            
+            if finish_reason == 3:  # SAFETY - content blocked
+                logger.warning(f"Gemini response blocked by safety filters (finish_reason={finish_reason})")
+                return {
+                    "success": False,
+                    "error": "Response blocked by safety filters",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này do bị chặn bởi bộ lọc an toàn."
+                }
+            
+            # Try to get text content
+            try:
+                content_text = response.text
+            except Exception as text_error:
+                logger.error(f"Failed to get text from response: {text_error}, finish_reason={finish_reason}")
+                # Fallback: try to extract from parts manually
+                try:
+                    if candidate.content and candidate.content.parts:
+                        parts_text = []
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                parts_text.append(part.text)
+                        content_text = " ".join(parts_text) if parts_text else "Xin lỗi, không thể tạo phản hồi."
+                    else:
+                        content_text = "Xin lỗi, không thể tạo phản hồi."
+                except Exception as fallback_error:
+                    logger.error(f"Fallback text extraction also failed: {fallback_error}")
+                    return {
+                        "success": False,
+                        "error": f"Failed to extract text: {str(text_error)}",
+                        "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu."
+                    }
             
             return {
                 "success": True,
-                "content": response.text,
-                "candidates": response.candidates,
-                "usage_metadata": response.usage_metadata,
-                "model": model
+                "content": content_text,
+                "candidates": response.candidates if hasattr(response, 'candidates') else [],
+                "usage_metadata": response.usage_metadata if hasattr(response, 'usage_metadata') else {},
+                "model": model_name,
+                "finish_reason": finish_reason
             }
             
         except Exception as e:
-            logger.error(f"Gemini Pro generation error: {e}")
+            logger.error(f"Gemini Pro generation error: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e),
@@ -93,50 +136,40 @@ class GeminiProClient:
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
         max_tokens: int = 800,
-        model: str = "gemini-1.5-pro"
+        model: str = None
     ) -> Dict[str, Any]:
         """Generate content with grounding from sources"""
         try:
-            grounding_chunks = []
-            for source in sources:
-                grounding_chunks.append(GroundingChunk(
-                    web={"uri": source}
-                ))
-            
-            grounding_support = GroundingSupport(
-                grounding_chunks=grounding_chunks
+            model_name = model or self.model_name
+            genai_model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_instruction
             )
             
-            config = GenerateContentConfig(
+            # Configure generation config
+            generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
-                grounding_support=grounding_support,
             )
             
-            messages = []
-            if system_instruction:
-                messages.append({
-                    "role": "user",
-                    "parts": [{"text": f"System: {system_instruction}\n\nUser: {prompt}"}]
-                })
-            else:
-                messages.append({
-                    "role": "user",
-                    "parts": [{"text": prompt}]
-                })
+            # Build prompt with sources
+            sources_text = "\n".join([f"- {source}" for source in sources])
+            full_prompt = f"{prompt}\n\nNguồn tham khảo:\n{sources_text}"
             
-            response = self.client.models.generate_content(
-                model=model,
-                contents=messages,
-                config=config
+            if system_instruction:
+                full_prompt = f"{system_instruction}\n\n{full_prompt}"
+            
+            response = genai_model.generate_content(
+                full_prompt,
+                generation_config=generation_config
             )
             
             return {
                 "success": True,
                 "content": response.text,
-                "grounding_metadata": response.grounding_metadata,
-                "usage_metadata": response.usage_metadata,
-                "model": model
+                "grounding_metadata": {},
+                "usage_metadata": response.usage_metadata if hasattr(response, 'usage_metadata') else {},
+                "model": model_name
             }
             
         except Exception as e:
@@ -153,46 +186,95 @@ class GeminiProClient:
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
         max_tokens: int = 800,
-        model: str = "gemini-1.5-pro"
+        model: str = None
     ) -> Dict[str, Any]:
         """Simple content generation without tools or grounding"""
         try:
-            config = GenerateContentConfig(
+            model_name = model or self.model_name
+            
+            # Create model with system instruction
+            genai_model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_instruction
+            )
+            
+            # Configure generation config
+            generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
             )
             
-            messages = []
-            if system_instruction:
-                messages.append({
-                    "role": "user",
-                    "parts": [{"text": f"System: {system_instruction}\n\nUser: {prompt}"}]
-                })
-            else:
-                messages.append({
-                    "role": "user",
-                    "parts": [{"text": prompt}]
-                })
-            
-            response = self.client.models.generate_content(
-                model=model,
-                contents=messages,
-                config=config
+            # Generate content
+            response = genai_model.generate_content(
+                prompt,
+                generation_config=generation_config
             )
+            
+            # Check for blocked or invalid responses
+            if not response.candidates or len(response.candidates) == 0:
+                logger.warning("Gemini response has no candidates")
+                return {
+                    "success": False,
+                    "error": "Response blocked or empty",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
+                }
+            
+            # Check finish_reason
+            candidate = response.candidates[0]
+            finish_reason = candidate.finish_reason if hasattr(candidate, 'finish_reason') else None
+            
+            # finish_reason values: 1=STOP, 2=MAX_TOKENS, 3=SAFETY, 4=RECITATION, 5=OTHER
+            if finish_reason == 3:  # SAFETY - content blocked
+                logger.warning(f"Gemini response blocked by safety filters (finish_reason={finish_reason})")
+                return {
+                    "success": False,
+                    "error": "Response blocked by safety filters",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này do bị chặn bởi bộ lọc an toàn. Vui lòng thử lại với câu hỏi khác."
+                }
+            
+            # Check if candidate has content parts
+            if not candidate.content or not candidate.content.parts:
+                logger.warning(f"Gemini response has no valid parts (finish_reason={finish_reason})")
+                return {
+                    "success": False,
+                    "error": f"Response has no valid parts (finish_reason={finish_reason})",
+                    "content": "Xin lỗi, tôi không thể tạo phản hồi cho yêu cầu này. Vui lòng thử lại với câu hỏi khác."
+                }
+            
+            # Try to get text content
+            try:
+                content_text = response.text
+            except Exception as text_error:
+                logger.error(f"Failed to get text from response: {text_error}, finish_reason={finish_reason}")
+                # Fallback: try to extract from parts manually
+                try:
+                    parts_text = []
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            parts_text.append(part.text)
+                    content_text = " ".join(parts_text) if parts_text else "Xin lỗi, không thể tạo phản hồi."
+                except Exception as fallback_error:
+                    logger.error(f"Fallback text extraction also failed: {fallback_error}")
+                    return {
+                        "success": False,
+                        "error": f"Failed to extract text: {str(text_error)}",
+                        "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại."
+                    }
             
             return {
                 "success": True,
-                "content": response.text,
-                "usage_metadata": response.usage_metadata,
-                "model": model
+                "content": content_text,
+                "usage_metadata": response.usage_metadata if hasattr(response, 'usage_metadata') else {},
+                "model": model_name,
+                "finish_reason": finish_reason
             }
             
         except Exception as e:
-            logger.error(f"Gemini Pro simple generation error: {e}")
+            logger.error(f"Gemini Pro simple generation error: {e}", exc_info=True)
             return {
                 "success": False,
                 "error": str(e),
-                "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu."
+                "content": "Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu. Vui lòng thử lại."
             }
     
     def create_function_tool(
@@ -200,18 +282,17 @@ class GeminiProClient:
         name: str,
         description: str,
         parameters: Dict[str, Any]
-    ) -> Tool:
+    ) -> Dict[str, Any]:
         """Create a function tool for Gemini Pro"""
-        function_declaration = FunctionDeclaration(
-            name=name,
-            description=description,
-            parameters=Schema(
-                type=Type.OBJECT,
-                properties=parameters
-            )
-        )
-        
-        return Tool(function_declarations=[function_declaration])
+        # For google-generativeai, we return a dict that can be used with function calling
+        return {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": parameters
+            }
+        }
 
 
 class LLMClientFactory:
@@ -223,7 +304,7 @@ class LLMClientFactory:
         config = get_llm_config()
         
         if config.gemini_api_key:
-            return GeminiProClient(api_key=config.gemini_api_key)
+            return GeminiProClient(api_key=config.gemini_api_key, model_name=config.gemini_model)
         
         return None
     
@@ -231,6 +312,8 @@ class LLMClientFactory:
     def get_available_models() -> List[str]:
         """Get list of available models"""
         return [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash-exp",
             "gemini-1.5-pro",
             "gemini-1.5-flash",
             "gemini-1.0-pro"
