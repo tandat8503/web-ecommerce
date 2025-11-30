@@ -1,6 +1,12 @@
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
 import { emitOrderStatusUpdate } from '../config/socket.js';
+import {
+  sendOrderConfirmedEmail,
+  sendOrderShippingEmail,
+  sendOrderDeliveredEmail,
+  sendOrderCancelledEmail
+} from '../services/Email/EmailServices.js';
 
 /**
  * Helper: Convert status code sang label tiếng Việt
@@ -345,6 +351,94 @@ export const updateOrder = async (req, res) => {
       statusLabel: getStatusLabel(updated.status) // ✅ Thêm statusLabel
     });
 
+    // Gửi email thông báo cho user khi trạng thái thay đổi
+    try {
+      // Lấy đầy đủ thông tin đơn hàng để gửi email
+      const orderForEmail = await prisma.order.findUnique({
+        where: { id },
+        include: {
+          orderItems: {
+            select: {
+              productName: true,
+              variantName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+            }
+          },
+          user: {
+            select: {
+              email: true,
+            }
+          }
+        }
+      });
+
+      if (orderForEmail?.user?.email) {
+        // Parse shippingAddress từ JSON string thành object
+        let shippingAddressParsed = orderForEmail.shippingAddress;
+        try {
+          if (typeof orderForEmail.shippingAddress === 'string') {
+            shippingAddressParsed = JSON.parse(orderForEmail.shippingAddress);
+          }
+        } catch (e) {
+          logger.warn('Failed to parse shippingAddress for email', { orderId: id });
+        }
+
+        // Format shippingAddress thành string cho email
+        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+          ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
+          : orderForEmail.shippingAddress;
+
+        // Format orderItems cho email
+        const emailOrderItems = orderForEmail.orderItems.map(item => ({
+          productName: item.productName,
+          variantName: item.variantName,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+        }));
+
+        const orderData = {
+          ...orderForEmail,
+          orderItems: emailOrderItems,
+          shippingAddress: shippingAddressString,
+        };
+
+        // Gửi email theo trạng thái
+        switch (status) {
+          case 'CONFIRMED':
+            await sendOrderConfirmedEmail({
+              email: orderForEmail.user.email,
+              order: orderData
+            });
+            logger.info('Order confirmed email sent', { orderId: id, email: orderForEmail.user.email });
+            break;
+          case 'PROCESSING':
+            await sendOrderShippingEmail({
+              email: orderForEmail.user.email,
+              order: orderData
+            });
+            logger.info('Order shipping email sent', { orderId: id, email: orderForEmail.user.email });
+            break;
+          case 'DELIVERED':
+            await sendOrderDeliveredEmail({
+              email: orderForEmail.user.email,
+              order: orderData
+            });
+            logger.info('Order delivered email sent', { orderId: id, email: orderForEmail.user.email });
+            break;
+        }
+      }
+    } catch (emailError) {
+      // Nếu lỗi khi gửi email, log nhưng không ảnh hưởng đến response
+      logger.warn('Failed to send order status email', {
+        orderId: id,
+        status,
+        error: emailError.message
+      });
+    }
+
     logger.success('Order status updated', { id, oldStatus: currentOrder.status, newStatus: updated.status });
     logger.end(context.path, { id });
     return res.json(updated);
@@ -456,6 +550,78 @@ export const cancelOrder = async (req, res) => {
       status: 'CANCELLED',
       statusLabel: getStatusLabel('CANCELLED') // ✅ Thêm statusLabel
     });
+
+    // Gửi email thông báo hủy đơn cho user
+    try {
+      // Lấy đầy đủ thông tin đơn hàng để gửi email
+      const orderForEmail = await prisma.order.findUnique({
+        where: { id },
+        include: {
+          orderItems: {
+            select: {
+              productName: true,
+              variantName: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+            }
+          },
+          user: {
+            select: {
+              email: true,
+            }
+          }
+        }
+      });
+
+      if (orderForEmail?.user?.email) {
+        // Parse shippingAddress từ JSON string thành object
+        let shippingAddressParsed = orderForEmail.shippingAddress;
+        try {
+          if (typeof orderForEmail.shippingAddress === 'string') {
+            shippingAddressParsed = JSON.parse(orderForEmail.shippingAddress);
+          }
+        } catch (e) {
+          logger.warn('Failed to parse shippingAddress for email', { orderId: id });
+        }
+
+        // Format shippingAddress thành string cho email
+        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+          ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
+          : orderForEmail.shippingAddress;
+
+        // Format orderItems cho email
+        const emailOrderItems = orderForEmail.orderItems.map(item => ({
+          productName: item.productName,
+          variantName: item.variantName,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+        }));
+
+        const orderData = {
+          ...orderForEmail,
+          orderItems: emailOrderItems,
+          shippingAddress: shippingAddressString,
+        };
+
+        // Lấy lý do hủy từ request body (nếu có)
+        const reason = req.body.reason || 'Đơn hàng đã bị hủy bởi quản trị viên.';
+
+        await sendOrderCancelledEmail({
+          email: orderForEmail.user.email,
+          order: orderData,
+          reason: reason
+        });
+        logger.info('Order cancelled email sent', { orderId: id, email: orderForEmail.user.email });
+      }
+    } catch (emailError) {
+      // Nếu lỗi khi gửi email, log nhưng không ảnh hưởng đến response
+      logger.warn('Failed to send order cancelled email', {
+        orderId: id,
+        error: emailError.message
+      });
+    }
 
     logger.success('Order cancelled', { id, oldStatus: currentOrder.status });
     logger.end(context.path, { id });

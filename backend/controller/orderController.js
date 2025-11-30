@@ -2,6 +2,7 @@ import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
 import { emitNewOrder } from '../config/socket.js';
 import { calculateShippingFee as ghnCalculateShippingFee } from '../services/shipping/ghnService.js';
+import { sendOrderConfirmationEmail } from '../services/Email/EmailServices.js';
 
 const DEFAULT_SHIPPING_FEE = 30000;
 const DEFAULT_WEIGHT_PER_ITEM = 500; // gram
@@ -328,6 +329,51 @@ export const createOrder = async (req, res) => {
       logger.warn('Failed to create notification for new order', {
         orderId: created.id,
         error: notifError.message
+      });
+    }
+
+    // BƯỚC 9: Gửi email xác nhận đơn hàng cho user
+    try {
+      if (orderDetails.user?.email) {
+        // Parse shippingAddress từ JSON string thành object
+        let shippingAddressParsed = orderDetails.shippingAddress;
+        try {
+          if (typeof orderDetails.shippingAddress === 'string') {
+            shippingAddressParsed = JSON.parse(orderDetails.shippingAddress);
+          }
+        } catch (e) {
+          logger.warn('Failed to parse shippingAddress for email', { orderId: created.id });
+        }
+
+        // Format lại orderItems cho email
+        const emailOrderItems = orderDetails.orderItems.map(item => ({
+          productName: item.productName,
+          variantName: item.variantName,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          totalPrice: Number(item.totalPrice),
+        }));
+
+        // Format shippingAddress thành string cho email
+        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+          ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
+          : orderDetails.shippingAddress;
+
+        await sendOrderConfirmationEmail({
+          email: orderDetails.user.email,
+          order: {
+            ...orderDetails,
+            orderItems: emailOrderItems,
+            shippingAddress: shippingAddressString,
+          }
+        });
+        logger.info('Order confirmation email sent', { orderId: created.id, email: orderDetails.user.email });
+      }
+    } catch (emailError) {
+      // Nếu lỗi khi gửi email, log nhưng không ảnh hưởng đến response
+      logger.warn('Failed to send order confirmation email', {
+        orderId: created.id,
+        error: emailError.message
       });
     }
 
