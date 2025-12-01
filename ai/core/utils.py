@@ -301,3 +301,49 @@ def normalize_dimension_to_mm(size_str: str) -> Optional[str]:
     # Fallback: return original if cannot parse
     return s
 
+
+def clean_product_query(text: str) -> str:
+    """
+    Làm sạch câu hỏi để lấy tên sản phẩm cốt lõi.
+    Loại bỏ các từ thừa (stop words) như "chi tiết", "thông tin", "của", "là" trước khi tìm kiếm.
+    
+    QUAN TRỌNG: Giữ lại các ký tự đặc biệt trong tên sản phẩm (như F-42, Chữ L, Chữ U)
+    
+    Ví dụ: 
+        "Cho mình xin thông tin con F42 với" -> "F42"
+        "Chi tiết F42" -> "F42"
+        "Thông tin chi tiết của smark desk gtech f42" -> "smark desk gtech f42"
+        "Bàn chữ U" -> "Bàn chữ U" (giữ nguyên "chữ U")
+    """
+    if not text:
+        return ""
+    
+    # 1. Chuyển về chữ thường
+    text = text.lower()
+    
+    # 2. Danh sách từ thừa (Stop words) cần loại bỏ
+    stop_words = [
+        "thông tin", "chi tiết", "cấu hình", "thông số", "về", "của", "cho", 
+        "mình", "em", "shop", "ad", "admin", "sản phẩm", "con", "cái", "chiếc",
+        "là gì", "như thế nào", "ra sao", "với", "ạ", "nhé", "nha", "muốn xem", 
+        "hỏi", "tư vấn", "giúp", "tìm", "mua", "bán", "giá", "bao nhiêu", "review", "đánh giá",
+        "xin", "cho tôi", "cho mình", "cho em", "xem", "muốn", "cần", "có thể",
+        "được không", "được", "không", "có", "là", "và", "hoặc"
+    ]
+    
+    # 3. Xóa từng từ (sử dụng word boundary để tránh xóa nhầm)
+    for word in stop_words:
+        # Xóa từ đứng đầu câu hoặc giữa câu (có khoảng trắng bao quanh)
+        text = re.sub(r'\b' + re.escape(word) + r'\b', ' ', text, flags=re.IGNORECASE)
+    
+    # 4. QUAN TRỌNG: Chỉ xóa ký tự đặc biệt vô nghĩa, GIỮ LẠI các ký tự trong tên sản phẩm
+    # Giữ lại: chữ, số, khoảng trắng, dấu gạch ngang (-), dấu chấm (.) cho số thập phân (1.2m)
+    # Xóa: !@#$%^&*():,<>?[]{}|`~ (nhưng giữ - và .)
+    # Lưu ý: Không xóa dấu chấm (.) vì có thể là số thập phân (1.2m, 1.4m)
+    text = re.sub(r'[!@#$%^&*():,<>?\[\]{}|`~]', ' ', text)
+    
+    # 5. Xóa khoảng trắng thừa
+    text = re.sub(r'\s+', ' ', text)
+    
+    return text.strip()
+

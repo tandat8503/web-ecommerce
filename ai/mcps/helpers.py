@@ -484,22 +484,65 @@ async def _sql_product_search_fallback(
             query_lower = query.lower().strip()
             
             # --- PHẦN 1: TÌM KIẾM TEXT (FULLTEXT + LIKE) ---
-            # Không loại trừ từ khóa nào cả. Hãy để DB quyết định độ phù hợp.
+            # Cải thiện: Tách query thành các từ và tìm từng từ riêng lẻ để xử lý typo
+            # Ví dụ: "bàn smark desk" -> tìm "bàn" OR "smark" OR "smart" OR "desk"
+            # Sẽ tìm được "Smart Desk" vì có "desk" và "smart" (sau khi normalize)
             
             if len(query_lower) > 0:
-                # Tìm trong Tên, Mô tả và cả Variant (Màu, Chất liệu)
-                # Kỹ thuật: Dùng OR bao quanh để tìm rộng
-                text_search_clauses = [
-                    "p.name LIKE %s",
-                    "p.description LIKE %s", 
-                    # Tìm text trong variants (VD: khách tìm "bàn chân sắt" -> sắt nằm trong material)
-                    "EXISTS (SELECT 1 FROM product_variants pv_text WHERE pv_text.product_id = p.id AND pv_text.is_active = 1 AND (pv_text.material LIKE %s OR pv_text.color LIKE %s))"
-                ]
-                search_param = f"%{query_lower}%"
+                # Normalize một số typo phổ biến
+                typo_corrections = {
+                    "smark": "smart",
+                    "smrt": "smart",
+                    "desk": "desk",  # giữ nguyên
+                    "ban": "bàn",  # nếu có thể
+                }
                 
-                # Logic Fulltext (nếu có index) hoặc Like
-                where_conditions.append(f"({' OR '.join(text_search_clauses)})")
-                params.extend([search_param, search_param, search_param, search_param])
+                # Tách query thành các từ (loại bỏ khoảng trắng thừa)
+                query_words_raw = [w.strip() for w in query_lower.split() if len(w.strip()) > 1]
+                
+                # Thêm các từ đã được normalize
+                query_words = []
+                for word in query_words_raw:
+                    query_words.append(word)  # Thêm từ gốc
+                    # Thêm từ đã được normalize nếu có
+                    if word in typo_corrections:
+                        corrected = typo_corrections[word]
+                        if corrected not in query_words:
+                            query_words.append(corrected)
+                
+                # Nếu query có nhiều từ, tìm từng từ riêng lẻ (OR logic)
+                # Điều này giúp tìm được sản phẩm ngay cả khi có typo
+                if len(query_words) > 1:
+                    # Tạo điều kiện cho mỗi từ: sản phẩm phải chứa ÍT NHẤT 1 từ
+                    word_clauses = []
+                    for word in query_words:
+                        word_param = f"%{word}%"
+                        word_clauses.append(f"(p.name LIKE %s OR p.description LIKE %s)")
+                        params.extend([word_param, word_param])
+                    
+                    # Thêm tìm trong variants
+                    variant_word_clauses = []
+                    for word in query_words:
+                        word_param = f"%{word}%"
+                        variant_word_clauses.append(f"(pv_text.material LIKE %s OR pv_text.color LIKE %s)")
+                        params.extend([word_param, word_param])
+                    
+                    # Kết hợp: Tìm trong name/description HOẶC trong variants
+                    text_search_clauses = [
+                        f"({' OR '.join(word_clauses)})",
+                        f"EXISTS (SELECT 1 FROM product_variants pv_text WHERE pv_text.product_id = p.id AND pv_text.is_active = 1 AND ({' OR '.join(variant_word_clauses)}))"
+                    ]
+                    where_conditions.append(f"({' OR '.join(text_search_clauses)})")
+                else:
+                    # Query chỉ có 1 từ, tìm như cũ
+                    text_search_clauses = [
+                        "p.name LIKE %s",
+                        "p.description LIKE %s", 
+                        "EXISTS (SELECT 1 FROM product_variants pv_text WHERE pv_text.product_id = p.id AND pv_text.is_active = 1 AND (pv_text.material LIKE %s OR pv_text.color LIKE %s))"
+                    ]
+                    search_param = f"%{query_lower}%"
+                    where_conditions.append(f"({' OR '.join(text_search_clauses)})")
+                    params.extend([search_param, search_param, search_param, search_param])
 
             # --- PHẦN 2: TÌM KIẾM THEO THUỘC TÍNH (ATTRIBUTES) ---
             if attributes:
@@ -550,7 +593,20 @@ async def _sql_product_search_fallback(
             # --- BUILD QUERY ---
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
-            # Order by: Ưu tiên tên khớp chính xác query -> Giá trị view cao
+            # Order by: Ưu tiên sản phẩm có nhiều từ khóa khớp hơn -> Tên khớp chính xác -> Giá trị view cao
+            # Tính điểm relevance: sản phẩm có nhiều từ trong query khớp sẽ được ưu tiên
+            query_words = [w.strip() for w in query_lower.split() if len(w.strip()) > 1]
+            
+            # Tính điểm relevance dựa trên số từ khớp
+            relevance_score = "0"
+            if len(query_words) > 0:
+                # Đếm số từ trong query xuất hiện trong tên sản phẩm
+                relevance_parts = []
+                for word in query_words:
+                    relevance_parts.append(f"CASE WHEN p.name LIKE %s THEN 1 ELSE 0 END")
+                    params.append(f"%{word}%")
+                relevance_score = f"({' + '.join(relevance_parts)})"
+            
             query_sql = f"""
                 SELECT DISTINCT
                     p.id, 
@@ -573,6 +629,7 @@ async def _sql_product_search_fallback(
                 LEFT JOIN brands b ON p.brand_id = b.id
                 WHERE {where_clause}
                 ORDER BY 
+                    {relevance_score} DESC,
                     CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
                     p.view_count DESC
                 LIMIT %s
@@ -635,8 +692,7 @@ async def get_product_details_helper(product_name_or_id: str) -> str:
                         b.name as brand_name,
                         GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
                         GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
-                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors,
-                        GROUP_CONCAT(DISTINCT pv.weight SEPARATOR ', ') as weights
+                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
                     FROM products p
                     LEFT JOIN categories c ON p.category_id = c.id
                     LEFT JOIN brands b ON p.brand_id = b.id
@@ -646,28 +702,110 @@ async def get_product_details_helper(product_name_or_id: str) -> str:
                     LIMIT 1
                 """, (int(product_name_or_id),))
             else:
-                # Tìm theo tên (LIKE search)
-                await cur.execute("""
-                    SELECT 
-                        p.id, p.name, p.description, p.price, p.sale_price,
-                        p.slug, p.image_url, p.view_count,
-                        c.name as category_name, c.slug as category_slug,
-                        b.name as brand_name,
-                        GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
-                        GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
-                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors,
-                        GROUP_CONCAT(DISTINCT pv.weight SEPARATOR ', ') as weights
-                    FROM products p
-                    LEFT JOIN categories c ON p.category_id = c.id
-                    LEFT JOIN brands b ON p.brand_id = b.id
-                    LEFT JOIN product_variants pv ON p.id = pv.product_id
-                    WHERE (p.name LIKE %s OR p.description LIKE %s) AND p.status = 'ACTIVE'
-                    GROUP BY p.id
-                    ORDER BY 
-                        CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
-                        p.view_count DESC
-                    LIMIT 1
-                """, (f"%{product_name_or_id}%", f"%{product_name_or_id}%", f"{product_name_or_id}%"))
+                # Tìm theo tên (LIKE search) hoặc model code
+                # Strategy: 
+                # 1. Tìm exact match trong tên (ưu tiên cao nhất)
+                # 2. Tìm model code trong tên (như "F42" trong "Smart Desk Gtech F42")
+                # 3. Tìm partial match trong tên hoặc description
+                
+                import re
+                # Check if input looks like a model code (F42, EU01, CL14, etc.)
+                model_code_match = re.match(r'^([A-Z]{1,3}\d{1,3})$', product_name_or_id.upper())
+                is_model_code = bool(model_code_match)
+                
+                if is_model_code:
+                    model_code = model_code_match.group(1)
+                    logger.info(f"Searching for model code: {model_code}")
+                    # Tìm sản phẩm có model code trong tên (ví dụ: "F42" trong "Smart Desk Gtech F42")
+                    # Ưu tiên: space before model code > space after > anywhere
+                    await cur.execute("""
+                        SELECT 
+                            p.id, p.name, p.description, p.price, p.sale_price,
+                            p.slug, p.image_url, p.view_count,
+                            c.name as category_name, c.slug as category_slug,
+                            b.name as brand_name,
+                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        LEFT JOIN brands b ON p.brand_id = b.id
+                        LEFT JOIN product_variants pv ON p.id = pv.product_id
+                        WHERE p.status = 'ACTIVE'
+                          AND (
+                              p.name LIKE %s OR 
+                              p.name LIKE %s OR
+                              p.name LIKE %s
+                          )
+                        GROUP BY p.id
+                        ORDER BY 
+                            CASE WHEN p.name LIKE %s THEN 1 
+                                 WHEN p.name LIKE %s THEN 2
+                                 WHEN p.name LIKE %s THEN 3
+                                 ELSE 4 END,
+                            p.view_count DESC
+                        LIMIT 1
+                    """, (
+                        f"% {model_code}%",  # Best match: space before model code (e.g., "Gtech F42")
+                        f"%{model_code} %",  # Model code with space after
+                        f"%{model_code}%",   # Model code anywhere in name
+                        f"% {model_code}%",  # For ORDER BY
+                        f"%{model_code} %",  # For ORDER BY
+                        f"%{model_code}%"    # For ORDER BY
+                    ))
+                else:
+                    # Tìm theo tên (LIKE search) cải tiến với fuzzy search
+                    # Tách từ khóa để tìm kiếm linh hoạt hơn
+                    # Ví dụ: "Smart F42" -> Tìm sản phẩm có cả "Smart" VÀ "F42"
+                    keywords = [kw.strip() for kw in product_name_or_id.split() if kw.strip()]
+                    
+                    if not keywords:
+                        # Nếu không có từ khóa, tìm theo toàn bộ chuỗi
+                        keywords = [product_name_or_id]
+                    
+                    # Xây dựng query động: name LIKE %kw1% AND name LIKE %kw2% ...
+                    # Sử dụng AND để đảm bảo tất cả từ khóa đều có trong tên sản phẩm
+                    like_clauses = []
+                    params = []
+                    
+                    for kw in keywords:
+                        # Tìm trong name, description, và slug
+                        like_clauses.append("(p.name LIKE %s OR p.description LIKE %s OR p.slug LIKE %s)")
+                        kw_param = f"%{kw}%"
+                        params.extend([kw_param, kw_param, kw_param])
+                    
+                    where_sql = " AND ".join(like_clauses)
+                    
+                    # Thêm params cho ORDER BY (ưu tiên exact match trong name)
+                    order_by_params = []
+                    for kw in keywords:
+                        order_by_params.append(f"%{kw}%")
+                    
+                    sql = f"""
+                        SELECT 
+                            p.id, p.name, p.description, p.price, p.sale_price,
+                            p.slug, p.image_url, p.view_count,
+                            c.name as category_name, c.slug as category_slug,
+                            b.name as brand_name,
+                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        LEFT JOIN brands b ON p.brand_id = b.id
+                        LEFT JOIN product_variants pv ON p.id = pv.product_id
+                        WHERE p.status = 'ACTIVE' AND ({where_sql})
+                        GROUP BY p.id
+                        ORDER BY 
+                            CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
+                            p.view_count DESC
+                        LIMIT 1
+                    """
+                    
+                    # Combine params: WHERE clauses + ORDER BY
+                    all_params = params + [order_by_params[0] if order_by_params else f"%{product_name_or_id}%"]
+                    
+                    await cur.execute(sql, all_params)
             
             row = await cur.fetchone()
             
@@ -696,8 +834,7 @@ async def get_product_details_helper(product_name_or_id: str) -> str:
                     "specs": {
                         "materials": row[11] or "",
                         "dimensions": row[12] or "",
-                        "colors": row[13] or "",
-                        "weights": row[14] or ""
+                        "colors": row[13] or ""
                     }
                 }
             }

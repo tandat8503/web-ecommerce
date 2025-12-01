@@ -28,6 +28,219 @@ from prompts import (
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# USER CHATBOT SERVICE - Simplified Fast Flow (Hybrid Search)
+# =============================================================================
+
+class UserChatbotService:
+    """
+    Simplified User Chatbot Service with Hybrid Search approach.
+    Flow: Clean Query -> Search DB -> Generate Answer (LLM only at the end)
+    Eliminates complex agent-based architecture for faster response times.
+    """
+    
+    def __init__(self):
+        self.llm_client = LLMClientFactory.create_client()
+    
+    async def process_message(self, user_message: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Xử lý tin nhắn user theo luồng đơn giản hóa:
+        Clean Query -> Search DB -> Generate Answer
+        
+        Args:
+            user_message: User's message
+            context: Optional context (session_id, user_id, last_products, etc.)
+        
+        Returns:
+            Dict with success, response (structured), and metadata
+        """
+        try:
+            from core.utils import clean_product_query
+            from mcps.helpers import search_products_helper, get_product_details_helper
+            
+            # --- 0. PRE-CHECK: Xử lý chào hỏi & Câu hỏi ngoài lề ---
+            msg_lower = user_message.lower().strip()
+            greetings = ["xin chào", "chào", "hello", "hi", "hey", "alo", "shop ơi", "shop oi"]
+            
+            # Nếu câu chat ngắn và chứa từ chào
+            word_count = len(msg_lower.split())
+            if word_count <= 4 and any(g in msg_lower for g in greetings):
+                return {
+                    "success": True,
+                    "response": {
+                        "text": "Dạ xin chào ạ! 👋 Em là trợ lý ảo của G-Tech. Em có thể giúp anh/chị tìm bàn, ghế hay tư vấn setup văn phòng không ạ?",
+                        "type": "text"
+                    },
+                    "agent_type": "user_chatbot_fast"
+                }
+            # -------------------------------------------------------
+            
+            # 1. Extract price filter trước (nếu có)
+            from core.utils import extract_price_filter
+            min_price, max_price = extract_price_filter(user_message)
+            
+            # 2. Làm sạch từ khóa (Bỏ 'chi tiết', 'thông tin', 'giá'...)
+            # Logic: Nếu user nói "Chi tiết F42", clean_query sẽ là "F42"
+            cleaned_query = clean_product_query(user_message)
+            
+            # Nếu clean xong mà rỗng (VD user chỉ chat icon), dùng nguyên gốc
+            search_keyword = cleaned_query if cleaned_query else user_message
+            
+            logger.info(f"User Query: '{user_message}' -> Cleaned: '{search_keyword}' (min_price={min_price}, max_price={max_price})")
+            
+            # 3. Tìm kiếm trong DB (Thử tìm chi tiết trước)
+            # Gọi tool lấy chi tiết (tìm chính xác hoặc tìm mờ tên sản phẩm)
+            # Chỉ tìm chi tiết nếu không có price filter (vì price filter thường là search list)
+            products_found = []
+            is_detail_mode = False
+            
+            if min_price is None and max_price is None:
+                # Không có price filter, thử tìm chi tiết
+                product_result_json = await get_product_details_helper(search_keyword)
+                product_result = json.loads(product_result_json) if isinstance(product_result_json, str) else product_result_json
+                
+                # TRƯỜNG HỢP 1: Tìm thấy đúng 1 sản phẩm (Khớp tên hoặc ID)
+                if product_result.get("success") and product_result.get("product"):
+                    products_found = [product_result["product"]]
+                    is_detail_mode = True  # User muốn xem chi tiết con này
+                    logger.info(f"Found exact product match: {products_found[0].get('name')}")
+            
+            # TRƯỜNG HỢP 2: Không tìm thấy chính xác hoặc có price filter, chuyển sang Tìm kiếm rộng (Search List)
+            if not products_found:
+                # VD: "Bàn chữ L" -> Sẽ ra list bàn
+                # Hoặc: "Bàn giá dưới 2tr" -> Tìm bàn với max_price=2000000
+                search_result_json = await search_products_helper(
+                    query=search_keyword, 
+                    limit=5,
+                    min_price=min_price,
+                    max_price=max_price
+                )
+                search_result = json.loads(search_result_json) if isinstance(search_result_json, str) else search_result_json
+                
+                if search_result.get("success") and search_result.get("products"):
+                    products_found = search_result["products"]
+                    logger.info(f"Found {len(products_found)} products in search")
+            
+            # 3. Xử lý kết quả để trả về
+            if not products_found:
+                # Không tìm thấy gì
+                return {
+                    "success": True,
+                    "response": {
+                        "text": f"Dạ em tìm '{search_keyword}' nhưng hiện tại kho đang hết hàng mẫu này ạ. Anh/chị có muốn tham khảo các mẫu bàn/ghế khác không ạ?",
+                        "type": "text"
+                    },
+                    "agent_type": "user_chatbot_fast"
+                }
+            
+            # 4. Sinh câu trả lời bằng AI (Chỉ dùng AI ở bước cuối này để văn phong hay)
+            # Format dữ liệu gọn lại để tiết kiệm token cho AI
+            products_context = []
+            for p in products_found:
+                info = {
+                    "name": p.get("name"),
+                    "price": p.get("price"),
+                    "sale_price": p.get("sale_price"),
+                    "final_price": p.get("final_price") or p.get("price"),
+                    "category": p.get("category", ""),
+                    "brand": p.get("brand", ""),
+                }
+                
+                # Chỉ đưa specs nếu là detail mode
+                if is_detail_mode:
+                    specs = p.get("specs", {})
+                    if specs:
+                        info["specs"] = {
+                            "materials": specs.get("materials", ""),
+                            "dimensions": specs.get("dimensions", ""),
+                            "colors": specs.get("colors", ""),
+                            "weights": specs.get("weights", "")
+                        }
+                    info["description"] = p.get("description", "")
+                
+                products_context.append(info)
+            
+            # Chọn prompt phù hợp
+            if is_detail_mode:
+                system_instruction = """Bạn là nhân viên tư vấn bán hàng nội thất nhiệt tình, chuyên nghiệp.
+Khách hỏi chi tiết 1 sản phẩm. Hãy giới thiệu kỹ về:
+- Tên sản phẩm và thương hiệu
+- Thông số kỹ thuật (kích thước, chất liệu, màu sắc)
+- Ưu điểm và phù hợp với không gian nào
+- Giá cả và khuyến mãi (nếu có)
+- Chốt đơn một cách tự nhiên, không ép buộc
+Trả lời bằng tiếng Việt, thân thiện, xưng "em" - "anh/chị", dùng emoji vui vẻ (😊, 🚀)."""
+            else:
+                system_instruction = """Bạn là nhân viên tư vấn bán hàng nội thất nhiệt tình, chuyên nghiệp.
+Khách đang tìm chung chung. Hãy viết 1 câu tóm tắt ngắn gọn dẫn dắt (VD: "Dạ bên em có mấy mẫu này hợp với anh/chị nè:").
+KHÔNG cần liệt kê lại danh sách chi tiết (vì Frontend đã hiển thị thẻ sản phẩm rồi).
+Trả lời bằng tiếng Việt, thân thiện, xưng "em" - "anh/chị", dùng emoji vui vẻ (😊, 🚀)."""
+            
+            prompt = f"""
+Vai trò: Bạn là nhân viên tư vấn bán hàng nội thất nhiệt tình, chuyên nghiệp.
+
+Dữ liệu tìm được từ kho: {json.dumps(products_context, ensure_ascii=False, indent=2)}
+Câu hỏi khách: "{user_message}"
+
+YÊU CẦU TRẢ LỜI:
+1. Nếu tìm thấy 1 sản phẩm (Detail Mode): Tập trung khen các thông số kỹ thuật nổi bật, chốt sales.
+2. Nếu tìm thấy nhiều sản phẩm: Viết 1 câu tóm tắt ngắn gọn (VD: "Dạ bên em có mấy mẫu này hợp với anh/chị nè:"). KHÔNG cần liệt kê lại danh sách (vì Frontend đã hiển thị thẻ sản phẩm rồi).
+3. Giọng văn: Ngắn gọn, dùng icon vui vẻ (😊, 🚀), xưng "em" - "anh/chị".
+4. TUYỆT ĐỐI KHÔNG bịa thêm thông tin không có trong dữ liệu.
+5. Sử dụng Markdown để format đẹp (bold cho tên sản phẩm, bullet points cho danh sách).
+"""
+            
+            ai_response = await self.llm_client.generate_simple(
+                prompt=prompt,
+                system_instruction=system_instruction,
+                temperature=0.7
+            )
+            
+            answer_text = ai_response.get("content", "Dạ đây là các sản phẩm mình tìm thấy ạ.")
+            
+            # 5. Trả về cấu trúc cho Frontend render
+            # Format products for frontend
+            product_cards = []
+            for p in products_found:
+                product_cards.append({
+                    "id": p.get("id"),
+                    "name": p.get("name", "Sản phẩm"),
+                    "category": p.get("category", ""),
+                    "price": float(p.get("price", 0)),
+                    "sale_price": float(p.get("sale_price")) if p.get("sale_price") else None,
+                    "final_price": float(p.get("final_price", 0)) if p.get("final_price") else float(p.get("price", 0)),
+                    "slug": p.get("slug", ""),
+                    "image_url": p.get("image_url", ""),
+                    "link": f"/san-pham/{p.get('id', '')}"
+                })
+            
+            return {
+                "success": True,
+                "response": {
+                    "text": answer_text,
+                    "type": "product_recommendation",
+                    "data": product_cards
+                },
+                "agent_type": "user_chatbot_fast"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in UserChatbotService: {e}", exc_info=True)
+            return {
+                "success": False,
+                "response": {
+                    "text": "Xin lỗi, hệ thống đang gặp sự cố. Vui lòng thử lại sau.",
+                    "type": "text"
+                },
+                "error": str(e),
+                "agent_type": "user_chatbot_fast"
+            }
+
+
+# Initialize service instance
+user_chatbot_service = UserChatbotService()
+
+
 class MCPToolClient:
     """Simple MCP tool client"""
     
@@ -957,17 +1170,43 @@ class UserChatbotAgent(BaseAgent):
             "kích cỡ", "kích cỡ nào", "màu gì", "chất liệu gì", "kích thước bao nhiêu",
             "dimensions", "material", "color", "weight", "size", "configuration"
         ]
+        
+        # Pattern để nhận diện model code (như "F42", "EU01", "CL14")
+        model_code_pattern = re.search(r'\b([A-Z]{1,3}\d{1,3})\b', user_message.upper())
+        has_model_code = bool(model_code_pattern)
+        
+        # Pattern để nhận diện reference đến sản phẩm đã được đề cập
+        reference_keywords = [
+            "cái đầu tiên", "sản phẩm đầu", "sản phẩm vừa nói", "sản phẩm trên",
+            "cái này", "cái đó", "sản phẩm này", "sản phẩm đó",
+            "cái thứ nhất", "cái thứ hai", "sản phẩm thứ nhất", "sản phẩm thứ hai"
+        ]
+        has_reference = any(keyword in message for keyword in reference_keywords)
+        
         # Chỉ classify product_detail nếu:
-        # 1. Có detail keywords
+        # 1. Có detail keywords HOẶC có model code HOẶC có reference keywords
         # 2. KHÔNG có price keywords
         # 3. KHÔNG có search keywords (mua, tìm, có các sản phẩm nào)
         has_search_keywords = any(keyword in message for keyword in ["mua", "tìm", "có các", "có loại", "sản phẩm nào"])
-        if any(keyword in message for keyword in detail_keywords) and not has_price_keyword and not has_search_keywords:
+        has_detail_intent = (
+            any(keyword in message for keyword in detail_keywords) or 
+            has_model_code or 
+            has_reference
+        )
+        if has_detail_intent and not has_price_keyword and not has_search_keywords:
             return "product_detail"
         
         # ✅ Intent: product_comparison - so sánh
         if any(keyword in message for keyword in ["so sánh", "compare", "khác biệt", "khác nhau"]):
             return "product_comparison"
+        
+        # ✅ Check if message is just a model code or short reference (F42, EU01, etc.)
+        # This should be treated as product_detail if it's a short message
+        import re
+        model_code_only = re.match(r'^([A-Z]{1,3}\d{1,3})\s*$', user_message.upper())
+        if model_code_only:
+            # Short message that's just a model code -> product_detail
+            return "product_detail"
         
         # ✅ Intent: product_search - tìm kiếm/tư vấn sản phẩm
         product_search_keywords = [
@@ -1015,31 +1254,65 @@ class UserChatbotAgent(BaseAgent):
             }
         
         if intent == "product_detail":
-            # ✅ Extract product name from message for detail view
-            # Remove common words: "xem chi tiết", "muốn xem", "thông tin về", "thông số", "cấu hình"
-            product_name = user_message
-            detail_phrases = [
-                "xem chi tiết", "chi tiết", "muốn xem", "thông tin về", "về", "sản phẩm",
-                "thông số", "cấu hình", "specs", "spec", "kích thước", "chất liệu", "màu sắc",
-                "nặng bao nhiêu", "rõ hơn", "thông tin đầy đủ", "kích cỡ", "màu gì", "chất liệu gì"
-            ]
-            for phrase in detail_phrases:
-                product_name = product_name.replace(phrase, "").strip()
+            # ✅ Improved product detail extraction with NLP pre-processing
+            # Strategy: 
+            # 1. Lấy danh sách sản phẩm vừa tìm kiếm từ context (nếu có)
+            # 2. Làm sạch câu hỏi để lấy tên sản phẩm cốt lõi
+            # 3. Kiểm tra xem user có đang nhắc đến sản phẩm cũ không
+            # 4. Gọi tool với ID chính xác hoặc tên đã làm sạch
             
-            # If just "có" or empty, check context for previous products
-            if not product_name or product_name.lower() in ["có", "co"]:
-                # Try to get from context if available
-                product_name = context.get("last_product_name", "")
-                if not product_name:
-                    return {"success": False, "error": "Vui lòng cho tôi biết tên sản phẩm bạn muốn xem chi tiết."}
+            from core.utils import clean_product_query
             
-            # Use get_product_details tool to get full specifications
-            # Clean product name - keep original for better matching
-            product_name_clean = product_name.strip()
-            if not product_name_clean:
-                product_name_clean = user_message  # Fallback to full message
+            # 1. Lấy danh sách sản phẩm vừa tìm kiếm từ context (nếu có)
+            last_products = context.get("last_products", [])
             
-            result = await self.tool_client.call_tool("get_product_details", product_name_or_id=product_name_clean)
+            # 2. Làm sạch câu hỏi để lấy tên sản phẩm
+            # VD: "Chi tiết F42" -> "F42"
+            # VD: "Thông tin chi tiết của smark desk gtech f42" -> "smark desk gtech f42"
+            cleaned_name = clean_product_query(user_message)
+            
+            target_product_id = None
+            target_product_name = cleaned_name
+            
+            # 3. Kiểm tra xem user có đang nhắc đến sản phẩm cũ không?
+            # Nếu query quá ngắn hoặc rỗng ("chi tiết xem", "cấu hình nó"), lấy sản phẩm gần nhất
+            if not cleaned_name or len(cleaned_name.strip()) < 2:
+                if last_products:
+                    target_product_id = last_products[0].get("id")
+                    target_product_name = last_products[0].get("name")
+                    logger.info(f"Query too short, using first product from context: ID {target_product_id}")
+            
+            # Nếu có tên, thử so khớp với list sản phẩm vừa hiển thị
+            elif cleaned_name and last_products:
+                cleaned_lower = cleaned_name.lower()
+                for p in last_products:
+                    product_name_lower = p.get("name", "").lower()
+                    # So sánh đơn giản: nếu "F42" nằm trong "Smart Desk Gtech F42"
+                    # Hoặc nếu các từ trong cleaned_name đều có trong product name
+                    if cleaned_lower in product_name_lower:
+                        target_product_id = p.get("id")
+                        target_product_name = p.get("name")
+                        logger.info(f"Found product in context: ID {target_product_id}, name: {target_product_name}")
+                        break
+                    # Fuzzy match: nếu có ít nhất 2 từ khớp
+                    cleaned_words = cleaned_lower.split()
+                    product_words = product_name_lower.split()
+                    matches = sum(1 for word in cleaned_words if word in product_words)
+                    if matches >= 2:
+                        target_product_id = p.get("id")
+                        target_product_name = p.get("name")
+                        logger.info(f"Fuzzy matched product in context: ID {target_product_id}, name: {target_product_name}")
+                        break
+            
+            # 4. Gọi Tool
+            if target_product_id:
+                # Nếu xác định được ID chính xác từ context
+                logger.info(f"Using product ID from context: {target_product_id}")
+                result = await self.tool_client.call_tool("get_product_details", product_name_or_id=str(target_product_id))
+            else:
+                # Nếu không có trong context, tìm theo tên đã làm sạch
+                logger.info(f"Searching details for cleaned name: '{target_product_name}'")
+                result = await self.tool_client.call_tool("get_product_details", product_name_or_id=target_product_name)
             
             # Parse JSON result from tool
             import json

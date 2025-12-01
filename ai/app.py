@@ -212,36 +212,79 @@ async def chat(request: ChatRequest):
         if request.user_id:
             context["user_id"] = request.user_id
         
-        # Process request through orchestrator
-        result = await orchestrator.process_request(
-            user_message=request.message,
-            user_type=request.user_type,
-            context=context
-        )
-        
-        if result.get("success"):
-            agent_result = result.get("result", {})
-            response_data = agent_result.get("response", {})
+        # TÁCH LUỒNG XỬ LÝ: User dùng Service mới (Nhanh, Gọn), Admin dùng Orchestrator cũ
+        if request.user_type == "user":
+            # Dùng Service mới (Nhanh, Gọn) cho Khách hàng
+            from agents import user_chatbot_service
             
-            # Handle both old string format and new structured format
-            if isinstance(response_data, str):
-                response_data = {"text": response_data, "type": "text"}
-            
-            return ChatResponse(
-                success=True,
-                response=response_data,  # Now returns structured response
-                agent_type=agent_result.get("agent_type", "unknown"),
-                data=agent_result.get("tool_result"),
-                session_id=context.get("session_id")
+            result = await user_chatbot_service.process_message(
+                user_message=request.message,
+                context=context
             )
+            
+            if result.get("success"):
+                response_data = result.get("response", {})
+                
+                # Handle both old string format and new structured format
+                if isinstance(response_data, str):
+                    response_data = {"text": response_data, "type": "text"}
+                
+                # Handle data field: if it's a list, wrap it in a dict
+                data_value = response_data.get("data")
+                if isinstance(data_value, list):
+                    data_value = {"products": data_value}
+                
+                return ChatResponse(
+                    success=True,
+                    response=response_data,  # Structured response with text, type, data
+                    agent_type=result.get("agent_type", "user_chatbot_fast"),
+                    data=data_value,  # Product cards data (wrapped in dict if list)
+                    session_id=context.get("session_id")
+                )
+            else:
+                # Xử lý lỗi
+                error_response = result.get("response", {})
+                if isinstance(error_response, str):
+                    error_response = {"text": error_response, "type": "text"}
+                
+                return ChatResponse(
+                    success=False,
+                    response=error_response,
+                    agent_type="error",
+                    data={"error": result.get("error")},
+                    session_id=context.get("session_id")
+                )
         else:
-            return ChatResponse(
-                success=False,
-                response=result.get("response", "I apologize, but I encountered an error."),
-                agent_type="error",
-                data={"error": result.get("error")},
-                session_id=context.get("session_id")
+            # Admin vẫn dùng Orchestrator cũ (vì cần nhiều tool phức tạp như RAG, Report)
+            result = await orchestrator.process_request(
+                user_message=request.message,
+                user_type=request.user_type,
+                context=context
             )
+            
+            if result.get("success"):
+                agent_result = result.get("result", {})
+                response_data = agent_result.get("response", {})
+                
+                # Handle both old string format and new structured format
+                if isinstance(response_data, str):
+                    response_data = {"text": response_data, "type": "text"}
+                
+                return ChatResponse(
+                    success=True,
+                    response=response_data,  # Now returns structured response
+                    agent_type=agent_result.get("agent_type", "unknown"),
+                    data=agent_result.get("tool_result"),
+                    session_id=context.get("session_id")
+                )
+            else:
+                return ChatResponse(
+                    success=False,
+                    response=result.get("response", "I apologize, but I encountered an error."),
+                    agent_type="error",
+                    data={"error": result.get("error")},
+                    session_id=context.get("session_id")
+                )
         
     except Exception as e:
         logger.error(f"Unexpected error in chat: {e}")

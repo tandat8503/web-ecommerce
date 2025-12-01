@@ -10,6 +10,8 @@ import {
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiChatbotAPI, aiUtils } from "../../../api/aiChatbotAPI";
 
 const { Text, Link } = Typography;
@@ -188,46 +190,55 @@ export default function ChatWidget() {
   };
 
   /**
-   * Render product card component
+   * Render product card component with improved styling
    */
   const renderProductCard = (product) => {
     return (
       <div
         key={product.id}
-        className="border rounded-lg p-3 min-w-[180px] bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+        className="border rounded-lg p-3 min-w-[200px] max-w-[200px] bg-white shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer border-gray-200 hover:border-blue-400"
         onClick={() => {
           navigate(product.link || `/san-pham/${product.id || product.slug}`);
           setOpen(false);
         }}
       >
-        {product.image_url && (
+        {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="w-full h-32 object-cover rounded mb-2"
+            className="w-full h-36 object-cover rounded mb-3 border border-gray-100"
             onError={(e) => {
-              e.target.src = "https://via.placeholder.com/180x128?text=No+Image";
+              e.target.src = "https://via.placeholder.com/200x144?text=No+Image";
             }}
           />
+        ) : (
+          <div className="w-full h-36 bg-gray-100 rounded mb-3 flex items-center justify-center border border-gray-200">
+            <span className="text-gray-400 text-xs">Chưa có ảnh</span>
+          </div>
         )}
-        <div className="font-semibold text-sm truncate mb-1" title={product.name}>
+        <div className="font-semibold text-sm mb-1 line-clamp-2 min-h-[2.5rem]" title={product.name}>
           {product.name}
         </div>
         {product.category && (
-          <div className="text-xs text-gray-500 mb-2">{product.category}</div>
+          <div className="text-xs text-gray-500 mb-2 px-1">{product.category}</div>
         )}
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-col space-y-1 mb-3">
           {product.sale_price ? (
             <>
-              <span className="text-red-500 font-bold text-sm">
-                {formatPrice(product.sale_price)}
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-red-500 font-bold text-base">
+                  {formatPrice(product.sale_price)}
+                </span>
+                <span className="bg-red-100 text-red-600 text-xs px-1.5 py-0.5 rounded">
+                  Giảm giá
+                </span>
+              </div>
               <span className="text-gray-400 line-through text-xs">
                 {formatPrice(product.price)}
               </span>
             </>
           ) : (
-            <span className="text-red-500 font-bold text-sm">
+            <span className="text-red-500 font-bold text-base">
               {formatPrice(product.price)}
             </span>
           )}
@@ -235,14 +246,14 @@ export default function ChatWidget() {
         <Button
           type="primary"
           size="small"
-          className="w-full mt-2"
+          className="w-full mt-auto"
           onClick={(e) => {
             e.stopPropagation();
             navigate(product.link || `/san-pham/${product.id || product.slug}`);
             setOpen(false);
           }}
         >
-          Xem ngay
+          Xem chi tiết
         </Button>
       </div>
     );
@@ -385,15 +396,78 @@ export default function ChatWidget() {
                         : "bg-gray-100 text-gray-800"
                     }`}
                   >
-                    {/* Render text message */}
-                    <div className="text-sm whitespace-pre-wrap break-words">
-                      {msg.from === "bot" ? renderMessageWithLinks(msg.text) : msg.text}
+                    {/* Render text message with Markdown support */}
+                    <div className="text-sm break-words">
+                      {msg.from === "bot" ? (
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            // Customize HTML tags rendering
+                            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+                            ul: ({node, ...props}) => <ul className="mb-2 ml-4 list-disc" {...props} />,
+                            ol: ({node, ...props}) => <ol className="mb-2 ml-4 list-decimal" {...props} />,
+                            li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                            a: ({node, href, ...props}) => {
+                              // Handle product links
+                              if (href && (href.startsWith('/san-pham/') || href.startsWith('/product/'))) {
+                                return (
+                                  <Link
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      navigate(href);
+                                      setOpen(false);
+                                    }}
+                                    style={{ 
+                                      color: "#1890ff",
+                                      textDecoration: "underline",
+                                      cursor: "pointer"
+                                    }}
+                                    {...props}
+                                  >
+                                    {props.children}
+                                  </Link>
+                                );
+                              }
+                              return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline" {...props} />;
+                            },
+                            strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
+                            em: ({node, ...props}) => <em className="italic" {...props} />,
+                            blockquote: ({node, ...props}) => (
+                              <blockquote className="border-l-4 border-gray-300 pl-3 my-2 italic text-gray-600" {...props} />
+                            ),
+                            code: ({node, inline, ...props}) => 
+                              inline ? (
+                                <code className="bg-gray-200 px-1 py-0.5 rounded text-xs" {...props} />
+                              ) : (
+                                <code className="block bg-gray-100 p-2 rounded text-xs overflow-x-auto" {...props} />
+                              ),
+                            img: ({node, src, alt, ...props}) => (
+                              <img 
+                                src={src} 
+                                alt={alt} 
+                                className="max-w-full h-auto rounded my-2"
+                                onError={(e) => {
+                                  e.target.src = "https://via.placeholder.com/300x200?text=No+Image";
+                                }}
+                                {...props} 
+                              />
+                            ),
+                          }}
+                        >
+                          {msg.text}
+                        </ReactMarkdown>
+                      ) : (
+                        <span className="whitespace-pre-wrap">{msg.text}</span>
+                      )}
                     </div>
                     
                     {/* Render product cards if type is product_recommendation */}
                     {msg.from === "bot" && msg.type === "product_recommendation" && msg.data && (
-                      <div className="mt-3">
-                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1">
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <div className="text-xs font-semibold text-gray-600 mb-3 px-1">
+                          🛍️ Sản phẩm gợi ý:
+                        </div>
+                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                           {msg.data.map((product) => renderProductCard(product))}
                         </div>
                       </div>
@@ -401,11 +475,11 @@ export default function ChatWidget() {
                     
                     {/* Render cross-sell products */}
                     {msg.from === "bot" && msg.cross_sell && msg.cross_sell.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-300">
-                        <div className="text-xs text-gray-600 mb-2 font-semibold">
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <div className="text-xs font-semibold text-gray-600 mb-3 px-1">
                           💡 Gợi ý thêm:
                         </div>
-                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1">
+                        <div className="flex overflow-x-auto gap-3 pb-2 -mx-1 px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                           {msg.cross_sell.map((product) => renderProductCard(product))}
                         </div>
                       </div>
