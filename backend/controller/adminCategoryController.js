@@ -2,6 +2,7 @@ import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
 import { slugify } from "../utils/slugify.js";
 import logger from "../utils/logger.js";
+import { emitCategoryCreated, emitCategoryUpdated, emitCategoryDeleted } from "../config/socket.js";
 
 // ============================
 // DANH SÁCH CATEGORY
@@ -14,13 +15,18 @@ export const listCategories = async (req, res) => {
       user: req.user ? { id: req.user.id, role: req.user.role } : 'No user'
     });
     
-    const { page = 1, limit = 10, q } = req.query;
+    const { page = 1, limit = 10, q, isActive } = req.query;
     
     // Xây dựng điều kiện WHERE
     // Nếu là public route (không có user), chỉ lấy categories active
     const where = {};
     if (q) where.name = { contains: q };
-    if (!req.user) where.isActive = true; // Public route chỉ lấy active categories
+    if (!req.user) {
+      where.isActive = true; // Public route chỉ lấy active categories
+    } else if (isActive !== undefined) {
+      // Admin có thể filter theo isActive nếu muốn (cho dropdown chọn category khi tạo sản phẩm)
+      where.isActive = isActive === 'true' || isActive === true;
+    }
 
     logger.debug('Query params', { page, limit, q, where });
 
@@ -130,6 +136,10 @@ export const createCategory = async (req, res) => {
 
     logger.success('Category created', { id: created.id, name: created.name });
     logger.end(context.path, { id: created.id });
+    
+    // Gửi thông báo real-time đến tất cả client là tạo danh mục mới
+    emitCategoryCreated(created);
+    
     return res.status(201).json(created);
   } catch (error) {
     logger.error('Failed to create category', {
@@ -202,6 +212,10 @@ export const updateCategory = async (req, res) => {
 
     logger.success('Category updated', { id, name: updated.name });
     logger.end(context.path, { id });
+    
+    // Gửi thông báo real-time đến tất cả client là cập nhật danh mục
+    emitCategoryUpdated(updated);
+    
     return res.json(updated);
   } catch (error) {
     logger.error('Failed to update category', {
@@ -247,6 +261,10 @@ export const deleteCategory = async (req, res) => {
     
     logger.success('Category deleted', { id, name: found.name });
     logger.end(context.path, { id });
+    
+    // Gửi thông báo real-time đến tất cả client là xoá danh mục
+    emitCategoryDeleted(id);
+    
     return res.json({ success: true });
   } catch (error) {
     logger.error('Failed to delete category', {

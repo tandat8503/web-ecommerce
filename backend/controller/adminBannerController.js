@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.js";
 import cloudinary from "../config/cloudinary.js";
 import logger from '../utils/logger.js';
+import { emitBannerCreated, emitBannerUpdated, emitBannerDeleted } from '../config/socket.js';
 
 // ============================
 // TẠO BANNER
@@ -21,6 +22,9 @@ export const createBanner = async (req, res) => {
         bannerPublicId: req.file.filename,
       },
     });
+
+    // ✅ Socket: Gửi thông báo banner mới → User thấy ngay trên slider (không cần reload)
+    emitBannerCreated(banner);
 
     res.json({ code: 200, message: "Tạo banner thành công", data: banner });
   } catch (error) {
@@ -106,6 +110,9 @@ export const updateBanner = async (req, res) => {
       data: updateData,
     });
 
+    // ✅ Socket: Gửi thông báo banner cập nhật → User thấy thay đổi ngay (hoặc banner bị ẩn nếu tắt)
+    emitBannerUpdated(updatedBanner);
+
     res.json({ code: 200, message: "Cập nhật banner thành công", data: updatedBanner });
   } catch (error) {
     res.status(500).json({ message: "Lỗi server", error });
@@ -128,6 +135,9 @@ export const deleteBanner = async (req, res) => {
     }
 
     await prisma.banner.delete({ where: { id: Number(id) } });
+
+    // ✅ Socket: Gửi thông báo banner xóa → User không thấy banner đó nữa trên slider
+    emitBannerDeleted(Number(id));
 
     res.json({ code: 200, message: "Xóa banner thành công" });
   } catch (error) {

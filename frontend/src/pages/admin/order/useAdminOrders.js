@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast, formatPrice } from "@/lib/utils";
 import { getOrders, getOrderById, updateOrder, cancelOrder, updateOrderNotes } from "@/api/adminOrders";
 import { useAdminSocket } from "@/pages/admin/notification";
+import { onOrderStatusUpdate } from "@/utils/socket";
 
 
 export function useAdminOrders() {
@@ -163,14 +164,81 @@ export function useAdminOrders() {
   // Lưu ý: Không hiển thị toast ở đây vì AdminHeader đã hiển thị rồi
   // Chỉ refresh danh sách đơn hàng khi có đơn hàng mới
   useAdminSocket((data) => {
-    console.log(' Nhận được đơn hàng mới:', data);
+    console.log('📦 Socket: Nhận được đơn hàng mới:', data);
     
-    // Refresh danh sách đơn hàng (nếu đang ở trang 1)
-    if (pagination.page === 1) {
+    // Nếu đang ở trang khác trang 1 → Reset về trang 1 (useEffect sẽ tự động fetch)
+    if (pagination.page !== 1) {
+      setPagination(prev => ({ ...prev, page: 1 }));
+    } else {
+      // Nếu đang ở trang 1 → Refresh ngay lập tức
       fetchOrders();
     }
   }, [pagination.page, fetchOrders]);
   //kết thúc websocket
+
+  // ========== WEBSOCKET: LẮNG NGHE CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG ==========
+  
+  /**
+   * Lắng nghe khi trạng thái đơn hàng được cập nhật (bao gồm khi user hủy đơn)
+   * - Khi user hủy đơn → Backend emit 'order:status:updated' với status = 'CANCELLED'
+   * - Admin nhận được event → Tự động cập nhật danh sách đơn hàng (không cần reload)
+   */
+  // Sử dụng useCallback để tạo stable callback reference
+  const handleOrderStatusUpdate = useCallback((data) => {
+    console.log('🔄 Socket: Order status updated trong admin', data);
+    
+    // Kiểm tra cả data.id và data.orderId (backend có thể gửi id hoặc orderId)
+    const orderId = data.orderId || data.id;
+    
+    // Cập nhật đơn hàng trong danh sách
+    setOrders(prev => {
+      const updated = prev.map(order => {
+        if (order.id === orderId) {
+          // Cập nhật trạng thái và các field liên quan
+          const transitions = {
+            PENDING: ["CONFIRMED"],
+            CONFIRMED: ["PROCESSING"],
+            PROCESSING: ["DELIVERED"],
+            DELIVERED: [],
+            CANCELLED: [],
+          };
+          const availableStatuses = (transitions[data.status] || []).map(status => ({
+            value: status,
+            label: getStatusLabel(status),
+          }));
+          
+          return {
+            ...order,
+            status: data.status,
+            canCancel: data.status === "PENDING" || data.status === "CONFIRMED",
+            availableStatuses: availableStatuses,
+          };
+        }
+        return order;
+      });
+      
+      // Nếu đơn hàng không có trong danh sách hiện tại (do filter, pagination)
+      // nhưng trạng thái đã thay đổi → Refresh để đảm bảo đồng bộ
+      const orderExists = prev.some(o => o.id === orderId);
+      if (!orderExists) {
+        // Nếu đang ở trang 1 → Refresh ngay
+        // Nếu ở trang khác → Chỉ refresh nếu đơn hàng nằm trong filter hiện tại
+        if (pagination.page === 1) {
+          fetchOrders();
+        }
+      }
+      
+      return updated;
+    });
+  }, [pagination.page, fetchOrders, getStatusLabel]);
+
+  useEffect(() => {
+    const unsubscribeStatusUpdated = onOrderStatusUpdate(handleOrderStatusUpdate);
+
+    return () => {
+      unsubscribeStatusUpdated();
+    };
+  }, [handleOrderStatusUpdate]); // Phụ thuộc vào handleOrderStatusUpdate (stable reference)
 
   // ========== BƯỚC 2: LẤY CHI TIẾT ĐƠN HÀNG ==========
   

@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import logger from '../utils/logger.js';
+import prisma from './prisma.js';
 
 /**
  *  WEBSOCKET SERVER - Real-time Order Updates, New Order Notifications
@@ -295,5 +296,315 @@ export const emitNewOrder = (orderData) => {
     orderId: orderData.id,
     orderNumber: orderData.orderNumber,
     userId: orderData.userId
+  });
+};
+
+/**
+ *                    SOKET VỀ DANH MỤC
+ * HÀM 4: emitCategoryCreated()
+ * 
+ * CHỨC NĂNG: Gửi thông báo khi có danh mục mới được tạo
+ * 
+ * Làm gì:
+ * - Gửi event 'category:created' đến tất cả client
+ * - Client nhận được sẽ tự động thêm danh mục mới vào danh sách (không cần reload)
+ * 
+ * Khi nào chạy: Sau khi admin tạo danh mục thành công (trong adminCategoryController.js)
+ * 
+ * @param {Object} categoryData - Dữ liệu danh mục vừa tạo (từ DB)
+ */
+export const emitCategoryCreated = (categoryData) => {
+  // Kiểm tra Socket.IO đã được khởi tạo chưa
+  if (!io) {
+    console.warn('⚠️ Socket.IO chưa được khởi tạo');
+    return;
+  }
+
+  // Gửi event đến tất cả client
+  // io.emit() gửi đến TẤT CẢ client đang kết nối (không cần join room)
+  io.emit('category:created', {
+    id: categoryData.id,
+    name: categoryData.name,
+    slug: categoryData.slug,
+    imageUrl: categoryData.imageUrl,
+    isActive: categoryData.isActive,
+    createdAt: categoryData.createdAt
+  });
+
+  // Không cần console.log để tránh spam terminal
+  // console.log('✅ Đã gửi thông báo danh mục mới:', { id: categoryData.id, name: categoryData.name });
+};
+
+/**
+ * HÀM 5: emitCategoryUpdated()
+ * 
+ * CHỨC NĂNG: Gửi thông báo khi danh mục được cập nhật
+ * 
+ * Làm gì:
+ * - Gửi event 'category:updated' đến tất cả client
+ * - Client nhận được sẽ tự động cập nhật danh mục trong danh sách
+ * 
+ * Khi nào chạy: Sau khi admin cập nhật danh mục thành công
+ * 
+ * @param {Object} categoryData - Dữ liệu danh mục đã cập nhật (từ DB)
+ */
+export const emitCategoryUpdated = (categoryData) => {
+  if (!io) {
+    console.warn('⚠️ Socket.IO chưa được khởi tạo');
+    return;
+  }
+
+  io.emit('category:updated', {
+    id: categoryData.id,
+    name: categoryData.name,
+    slug: categoryData.slug,
+    imageUrl: categoryData.imageUrl,
+    isActive: categoryData.isActive,
+    updatedAt: categoryData.updatedAt
+  });
+
+  // Không cần console.log để tránh spam terminal
+  // console.log('🔄 Đã gửi thông báo cập nhật danh mục:', { id: categoryData.id, name: categoryData.name });
+};
+
+/**
+ * HÀM 6: emitCategoryDeleted()
+ * 
+ * CHỨC NĂNG: Gửi thông báo khi danh mục bị xóa
+ * 
+ * Làm gì:
+ * - Gửi event 'category:deleted' đến tất cả client
+ * - Client nhận được sẽ tự động xóa danh mục khỏi danh sách
+ * 
+ * Khi nào chạy: Sau khi admin xóa danh mục thành công
+ * 
+ * @param {number} categoryId - ID danh mục đã xóa
+ */
+export const emitCategoryDeleted = (categoryId) => {
+  if (!io) {
+    console.warn('⚠️ Socket.IO chưa được khởi tạo');
+    return;
+  }
+
+  io.emit('category:deleted', {
+    id: categoryId,
+    deletedAt: new Date().toISOString()
+  });
+
+  // Không cần console.log để tránh spam terminal
+  // console.log('🗑️ Đã gửi thông báo xóa danh mục:', { id: categoryId });
+};
+
+/**
+ * HÀM 7: emitUserDeactivated() vô hiệu hóa user
+ * 
+ * CHỨC NĂNG: Gửi thông báo khi user bị vô hiệu hóa
+ * 
+ * Làm gì:
+ * - Gửi event 'user:deactivated' đến room của user đó
+ * - User nhận được sẽ tự động logout
+ * 
+ * Khi nào chạy: Sau khi admin vô hiệu hóa user (isActive = false)
+ * 
+ * @param {number} userId - ID của user bị vô hiệu hóa
+ */
+export const emitUserDeactivated = (userId) => {
+  if (!io) {
+    console.warn('⚠️ Socket.IO chưa được khởi tạo');
+    return;
+  }
+
+  const userRoom = `user:${userId}`;
+  
+  console.log('🔴 Backend: Emit user:deactivated đến room:', userRoom);
+  
+  // Gửi event đến room của user đó
+  io.to(userRoom).emit('user:deactivated', {
+    userId,
+    message: 'Tài khoản của bạn đã bị vô hiệu hóa',
+    deactivatedAt: new Date().toISOString()
+  });
+  
+  console.log('✅ Backend: Đã gửi event user:deactivated cho user ID:', userId);
+};
+
+/**
+ * SOCKET BANNER - Gửi thông báo real-time khi admin CRUD banner
+ */
+
+// Gửi event khi tạo banner mới → Tất cả client nhận được và tự động thêm vào slider
+//
+export const emitBannerCreated = (bannerData) => {
+  if (!io) return;//Kiểm tra Socket.IO đã được khởi tạo chưa
+  io.emit('banner:created', { //Gửi event có tên  'banner:created' đến tất cả client
+    id: bannerData.id,//ID banner (từ DB)
+    title: bannerData.title,//Tiêu đề banner (từ DB)
+    imageUrl: bannerData.imageUrl,//URL ảnh banner (từ DB)
+    bannerPublicId: bannerData.bannerPublicId,//ID ảnh banner (từ DB)
+    linkUrl: bannerData.linkUrl,//URL link banner (từ DB)
+    isActive: bannerData.isActive,//Trạng thái banner (từ DB)
+    sortOrder: bannerData.sortOrder,//Thứ tự banner (từ DB)
+    createdAt: bannerData.createdAt//Thời gian tạo banner (từ DB)
+  });
+};
+
+// Gửi event khi cập nhật banner → Client tự động cập nhật hoặc xóa (nếu bị tắt)
+export const emitBannerUpdated = (bannerData) => {
+  if (!io) return;//Kiểm tra Socket.IO đã được khởi tạo chưa
+  io.emit('banner:updated', {//Gửi event có tên  'banner:updated' đến tất cả client
+    id: bannerData.id,//ID banner (từ DB)
+    title: bannerData.title,//Tiêu đề banner (từ DB)
+    imageUrl: bannerData.imageUrl,//URL ảnh banner (từ DB)
+    bannerPublicId: bannerData.bannerPublicId,//ID ảnh banner (từ DB)
+    linkUrl: bannerData.linkUrl,//URL link banner (từ DB)
+    isActive: bannerData.isActive,//Trạng thái banner (từ DB)
+    sortOrder: bannerData.sortOrder,//Thứ tự banner (từ DB)
+    updatedAt: bannerData.updatedAt//Thời gian cập nhật banner (từ DB)
+  });
+};
+
+// Gửi event khi xóa banner → Client tự động xóa khỏi slider
+export const emitBannerDeleted = (bannerId) => {
+  if (!io) return;//Kiểm tra Socket.IO đã được khởi tạo chưa
+  io.emit('banner:deleted', {//Gửi event có tên  'banner:deleted' đến tất cả client
+    id: bannerId,//ID banner (từ DB)
+    deletedAt: new Date().toISOString()//Thời gian xóa banner (từ DB)
+  });
+};
+
+/**
+ * SOCKET PRODUCT - Gửi thông báo real-time khi admin CRUD sản phẩm
+ */
+
+// Helper function để tính tổng stock từ variants
+const calculateTotalStock = (product) => {
+  if (!product.variants || product.variants.length === 0) {
+    return 0;
+  }
+  return product.variants.reduce((sum, variant) => sum + (variant.stockQuantity || 0), 0);
+};
+
+// Gửi event khi tạo sản phẩm mới → Tất cả client nhận được và tự động thêm vào danh sách
+export const emitProductCreated = (productData) => {
+  if (!io) return;
+  
+  // Tính stockQuantity từ variants nếu có
+  const stockQuantity = calculateTotalStock(productData);
+  
+  io.emit('product:created', {
+    id: productData.id,
+    name: productData.name,
+    slug: productData.slug,
+    description: productData.description,
+    categoryId: productData.categoryId,
+    brandId: productData.brandId,
+    status: productData.status,
+    isFeatured: productData.isFeatured,
+    price: productData.price,
+    salePrice: productData.salePrice,
+    costPrice: productData.costPrice,
+    imageUrl: productData.imageUrl,
+    imagePublicId: productData.imagePublicId,
+    metaTitle: productData.metaTitle,
+    metaDescription: productData.metaDescription,
+    viewCount: productData.viewCount || 0,
+    stockQuantity: stockQuantity,
+    createdAt: productData.createdAt
+  });
+};
+
+// Gửi event khi cập nhật sản phẩm → Client tự động cập nhật hoặc xóa (nếu bị tắt)
+export const emitProductUpdated = (productData) => {
+  if (!io) return;
+  
+  // Tính stockQuantity từ variants nếu có
+  const stockQuantity = calculateTotalStock(productData);
+  
+  io.emit('product:updated', {
+    id: productData.id,
+    name: productData.name,
+    slug: productData.slug,
+    description: productData.description,
+    categoryId: productData.categoryId,
+    brandId: productData.brandId,
+    status: productData.status,
+    isFeatured: productData.isFeatured,
+    price: productData.price,
+    salePrice: productData.salePrice,
+    costPrice: productData.costPrice,
+    imageUrl: productData.imageUrl,
+    imagePublicId: productData.imagePublicId,
+    metaTitle: productData.metaTitle,
+    metaDescription: productData.metaDescription,
+    viewCount: productData.viewCount || 0,
+    stockQuantity: stockQuantity,
+    updatedAt: productData.updatedAt
+  });
+};
+
+// Gửi event khi xóa sản phẩm → Client tự động xóa khỏi danh sách
+export const emitProductDeleted = (productId) => {
+  if (!io) return;
+  io.emit('product:deleted', {
+    id: productId,
+    deletedAt: new Date().toISOString()
+  });
+};
+
+/**
+ * SOCKET PRODUCT VARIANT - Gửi thông báo real-time khi admin CRUD biến thể
+ */
+
+// Gửi event khi tạo biến thể mới → Tất cả client nhận được và tự động thêm vào danh sách
+export const emitVariantCreated = (variantData) => {
+  if (!io) return;
+  io.emit('variant:created', {
+    id: variantData.id,
+    productId: variantData.productId,
+    stockQuantity: variantData.stockQuantity,
+    minStockLevel: variantData.minStockLevel,
+    isActive: variantData.isActive,
+    width: variantData.width,
+    depth: variantData.depth,
+    height: variantData.height,
+    heightMax: variantData.heightMax,
+    warranty: variantData.warranty,
+    material: variantData.material,
+    weightCapacity: variantData.weightCapacity,
+    color: variantData.color,
+    dimensionNote: variantData.dimensionNote,
+    createdAt: variantData.createdAt
+  });
+};
+
+// Gửi event khi cập nhật biến thể → Client tự động cập nhật
+export const emitVariantUpdated = (variantData) => {
+  if (!io) return;
+  io.emit('variant:updated', {
+    id: variantData.id,
+    productId: variantData.productId,
+    stockQuantity: variantData.stockQuantity,
+    minStockLevel: variantData.minStockLevel,
+    isActive: variantData.isActive,
+    width: variantData.width,
+    depth: variantData.depth,
+    height: variantData.height,
+    heightMax: variantData.heightMax,
+    warranty: variantData.warranty,
+    material: variantData.material,
+    weightCapacity: variantData.weightCapacity,
+    color: variantData.color,
+    dimensionNote: variantData.dimensionNote,
+    updatedAt: variantData.updatedAt
+  });
+};
+
+// Gửi event khi xóa biến thể → Client tự động xóa khỏi danh sách
+export const emitVariantDeleted = (variantId, productId) => {
+  if (!io) return;
+  io.emit('variant:deleted', {
+    id: variantId,
+    productId: productId,
+    deletedAt: new Date().toISOString()
   });
 };

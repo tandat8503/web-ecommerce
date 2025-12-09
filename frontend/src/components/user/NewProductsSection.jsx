@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import { FaFire } from "react-icons/fa";
 import ProductCard from "./ProductCard";
 import { getPublicProducts } from "../../api/adminProducts";
+import { 
+  onProductCreated, 
+  onProductUpdated, 
+  onProductDeleted 
+} from "../../utils/socket";
 
 /**
  * NewProductsSection Component - Section sản phẩm mới cho trang chủ
@@ -39,6 +44,69 @@ const NewProductsSection = ({
   
   useEffect(() => {
     fetchNewProducts();
+  }, [limit]);
+
+  // Socket real-time: Cập nhật products khi admin CRUD
+  useEffect(() => {
+    // Sản phẩm mới → Thêm nếu isFeatured = false và ACTIVE
+    const unsubscribeCreated = onProductCreated((newProduct) => {
+      if (!newProduct.isFeatured && newProduct.status === 'ACTIVE') {
+        setNewProducts(prev => {
+          const exists = prev.some(p => p.id === newProduct.id);
+          if (exists) {
+            return prev.map(p => p.id === newProduct.id ? newProduct : p);
+          }
+          // Giữ limit, bỏ sản phẩm cuối nếu đã đủ
+          const newList = [newProduct, ...prev];
+          return newList.slice(0, limit);
+        });
+      }
+    });
+
+    // Sản phẩm cập nhật → Cập nhật hoặc xóa
+    const unsubscribeUpdated = onProductUpdated((updatedProduct) => {
+      console.log('🔄 Socket: New product updated', updatedProduct);
+      // Chỉ hiển thị nếu isFeatured = false và status = 'ACTIVE'
+      const shouldShow = !updatedProduct.isFeatured && updatedProduct.status === 'ACTIVE';
+      
+      setNewProducts(prev => {
+        const exists = prev.some(p => p.id === updatedProduct.id);
+        if (exists) {
+          if (shouldShow) {
+            // Cập nhật product (merge để giữ lại variants nếu có)
+            console.log('✅ New product vẫn ACTIVE, cập nhật:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+            return prev.map(p => {
+              if (p.id === updatedProduct.id) {
+                // Merge với product cũ để giữ lại variants nếu socket không gửi
+                return { ...p, ...updatedProduct };
+              }
+              return p;
+            });
+          } else {
+            // Xóa product nếu bị tắt (INACTIVE/OUT_OF_STOCK) hoặc trở thành featured
+            console.log('❌ New product bị tắt (status:', updatedProduct.status, ') hoặc trở thành featured, xóa khỏi danh sách:', updatedProduct.id);
+            return prev.filter(p => p.id !== updatedProduct.id);
+          }
+        } else if (shouldShow) {
+          // Thêm product mới nếu chưa có và ACTIVE + không featured
+          console.log('✅ New product mới ACTIVE, thêm vào danh sách:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+          const newList = [updatedProduct, ...prev];
+          return newList.slice(0, limit);
+        }
+        return prev;
+      });
+    });
+
+    // Sản phẩm xóa → Xóa khỏi danh sách
+    const unsubscribeDeleted = onProductDeleted((data) => {
+      setNewProducts(prev => prev.filter(p => p.id !== data.id));
+    });
+
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
   }, [limit]);
 
   // ================================

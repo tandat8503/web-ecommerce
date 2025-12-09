@@ -6,6 +6,14 @@ import { getPublicProductImages } from '../../../api/adminProductImages';
 import { getPublicProducts } from '../../../api/adminProducts';
 import useCartStore from '../../../stores/cartStore';
 import { addToCart as addToCartAPI } from '../../../api/cart';
+import { useAuth } from '../../../hooks/useAuth';
+import { 
+  onProductUpdated, 
+  onProductDeleted,
+  onVariantCreated,
+  onVariantUpdated,
+  onVariantDeleted
+} from '../../../utils/socket';
 
 /**
  * ========================================
@@ -17,6 +25,7 @@ import { addToCart as addToCartAPI } from '../../../api/cart';
  */
 export function useProductDetail(productId) {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // =======================
   // STATE
@@ -76,6 +85,139 @@ export function useProductDetail(productId) {
   useEffect(() => {
     loadProductData();
   }, [loadProductData]);
+
+  // Socket real-time: Cập nhật product khi admin thay đổi
+  useEffect(() => {
+    if (!product) return;
+
+    // Sản phẩm cập nhật → Cập nhật product hiện tại hoặc redirect nếu bị tắt
+    const unsubscribeUpdated = onProductUpdated((updatedProduct) => {
+      if (updatedProduct.id === product.id) {
+        console.log('🔄 Socket: Product updated trong detail page', updatedProduct);
+        
+        // Nếu sản phẩm bị tắt (INACTIVE hoặc OUT_OF_STOCK) → Redirect
+        if (updatedProduct.status !== 'ACTIVE') {
+          console.log('❌ Product bị tắt (status:', updatedProduct.status, '), redirect về trang chủ');
+          setError('Sản phẩm này đã bị tạm dừng hoặc hết hàng');
+          setProduct(null);
+          setVariants([]);
+          setProductImages([]);
+          setTimeout(() => {
+            navigate('/san-pham');
+          }, 2000);
+        } else {
+          // Cập nhật product nếu vẫn ACTIVE
+          setProduct(prev => ({ ...prev, ...updatedProduct }));
+        }
+      }
+      // Cập nhật trong featured products nếu có
+      setFeaturedProducts(prev => prev.map(p => 
+        p.id === updatedProduct.id ? updatedProduct : p
+      ));
+    });
+
+    // Sản phẩm xóa → Redirect về trang chủ
+    const unsubscribeDeleted = onProductDeleted((data) => {
+      if (data.id === product.id) {
+        console.log('🗑️ Socket: Product deleted trong detail page', data.id);
+        setError('Sản phẩm này đã bị xóa');
+        setProduct(null);
+        setVariants([]);
+        setProductImages([]);
+        setTimeout(() => {
+          navigate('/san-pham');
+        }, 2000);
+      }
+      // Xóa khỏi featured products nếu có
+      setFeaturedProducts(prev => prev.filter(p => p.id !== data.id));
+    });
+
+    return () => {
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, [product, navigate]);
+
+  // Socket real-time: Cập nhật variants khi admin CRUD
+  useEffect(() => {
+    if (!product) return;// nếu không có product thì không cập nhật variants.
+
+    // Biến thể mới → Thêm vào danh sách nếu thuộc product hiện tại
+    const unsubscribeVariantCreated = onVariantCreated((newVariant) => {
+      if (newVariant.productId === product.id) {// nếu biến thể mới được tạo thuộc với product hiện tại thì cập nhật.
+        console.log('🆕 Socket: Variant created trong detail page', newVariant);
+        setVariants(prev => {
+          const exists = prev.some(v => v.id === newVariant.id);
+          if (exists) {
+            // Đã có → Cập nhật lại
+            return prev.map(v => v.id === newVariant.id ? newVariant : v);
+          }
+          // Chưa có → Thêm vào danh sách (chỉ thêm nếu isActive = true)
+          if (newVariant.isActive) {// nếu biến thể mới được tạo là active thì thêm vào danh sách.
+            return [...prev, newVariant];// thêm biến thể mới vào danh sách.
+          }
+          return prev; // trả về danh sách đã cập nhật.
+        });
+      }
+    });
+
+    // Biến thể cập nhật → Cập nhật trong danh sách
+    const unsubscribeVariantUpdated = onVariantUpdated((updatedVariant) => {
+      if (updatedVariant.productId === product.id) {// nếu biến thể mới được cập nhật thuộc với product hiện tại thì cập nhật.
+        console.log('🔄 Socket: Variant updated trong detail page', updatedVariant);
+        setVariants(prev => {
+          const exists = prev.some(v => v.id === updatedVariant.id);
+          if (exists) {
+            // Đã có → Cập nhật hoặc xóa nếu bị tắt
+            if (updatedVariant.isActive) {
+              return prev.map(v => v.id === updatedVariant.id ? updatedVariant : v);
+            } else {
+              // Nếu variant bị tắt → Xóa khỏi danh sách
+              return prev.filter(v => v.id !== updatedVariant.id);
+            }
+          } else if (updatedVariant.isActive) {
+            // Chưa có nhưng đang active → Thêm vào danh sách
+            return [...prev, updatedVariant];
+          }
+          return prev;
+        });
+        
+        // Nếu variant đang được chọn bị cập nhật → Cập nhật selectedVariant
+        setSelectedVariant(prev => {
+          if (prev && prev.id === updatedVariant.id) {
+            return updatedVariant.isActive ? updatedVariant : null;
+          }
+          return prev;
+        });
+      }
+    });
+
+    // Biến thể xóa → Xóa khỏi danh sách
+    const unsubscribeVariantDeleted = onVariantDeleted((data) => {
+      if (data.productId === product.id) {
+        console.log('🗑️ Socket: Variant deleted trong detail page', data.id);
+        setVariants(prev => {
+          const filtered = prev.filter(v => v.id !== data.id);
+          
+          // Nếu variant đang được chọn bị xóa → Tự động chọn variant đầu tiên còn lại
+          setSelectedVariant(currentSelected => {
+            if (currentSelected && currentSelected.id === data.id) {
+              return filtered.length > 0 ? filtered[0] : null;
+            }
+            return currentSelected;
+          });
+          
+          return filtered;
+        });
+      }
+    });
+
+    return () => {
+      unsubscribeVariantCreated();
+      unsubscribeVariantUpdated();
+      unsubscribeVariantDeleted();
+    };
+  }, [product]);
 
   // 
   useEffect(() => {
@@ -263,6 +405,14 @@ export function useProductDetail(productId) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    
+    // Kiểm tra đăng nhập trước khi mua hàng
+    if (!isAuthenticated) {
+      // Lưu URL hiện tại để redirect về sau khi đăng nhập
+      const currentPath = window.location.pathname;
+      navigate(`/auth?redirect=${encodeURIComponent(currentPath)}`);
+      return;
     }
     
     // Validation cơ bản trước khi mua ngay

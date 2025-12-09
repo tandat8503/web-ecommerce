@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import Slider from "react-slick";
 import { Spin } from "antd";
 import { getActiveBanners } from "@/api/banner";
+import { onBannerCreated, onBannerUpdated, onBannerDeleted } from "@/utils/socket";
 
 // 👉 Nút điều hướng trái
 function PrevArrow({ onClick }) {
@@ -39,6 +40,7 @@ export default function BannerActive() {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Fetch banners lần đầu
   useEffect(() => {
     const fetchBanners = async () => {
       try {
@@ -53,6 +55,72 @@ export default function BannerActive() {
     };
     fetchBanners();
   }, []);
+
+  /**
+   * ✅ SOCKET: Cập nhật slider real-time khi admin CRUD banner
+   * 
+   
+   */
+  useEffect(() => {
+    // ===== BANNER MỚI =====
+    // Backend emit 'banner:created' → Callback này được gọi với newBanner
+    const unsubscribeCreated = onBannerCreated((newBanner) => {
+      // newBanner = { id, title, imageUrl, isActive, ... } từ backend
+      if (newBanner.isActive) {
+        setBanners(prev => {//prev là danh sách banners hiện tại
+    //tìm xem banner đã tồn tại chưa bằng cách tìm id của banner trong danh sách prev
+          const exists = prev.find(b => b.id === newBanner.id); 
+          if (exists) {
+//nếu id của banner trùng với id của banner mới thì trả về banner mới,nếu không thì trả về banner cũ
+            return prev.map(b => b.id === newBanner.id ? newBanner : b);
+          } else {
+//ngược lại thì thêm banner mới vào danh sách prev và sắp xếp theo thời gian tạo,sắp xếp theo thời gian tạo từ mới nhất đến cũ nhất
+            return [...prev, newBanner].sort((a, b) => 
+              new Date(b.createdAt) - new Date(a.createdAt)
+            );
+          }
+        });
+      }
+    });
+
+    // ===== BANNER CẬP NHẬT =====
+    // Backend emit 'banner:updated' → Callback này được gọi với updatedBanner
+    const unsubscribeUpdated = onBannerUpdated((updatedBanner) => {
+      setBanners(prev => {
+        const exists = prev.find(b => b.id === updatedBanner.id);
+        
+        if (updatedBanner.isActive) {
+          // Banner active → Cập nhật hoặc thêm vào danh sách
+          if (exists) {
+            return prev.map(b => b.id === updatedBanner.id ? updatedBanner : b);
+          } else {
+            // Banner được bật lại → Thêm vào danh sách
+            return [...prev, updatedBanner].sort((a, b) => 
+              new Date(b.createdAt) - new Date(a.createdAt)
+            );
+          }
+        } else {
+          // Banner bị tắt → Xóa khỏi danh sách
+          return prev.filter(b => b.id !== updatedBanner.id);
+        }
+      });
+    });
+
+    // ===== BANNER XÓA =====
+    // Backend emit 'banner:deleted' → Callback này được gọi với { id }
+    const unsubscribeDeleted = onBannerDeleted((data) => {
+      // data = { id, deletedAt } từ backend
+      setBanners(prev => prev.filter(b => b.id !== data.id));
+    });
+
+    // ===== CLEANUP =====
+    // Khi component unmount → Ngừng lắng nghe để tránh memory leak
+    return () => {
+      unsubscribeCreated(); // socket.off('banner:created', callback)
+      unsubscribeUpdated();  // socket.off('banner:updated', callback)
+      unsubscribeDeleted();  // socket.off('banner:deleted', callback)
+    };
+  }, []); // Chỉ chạy 1 lần khi component mount
 
   const settings = {
     dots: true,

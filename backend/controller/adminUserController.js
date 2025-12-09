@@ -2,6 +2,7 @@
 import bcrypt from "bcrypt";
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
+import { emitUserDeactivated } from "../config/socket.js"; // Gửi thông báo khi user bị vô hiệu hóa
 
 // Chuẩn hoá dữ liệu user trả về
 const userResponse = (user) => ({
@@ -251,6 +252,11 @@ export const updateUser = async (req, res) => {
       where: { id: parseInt(id) },
       data: updateData,
     });
+
+    // Nếu vô hiệu hóa tài khoản (isActive = false) → Gửi socket event để user logout
+    if (isActive === false && user.isActive === true) {
+      emitUserDeactivated(parseInt(id));
+    }
 
     res.json({
       code: 200,

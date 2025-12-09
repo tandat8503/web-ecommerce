@@ -7,6 +7,11 @@ import {
   deleteCategory,
   getCategoryById,
 } from "@/api/adminCategories";
+import { 
+  onCategoryCreated, 
+  onCategoryUpdated, 
+  onCategoryDeleted 
+} from "@/utils/socket";
 
 /**
  * Custom hook quản lý toàn bộ logic cho AdminCategories
@@ -88,6 +93,59 @@ export function useAdminCategories() {
   }, [pagination.page, pagination.limit, keyword]);
 
   /**
+   * Socket listener để nhận real-time update từ ADMIN KHÁC
+   * LƯU Ý: KHÔNG có toast ở đây
+   * - Toast chỉ có trong handleSubmit() và handleDelete() (khi admin TỰ CRUD)
+   * - Socket listener chỉ cập nhật UI khi ADMIN KHÁC thay đổi
+   */
+  useEffect(() => {
+    // Lắng nghe khi có danh mục mới được tạo
+    // ⚠️ KHÔNG ĐƯỢC THÊM TOAST Ở ĐÂY!
+    // Toast chỉ có trong handleSubmit() (khi admin TỰ tạo)
+    const unsubscribeCreated = onCategoryCreated((newCategory) => {
+      setCategories((prev) => {
+        const exists = prev.some((cat) => cat.id === newCategory.id);
+        if (exists) {
+          return prev.map((cat) =>
+            cat.id === newCategory.id ? { ...cat, ...newCategory } : cat
+          );
+        }
+        setPagination((prevPagination) => ({ 
+          ...prevPagination, 
+          total: prevPagination.total + 1 
+        }));
+        return [newCategory, ...prev];
+      });
+    });
+
+    // Lắng nghe khi có danh mục được cập nhật
+    // ⚠️ KHÔNG ĐƯỢC THÊM TOAST Ở ĐÂY!
+    // Toast chỉ có trong handleSubmit() (khi admin TỰ cập nhật)
+    const unsubscribeUpdated = onCategoryUpdated((updatedCategory) => {
+      setCategories((prev) =>
+        prev.map((cat) =>
+          cat.id === updatedCategory.id ? { ...cat, ...updatedCategory } : cat
+        )
+      );
+    });
+
+    // Lắng nghe khi có danh mục bị xóa
+    // ⚠️ KHÔNG ĐƯỢC THÊM TOAST Ở ĐÂY!
+    // Toast chỉ có trong handleDelete() (khi admin TỰ xóa)
+    const unsubscribeDeleted = onCategoryDeleted((data) => {
+      setCategories((prev) => prev.filter((cat) => cat.id !== data.id));
+      setPagination((prev) => ({ ...prev, total: prev.total - 1 }));
+    });
+
+    // Cleanup: Ngừng lắng nghe khi component unmount
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, []); // Chỉ chạy 1 lần khi mount
+
+  /**
    * Xử lý submit form (create/update) với FormData cho upload ảnh
    * @param {Object} values - Form values
    * @param {Object|null} record - Record đang edit (null nếu là create)
@@ -114,7 +172,8 @@ export function useAdminCategories() {
       }
       setModalOpen(false);
       setEditingRecord(null);
-      fetchCategories();
+      // ⚠️ KHÔNG gọi fetchCategories() vì socket sẽ tự động cập nhật UI
+      // fetchCategories(); // Bỏ dòng này để tránh race condition
     } catch (error) {
       toast.error(error.response?.data?.message || "Có lỗi xảy ra");
     } finally {
@@ -130,7 +189,8 @@ export function useAdminCategories() {
     try {
       await deleteCategory(id);
       toast.success("Xóa danh mục thành công");
-      fetchCategories();
+      // ⚠️ KHÔNG gọi fetchCategories() vì socket sẽ tự động cập nhật UI
+      // fetchCategories(); // Bỏ dòng này để tránh race condition
     } catch (error) {
       const rawMessage = error.response?.data?.message || "";
       if (/category has products/i.test(rawMessage)) {

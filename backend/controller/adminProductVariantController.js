@@ -1,6 +1,7 @@
 // Import các thư viện cần thiết
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { emitVariantCreated, emitVariantUpdated, emitVariantDeleted } from '../config/socket.js';
 
 // ==================== ADMIN PRODUCT VARIANT CONTROLLER ====================
 
@@ -169,6 +170,10 @@ export const createProductVariant = async (req, res) => {
     });
 
     logger.success('Variant created', { variantId: variant.id });
+    
+    // Gửi thông báo real-time đến tất cả client là tạo biến thể mới
+    emitVariantCreated(variant);
+    
     return res.status(201).json({ 
       message: 'Variant created successfully', 
       variant 
@@ -248,6 +253,10 @@ export const updateProductVariant = async (req, res) => {
     });
 
     logger.success('Variant updated', { id, productIdChanged: data.productId !== undefined && data.productId !== variant.productId });
+    
+    // Gửi thông báo real-time đến tất cả client là cập nhật biến thể
+    emitVariantUpdated(updated);
+    
     return res.json({ 
       message: 'Variant updated successfully', 
       variant: updated 
@@ -296,7 +305,7 @@ export const deleteProductVariant = async (req, res) => {
         orderItemsCount 
       });
       return res.status(400).json({ 
-        message: 'Không thể xóa biến thể đã có trong đơn hàng. Vui lòng vô hiệu hóa biến thể thay vì xóa.' 
+        message: 'Không thể xóa biến thể đã có trong đơn hàng. Vui lòng tắt hoạt động của biến thể thay vì xóa.' 
       });
     }
 
@@ -306,6 +315,10 @@ export const deleteProductVariant = async (req, res) => {
     });
 
     logger.success('Variant deleted', { id });
+    
+    // Gửi thông báo real-time đến tất cả client là xóa biến thể
+    emitVariantDeleted(id, variant.productId);
+    
     return res.json({ message: 'Variant deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete variant', {
@@ -331,6 +344,7 @@ export const deleteProductVariant = async (req, res) => {
 
 /**
  * Lấy danh sách variants PUBLIC (chỉ lấy isActive = true)
+ * CHỈ TRẢ VỀ VARIANTS NẾU PRODUCT CÒN ACTIVE
  * GET /api/product-variants/public?productId=1
  */
 export const getPublicProductVariants = async (req, res) => {
@@ -343,10 +357,28 @@ export const getPublicProductVariants = async (req, res) => {
       return res.status(400).json({ message: 'productId is required' });
     }
 
+    // Kiểm tra product có tồn tại và ACTIVE không
+    const product = await prisma.product.findUnique({
+      where: { id: Number(productId) },
+      select: { id: true, status: true }
+    });
+
+    if (!product) {
+      logger.warn('Product not found', { productId });
+      return res.status(404).json({ message: 'Sản phẩm không tồn tại' });
+    }
+
+    // Nếu product bị tắt (INACTIVE hoặc OUT_OF_STOCK) → Không trả về variants
+    if (product.status !== 'ACTIVE') {
+      logger.warn('Product is not active', { productId, status: product.status });
+      return res.json({ variants: [] });
+    }
+
+    // Chỉ lấy variants nếu product còn ACTIVE
     const variants = await prisma.productVariant.findMany({
       where: { 
         productId: Number(productId),
-        isActive: true  // CHỈ LẤY ACTIVE
+        isActive: true  // CHỈ LẤY VARIANTS ACTIVE
       },
       orderBy: { createdAt: 'asc' },
       select: {

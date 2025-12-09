@@ -12,29 +12,35 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Pagination } from "antd";
-import { FaBox } from "react-icons/fa";
+import { FaBox, FaArrowLeft } from "react-icons/fa";
 import Navbar from "../../components/user/Navbar";
 import ProductCard from "../../components/user/ProductCard";
 import { getPublicProducts } from "../../api/adminProducts";
 import { getPublicCategories } from "../../api/adminCategories";
+import { onCategoryUpdated } from "../../utils/socket";
+import { 
+  onProductCreated, 
+  onProductUpdated, 
+  onProductDeleted 
+} from "../../utils/socket";
 
 /**
  * CategoryPage - Trang hiển thị sản phẩm theo danh mục
  * Route: /danh-muc/:slug
  */
 const CategoryPage = () => {
-  const { slug } = useParams();
-  const navigate = useNavigate();
+  const { slug } = useParams();// Lấy slug từ URL
+  const navigate = useNavigate();// Dùng để chuyển hướng
   
   // State
-  const [category, setCategory] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [category, setCategory] = useState(null);// Lưu trữ category hiện tại
+  const [products, setProducts] = useState([]);// Lưu trữ danh sách sản phẩm hiện tại
+  const [loading, setLoading] = useState(true);// Lưu trữ trạng thái loading
+  const [error, setError] = useState(null);// Lưu trữ lỗi hiện tại
+  const [page, setPage] = useState(1);// Lưu trữ trang hiện tại
+  const [total, setTotal] = useState(0);// Lưu trữ tổng số sản phẩm
+  const [sortBy, setSortBy] = useState("createdAt");// Lưu trữ cột sắp xếp hiện tại
+  const [sortOrder, setSortOrder] = useState("desc");// Lưu trữ thứ tự sắp xếp hiện tại
   
   const limit = 12; // 12 sản phẩm mỗi trang (4 hàng x 3 cột)
 
@@ -75,9 +81,123 @@ const CategoryPage = () => {
     fetchCategory();
   }, [slug]);
 
+  // ✅ Lắng nghe socket event khi category được cập nhật (tắt/bật)
+  useEffect(() => {
+    if (!category) return;
+
+    const unsubscribe = onCategoryUpdated((updatedCategory) => {
+      // Chỉ cập nhật nếu là category hiện tại
+      if (updatedCategory.slug === slug || updatedCategory.id === category.id) {
+        console.log('🔄 Category được cập nhật:', updatedCategory);
+        
+        // Cập nhật category state
+        setCategory(prev => ({
+          ...prev,
+          ...updatedCategory
+        }));
+
+        // Nếu category bị tắt, clear products và set error
+        if (!updatedCategory.isActive) {
+          setProducts([]);
+          setTotal(0);
+          setError("Danh mục này đã bị tạm dừng");
+        } else {
+          // Nếu category được bật lại, clear error và fetch lại products
+          setError(null);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [category, slug]);
+
+  // Socket real-time: Cập nhật products khi admin CRUD
+  useEffect(() => {
+    if (!category) return;
+
+    // Sản phẩm mới → Thêm vào danh sách (nếu cùng category, ACTIVE và category active)
+    const unsubscribeCreated = onProductCreated((newProduct) => {
+      if (newProduct.categoryId === category.id && 
+          newProduct.status === 'ACTIVE' && 
+          category.isActive) {
+        setProducts(prev => {
+          const exists = prev.some(p => p.id === newProduct.id);
+          if (exists) {
+            return prev.map(p => p.id === newProduct.id ? newProduct : p);
+          }
+          return [newProduct, ...prev];
+        });
+        setTotal(prev => prev + 1);
+      }
+    });
+
+    // Sản phẩm cập nhật → Cập nhật hoặc xóa
+    const unsubscribeUpdated = onProductUpdated((updatedProduct) => {
+      if (updatedProduct.categoryId === category.id) {
+        console.log('🔄 Socket: Product updated trong category', updatedProduct);
+        // Chỉ hiển thị nếu status = 'ACTIVE' và category đang active
+        const shouldShow = updatedProduct.status === 'ACTIVE' && category.isActive;
+        
+        setProducts(prev => {
+          const exists = prev.some(p => p.id === updatedProduct.id);
+          if (exists) {
+            if (shouldShow) {
+              // Cập nhật product (merge để giữ lại variants nếu có)
+              console.log('✅ Product vẫn ACTIVE và category active, cập nhật:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+              return prev.map(p => {
+                if (p.id === updatedProduct.id) {
+                  // Merge với product cũ để giữ lại variants nếu socket không gửi
+                  return { ...p, ...updatedProduct };
+                }
+                return p;
+              });
+            } else {
+              // Xóa product nếu bị tắt (INACTIVE/OUT_OF_STOCK) hoặc category bị tắt
+              console.log('❌ Product bị tắt (status:', updatedProduct.status, ') hoặc category bị tắt, xóa khỏi danh sách:', updatedProduct.id);
+              setTotal(prev => Math.max(0, prev - 1));
+              return prev.filter(p => p.id !== updatedProduct.id);
+            }
+          } else if (shouldShow) {
+            // Thêm product mới nếu chưa có và ACTIVE
+            console.log('✅ Product mới ACTIVE trong category active, thêm vào danh sách:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+            setTotal(prev => prev + 1);
+            return [updatedProduct, ...prev];
+          }
+          return prev;
+        });
+      }
+    });
+
+    // Sản phẩm xóa → Xóa khỏi danh sách
+    const unsubscribeDeleted = onProductDeleted((data) => {
+      setProducts(prev => {
+        const filtered = prev.filter(p => p.id !== data.id);
+        if (filtered.length !== prev.length) {
+          setTotal(prev => Math.max(0, prev - 1));
+        }
+        return filtered;
+      });
+    });
+
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, [category]);
+
   // Fetch products khi category, page, sort thay đổi
   useEffect(() => {
     if (!category) return;
+    
+    // ✅ Kiểm tra category có đang hoạt động không
+    if (!category.isActive) {
+      setProducts([]);
+      setTotal(0);
+      setError("Danh mục này đã bị tạm dừng");
+      setLoading(false);
+      return;
+    }
     
     const fetchProducts = async () => {
       try {
@@ -93,12 +213,27 @@ const CategoryPage = () => {
         });
         
         const data = response.data;
-        setProducts(data?.items || []);
-        setTotal(data?.total || 0);
+        
+        // ✅ Kiểm tra message từ backend (nếu category bị tắt sau khi fetch)
+        if (data?.message && data.message.includes("tạm dừng")) {
+          setProducts([]);
+          setTotal(0);
+          setError(data.message);
+        } else {
+          setProducts(data?.items || []);
+          setTotal(data?.total || 0);
+        }
         
       } catch (err) {
         console.error("❌ Lỗi tải sản phẩm:", err);
-        setError("Không thể tải sản phẩm");
+        // ✅ Kiểm tra message từ error response
+        if (err.response?.data?.message) {
+          setError(err.response.data.message);
+        } else {
+          setError("Không thể tải sản phẩm");
+        }
+        setProducts([]);
+        setTotal(0);
       } finally {
         setLoading(false);
       }
@@ -109,13 +244,13 @@ const CategoryPage = () => {
 
   // Handlers
   const handleSortChange = (value) => {
-    const [newSortBy, newSortOrder] = value.split("-");
-    setSortBy(newSortBy);
-    setSortOrder(newSortOrder);
+    const [newSortBy, newSortOrder] = value.split("-");//createdAt-desc, price-asc
+    setSortBy(newSortBy);//createdAt, price
+    setSortOrder(newSortOrder);//desc, asc
     setPage(1); // Reset về trang 1
   };
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = (newPage) => { 
     setPage(newPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -226,11 +361,8 @@ const CategoryPage = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="createdAt-desc">Mới nhất</SelectItem>
-                <SelectItem value="createdAt-asc">Cũ nhất</SelectItem>
                 <SelectItem value="price-asc">Giá thấp đến cao</SelectItem>
                 <SelectItem value="price-desc">Giá cao đến thấp</SelectItem>
-                <SelectItem value="name-asc">Tên A-Z</SelectItem>
-                <SelectItem value="name-desc">Tên Z-A</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -247,11 +379,19 @@ const CategoryPage = () => {
             <CardContent className="py-12 text-center">
               <FaBox className="text-5xl text-gray-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                Chưa có sản phẩm
+                {error && error.includes("tạm dừng") ? "Danh mục đã bị tạm dừng" : "Chưa có sản phẩm"}
               </h3>
-              <p className="text-gray-500">
-                Danh mục này hiện chưa có sản phẩm nào
+              <p className="text-gray-500 mb-4">
+                {error && error.includes("tạm dừng") 
+                  ? "Danh mục này hiện đã bị tạm dừng. Vui lòng quay lại sau."
+                  : "Danh mục này hiện chưa có sản phẩm nào"
+                }
               </p>
+              {error && error.includes("tạm dừng") && (
+                <Button onClick={() => navigate("/")} className="px-6 py-2">
+                  <FaArrowLeft className="mr-2" /> Về trang chủ
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (

@@ -3,6 +3,11 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Row, Col, Spin, Empty, Pagination, Card, Tag, Select } from "antd";
 import { ShoppingCartOutlined, HeartOutlined } from "@ant-design/icons";
 import { getPublicProducts } from "@/api/adminProducts";
+import { 
+  onProductCreated, 
+  onProductUpdated, 
+  onProductDeleted 
+} from "@/utils/socket";
 
 const { Meta } = Card;
 const { Option } = Select;
@@ -71,6 +76,82 @@ export default function ProductsPage() {
 
     fetchProducts();
   }, [searchQuery, page, sortBy, sortOrder]);
+
+  // Socket real-time: Cập nhật products khi admin CRUD
+  // Lưu ý: Backend đã filter products có status = ACTIVE và category.isActive = true
+  useEffect(() => {
+    // Sản phẩm mới → Thêm vào danh sách (chỉ ACTIVE, category check sẽ do backend)
+    const unsubscribeCreated = onProductCreated((newProduct) => {
+      console.log('🆕 Socket: Product created', newProduct);
+      if (newProduct.status === 'ACTIVE') {
+        setProducts(prev => {
+          const exists = prev.some(p => p.id === newProduct.id);
+          if (exists) {
+            return prev.map(p => p.id === newProduct.id ? newProduct : p);
+          }
+          // Chỉ thêm nếu match search query (nếu có)
+          if (!searchQuery.trim() || newProduct.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+            setTotal(prev => prev + 1);
+            return [newProduct, ...prev];
+          }
+          return prev;
+        });
+      }
+    });
+
+    // Sản phẩm cập nhật → Cập nhật hoặc xóa
+    const unsubscribeUpdated = onProductUpdated((updatedProduct) => {
+      console.log('🔄 Socket: Product updated', updatedProduct);
+      // Chỉ hiển thị nếu status = 'ACTIVE' (INACTIVE và OUT_OF_STOCK đều ẩn)
+      const shouldShow = updatedProduct.status === 'ACTIVE';
+      
+      setProducts(prev => {
+        const exists = prev.some(p => p.id === updatedProduct.id);
+        if (exists) {
+          if (shouldShow) {
+            // Cập nhật product (merge để giữ lại variants nếu có)
+            console.log('✅ Product vẫn ACTIVE, cập nhật:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+            return prev.map(p => {
+              if (p.id === updatedProduct.id) {
+                // Merge với product cũ để giữ lại variants nếu socket không gửi
+                return { ...p, ...updatedProduct };
+              }
+              return p;
+            });
+          } else {
+            // Xóa product nếu bị tắt (INACTIVE hoặc OUT_OF_STOCK)
+            console.log('❌ Product bị tắt (status:', updatedProduct.status, '), xóa khỏi danh sách:', updatedProduct.id);
+            setTotal(prev => Math.max(0, prev - 1));
+            return prev.filter(p => p.id !== updatedProduct.id);
+          }
+        } else if (shouldShow && (!searchQuery.trim() || updatedProduct.name.toLowerCase().includes(searchQuery.toLowerCase()))) {
+          // Thêm product mới nếu chưa có và ACTIVE
+          console.log('✅ Product mới ACTIVE, thêm vào danh sách:', updatedProduct.id, 'stockQuantity:', updatedProduct.stockQuantity);
+          setTotal(prev => prev + 1);
+          return [updatedProduct, ...prev];
+        }
+        return prev;
+      });
+    });
+
+    // Sản phẩm xóa → Xóa khỏi danh sách
+    const unsubscribeDeleted = onProductDeleted((data) => {
+      console.log('🗑️ Socket: Product deleted', data);
+      setProducts(prev => {
+        const filtered = prev.filter(p => p.id !== data.id);
+        if (filtered.length !== prev.length) {
+          setTotal(prev => Math.max(0, prev - 1));
+        }
+        return filtered;
+      });
+    });
+
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, [searchQuery]);
 
   // ✅ SYNC page state với URL
   useEffect(() => {
