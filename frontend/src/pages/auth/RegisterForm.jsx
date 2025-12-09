@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Form, Input, Button, Card, Typography, Divider, Radio, DatePicker, Space } from "antd";
 import { FaUser, FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaPhone, FaGift, FaCheckCircle, FaStar, FaTruck, FaShieldAlt } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { register } from "@/api/auth";
 import { getUserProfile } from "@/api/userProfile";
 import { toast } from "@/lib/utils";
@@ -10,6 +10,7 @@ import LoginGoogle from "./LoginGoogle";
 const { Title, Text } = Typography;
 
 export default function RegisterForm({ onSwitchToLogin }) {
+  const [searchParams] = useSearchParams();//kết nối với hook useSearchParams để lấy query params
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
   const [formValues, setFormValues] = useState({});
@@ -94,7 +95,15 @@ export default function RegisterForm({ onSwitchToLogin }) {
         
         console.log("Register successful");
         toast.success(" Đăng ký thành công! Chào mừng bạn đến với OFFICE PRO!");
-        window.location.href = "/";
+        
+        // Kiểm tra xem có redirect URL không
+        const redirectUrl = searchParams.get('redirect');
+        if (redirectUrl) {
+          // Redirect về trang đã yêu cầu trước đó
+          window.location.href = redirectUrl;
+        } else {
+          window.location.href = "/";
+        }
       }
     } catch (error) {
       console.error("Register error:", error);

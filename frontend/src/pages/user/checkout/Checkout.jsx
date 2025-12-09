@@ -197,7 +197,7 @@ export default function Checkout() {
               </div>
 
               {/* Ghi chú */}
-              <div>
+              {/* <div>
                 <label className="text-sm font-medium">Ghi chú</label>
                 <Textarea
                   placeholder="Ví dụ: Giao giờ hành chính"
@@ -205,7 +205,7 @@ export default function Checkout() {
                   onChange={(e) => handleAddressChange("note", e.target.value)}
                   rows={2}
                 />
-              </div>
+              </div> */}
 
               {/* Nút lưu */}
               <div className="flex justify-end gap-2">

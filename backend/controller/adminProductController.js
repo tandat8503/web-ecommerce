@@ -4,11 +4,12 @@ import { slugify } from '../utils/slugify.js'; // Utility function để tạo s
 import cloudinary from '../config/cloudinary.js'; // Cloudinary client để upload ảnh
 import { searchProductsWithFullText } from '../utils/fulltextSearch.js'; // FullText search utility
 import logger from '../utils/logger.js'; // Logger utility
+import { emitProductCreated, emitProductUpdated, emitProductDeleted } from '../config/socket.js';
 
 // Cấu hình include cơ bản cho các query sản phẩm
 // Chỉ lấy thông tin cần thiết của category và brand để tối ưu performance
 const includeBasic = {
-  category: { select: { id: true, name: true, slug: true } }, // Chỉ lấy id, name, slug của category
+  category: { select: { id: true, name: true, slug: true, isActive: true } }, // Chỉ lấy id, name, slug, isActive của category
   brand: { select: { id: true, name: true } }, // Chỉ lấy id, name của brand
   variants: { 
     where: { isActive: true }, // Chỉ lấy variants đang active
@@ -86,6 +87,14 @@ export const listProducts = async (req, res) => {
       // Public route chỉ lấy ACTIVE products
       if (isPublicRoute) {
         and.push({ status: 'ACTIVE' });
+        
+        // ✅ Public route chỉ lấy sản phẩm từ category đang hoạt động (isActive = true)
+        // Filter sản phẩm từ category đang hoạt động
+        and.push({
+          category: {
+            isActive: true
+          }
+        });
       }
       
       const where = and.length ? { AND: and } : undefined;
@@ -190,14 +199,18 @@ export const getProduct = async (req, res) => {
     // 🔑 BƯỚC 2: Xây dựng điều kiện WHERE
     const where = { id };
     
-    // 🚨 QUAN TRỌNG: Public chỉ xem sản phẩm ACTIVE
+    // 🚨 QUAN TRỌNG: Public chỉ xem sản phẩm ACTIVE và từ category đang hoạt động
     if (isPublicRoute) {
       where.status = 'ACTIVE';
-      logger.debug('Public API: Force status = ACTIVE', { id });
+      // ✅ Chỉ lấy sản phẩm từ category đang hoạt động (isActive = true)
+      where.category = {
+        isActive: true
+      };
+      logger.debug('Public API: Force status = ACTIVE and category.isActive = true', { id });
     }
-    // Admin xem tất cả (không thêm điều kiện status)
+    // Admin xem tất cả (không thêm điều kiện status và category.isActive)
     
-    // 🔑 BƯỚC 3: Dùng findFirst thay vì findUnique để có thể filter theo status
+    // 🔑 BƯỚC 3: Dùng findFirst thay vì findUnique để có thể filter theo status và category
     const product = await prisma.product.findFirst({ 
       where, 
       include: includeBasic 
@@ -261,6 +274,7 @@ export const createProduct = async (req, res) => {
       prisma.brand.findUnique({ where: { id: Number(brandId) } })
     ]);
     if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
+    if (!cat.isActive) return res.status(400).json({ message: 'Không thể tạo sản phẩm với danh mục đã bị tắt' });
     if (!br) return res.status(400).json({ message: 'Invalid brandId' });
 
     // Tạo slug tự động
@@ -309,6 +323,10 @@ export const createProduct = async (req, res) => {
 
     logger.success('Product created', { id: created.id, name: created.name });
     logger.end(context.path, { id: created.id });
+    
+    // Gửi thông báo real-time đến tất cả client là tạo sản phẩm mới
+    emitProductCreated(created);
+    
     return res.status(201).json(created);
   } catch (error) {
     logger.error('Failed to create product', {
@@ -361,6 +379,7 @@ export const updateProduct = async (req, res) => {
     if (data.categoryId) {
       const cat = await prisma.category.findUnique({ where: { id: Number(data.categoryId) } });
       if (!cat) return res.status(400).json({ message: 'Invalid categoryId' });
+      if (!cat.isActive) return res.status(400).json({ message: 'Không thể cập nhật sản phẩm với danh mục đã bị tắt' });
       data.categoryId = Number(data.categoryId);
     }
 
@@ -419,6 +438,10 @@ export const updateProduct = async (req, res) => {
 
     logger.success('Product updated', { id, name: updated.name });
     logger.end(context.path, { id });
+    
+    // Gửi thông báo real-time đến tất cả client là cập nhật sản phẩm
+    emitProductUpdated(updated);
+    
     return res.json(updated);
   } catch (error) {
     logger.error('Failed to update product', {
@@ -457,7 +480,7 @@ export const deleteProduct = async (req, res) => {
     if (found.variants && found.variants.length > 0) {
       logger.warn('Cannot delete product with variants', { id, variantCount: found.variants.length });
       return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm đã có biến thể. Vui lòng xóa tất cả biến thể trước hoặc vô hiệu hóa sản phẩm thay vì xóa.' 
+        message: 'Không thể xóa sản phẩm đã có biến thể. Vui lòng xóa  biến thể trước.' 
       });
     }
 
@@ -466,7 +489,7 @@ export const deleteProduct = async (req, res) => {
     if (found.orderItems && found.orderItems.length > 0) {
       logger.warn('Cannot delete product with orders', { id });
       return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm đã có trong đơn hàng. Vui lòng vô hiệu hóa sản phẩm thay vì xóa.' 
+        message: 'Không thể xóa sản phẩm đã có trong đơn hàng. Vui lòng tắt hoạt động của sản phẩm thay vì xóa.' 
       });
     }
 
@@ -524,6 +547,10 @@ export const deleteProduct = async (req, res) => {
     
     logger.success('Product deleted', { id, name: found.name });
     logger.end(context.path, { id });
+    
+    // Gửi thông báo real-time đến tất cả client là xóa sản phẩm
+    emitProductDeleted(id);
+    
     return res.json({ success: true, message: 'Xóa sản phẩm thành công' });
   } catch (error) {
     logger.error('Failed to delete product', {
@@ -627,11 +654,36 @@ export const getProductsByCategory = async (req, res) => {
     // Kiểm tra category có tồn tại trong database không
     const category = await prisma.category.findUnique({ 
       where: { id: Number(categoryId) },
-      select: { id: true, name: true, slug: true } // Chỉ lấy các field cần thiết để tối ưu performance
+      select: { id: true, name: true, slug: true, isActive: true } // Thêm isActive để kiểm tra
     });
     if (!category) {
       logger.warn('Category not found', { categoryId });
       return res.status(404).json({ message: 'Category not found' });
+    }
+
+    // ✅ Nếu category bị tắt (isActive = false) → Không hiển thị sản phẩm
+    // Chỉ admin mới thấy sản phẩm từ category bị tắt
+    const isPublicRoute = !req.user;
+    if (isPublicRoute && !category.isActive) {
+      logger.warn('Category is inactive', { categoryId });
+      return res.json({
+        code: 200,
+        message: "Danh mục này đã bị tạm dừng",
+        data: {
+          products: [],
+          pagination: {
+            total: 0,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: 0
+          },
+          category: {
+            id: category.id,
+            name: category.name,
+            slug: category.slug
+          }
+        }
+      });
     }
 
     // Tính toán offset và limit cho phân trang

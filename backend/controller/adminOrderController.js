@@ -345,7 +345,7 @@ export const updateOrder = async (req, res) => {
 
     // Gửi WebSocket thông báo đến user
     emitOrderStatusUpdate(currentOrder.userId, {
-      orderId: updated.id,
+      id: updated.id, // ⚠️ PHẢI LÀ 'id' chứ không phải 'orderId' (socket.js dùng orderData.id)
       orderNumber: updated.orderNumber,
       status: updated.status,
       statusLabel: getStatusLabel(updated.status) // ✅ Thêm statusLabel
@@ -545,7 +545,7 @@ export const cancelOrder = async (req, res) => {
 
     // Gửi WebSocket thông báo đến user
     emitOrderStatusUpdate(currentOrder.userId, {
-      orderId: updated.id,
+      id: updated.id, // ⚠️ PHẢI LÀ 'id' chứ không phải 'orderId' (socket.js dùng orderData.id)
       orderNumber: updated.orderNumber,
       status: 'CANCELLED',
       statusLabel: getStatusLabel('CANCELLED') // ✅ Thêm statusLabel

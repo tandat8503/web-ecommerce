@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
-import { emitNewOrder } from '../config/socket.js';
+import { emitNewOrder, emitOrderStatusUpdate } from '../config/socket.js';
 import { calculateShippingFee as ghnCalculateShippingFee } from '../services/shipping/ghnService.js';
 import { sendOrderConfirmationEmail } from '../services/Email/EmailServices.js';
 
@@ -589,6 +589,22 @@ export const cancelOrder = async (req, res) => {
       // Tồn kho chỉ được trừ khi admin xác nhận đơn (CONFIRMED)
     });
 
+    // Lấy thông tin đơn hàng đã cập nhật để emit socket
+    const updatedOrder = await prisma.order.findUnique({
+      where: { id: order.id },
+      select: { id: true, orderNumber: true, status: true, userId: true }
+    });
+
+    // Gửi socket event để admin nhận được cập nhật real-time
+    if (updatedOrder) {
+      emitOrderStatusUpdate(updatedOrder.userId, {
+        id: updatedOrder.id, // ⚠️ PHẢI LÀ 'id' (socket.js dùng orderData.id)
+        orderNumber: updatedOrder.orderNumber,
+        status: updatedOrder.status,
+        statusLabel: 'Đã hủy'
+      });
+    }
+
     return res.status(200).json({ message: "Hủy đơn hàng thành công" });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -614,6 +630,23 @@ export const confirmReceivedOrder = async (req, res) => {
         data: { orderId: order.id, status: "DELIVERED" }
       });
     });
+
+    // Lấy thông tin đơn hàng đã cập nhật để emit socket
+    const updatedOrder = await prisma.order.findUnique({
+      where: { id: order.id },
+      select: { id: true, orderNumber: true, status: true, userId: true }
+    });
+
+    // Gửi socket event để admin nhận được cập nhật real-time từ phía user
+    if (updatedOrder) {
+      emitOrderStatusUpdate(updatedOrder.userId, {
+        id: updatedOrder.id, // ⚠️ PHẢI LÀ 'id' (socket.js dùng orderData.id)
+        orderNumber: updatedOrder.orderNumber,
+        status: updatedOrder.status,
+        statusLabel: 'Đã giao'
+      });
+    }
+
     return res.status(200).json({ message: "Đã xác nhận nhận hàng" });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi server", error: error.message });

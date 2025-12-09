@@ -8,6 +8,7 @@ import {
   deleteProductVariant,
 } from "@/api/adminproductVariant";
 import { getProducts } from "@/api/adminProducts";
+import { onVariantCreated, onVariantUpdated, onVariantDeleted } from "@/utils/socket";
 
 /**
  * Custom hook quản lý toàn bộ logic cho AdminProductVariant
@@ -199,6 +200,53 @@ export function useAdminProductVariant() {
   useEffect(() => {
     fetchVariants();
     fetchProducts();
+  }, []);
+
+  // Socket real-time: Cập nhật variants khi admin CRUD
+  useEffect(() => {
+    // Biến thể mới → Thêm vào danh sách
+    const unsubscribeCreated = onVariantCreated((newVariant) => {
+      console.log('🆕 Socket: Variant created', newVariant);
+      
+      setVariants(prev => { // prev là danh sách biến thể hiện tại (State cũ) trước khi cập nhật.
+        const exists = prev.some(v => v.id === newVariant.id);//kiểm tra xem biến thể mới này (newVariant) đã tồn tại trong danh sách cũ (prev) hay chưa (dựa vào ID).
+        if (exists) {// tìm đúng biến thể cần thiết bằng ID, thay thế nó bằng newVariant mới nhất, và trả về danh sách đã cập nhật.
+          return prev.map(v => v.id === newVariant.id ? newVariant : v);
+        }
+        // Thêm vào đầu danh sách
+ // khi biến thể mới được tạo,ăng tổng số lượng (total) của phân trang lên 1 để đảm bảo phân trang hiển thị chính xác số trang mới.
+        setPagination(prev => ({ ...prev, total: prev.total + 1 }));//cập nhật tổng số biến thể trong pagination.
+        return [newVariant, ...prev];//thêm biến thể mới vào đầu danh sách và trả về danh sách đã cập nhật.
+      });
+    });
+
+    // Biến thể cập nhật → Cập nhật trong danh sách
+    const unsubscribeUpdated = onVariantUpdated((updatedVariant) => {
+      console.log('🔄 Socket: Variant updated', updatedVariant);
+      // cập nhật biến thể mới nhất vào danh sách hiện tại.
+      setVariants(prev => prev.map(v =>
+        v.id === updatedVariant.id ? updatedVariant : v
+      ));
+    });
+
+    // Biến thể xóa → Xóa khỏi danh sách
+    const unsubscribeDeleted = onVariantDeleted((data) => {
+      console.log('🗑️ Socket: Variant deleted', data);
+      setVariants(prev => {
+  // giữ lại tất cả các biến thể có ID khác (!==) với ID của biến thể bị xóa (data.id).
+        const filtered = prev.filter(v => v.id !== data.id);
+        if (filtered.length !== prev.length) {// nếu số lượng biến thể trong danh sách sau khi xóa khác với số lượng trước khi xóa, thì giảm tổng số biến thể trong pagination xuống 1.
+          setPagination(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));// Math.max(0, prev.total - 1) đảm bảo tổng số biến thể không được nhỏ hơn 0.
+        }
+        return filtered; // trả về danh sách đã xóa biến thể.
+      });
+    });
+
+    return () => {
+      unsubscribeCreated();// hủy đăng ký listener khi biến thể mới được tạo.
+      unsubscribeUpdated();// hủy đăng ký listener khi biến thể được cập nhật.
+      unsubscribeDeleted();// hủy đăng ký listener khi biến thể được xóa.
+    };
   }, []);
 
   return {

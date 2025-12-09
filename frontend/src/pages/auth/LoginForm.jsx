@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Form, Input, Button, Card, Typography, Divider, Checkbox, Space } from "antd";
 import {  FaLock, FaEyeSlash, FaEye, FaGoogle, FaEnvelope, FaGift } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "@/api/auth";
 import { toast } from "@/lib/utils";
 import LoginGoogle from "./LoginGoogle";
@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 
 export default function LoginForm({ onSwitchToRegister }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [form] = Form.useForm();
@@ -49,7 +50,14 @@ export default function LoginForm({ onSwitchToRegister }) {
           if (userData.role === 'ADMIN') {
             window.location.href = "/admin";
           } else {
-            window.location.href = "/";
+            // Kiểm tra xem có redirect URL không
+            const redirectUrl = searchParams.get('redirect');
+            if (redirectUrl) {
+              // Redirect về trang đã yêu cầu trước đó
+              window.location.href = redirectUrl;
+            } else {
+              window.location.href = "/";
+            }
           }
         }, 1000);
       } else {
@@ -84,7 +92,7 @@ export default function LoginForm({ onSwitchToRegister }) {
           Đăng nhập
         </Title>
         <Text className="text-gray-600 text-base">
-          Chào mừng bạn quay trở lại! 👋
+          Chào mừng bạn quay trở lại! 
         </Text>
       </div>
 
@@ -117,7 +125,7 @@ export default function LoginForm({ onSwitchToRegister }) {
                 Email
               </span>}
               rules={[
-                { required: true, message: "Vui lòng nhập email hoặc số điện thoại!" },
+                { required: true, message: "Vui lòng nhập email của bạn" },
                 { type: "email", message: "Email không hợp lệ!" }
               ]}
             >

@@ -1,10 +1,11 @@
 import { GoogleLogin } from "@react-oauth/google";
 import { googleLogin } from "@/api/auth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "@/lib/utils";
 
 export default function LoginGoogle() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleSuccess = async (credentialResponse) => {
     try {
@@ -41,9 +42,15 @@ export default function LoginGoogle() {
 
       toast.success("🎉 Đăng nhập Google thành công!");
 
-      // Đăng nhập Google chỉ dành cho user, luôn redirect về trang chủ
+      // Kiểm tra xem có redirect URL không
+      const redirectUrl = searchParams.get('redirect');
       setTimeout(() => {
-        navigate("/");
+        if (redirectUrl) {
+          // Redirect về trang đã yêu cầu trước đó
+          navigate(redirectUrl);
+        } else {
+          navigate("/");
+        }
       }, 1000);
     } catch (e) {
       console.error("Google Login Error:", e);

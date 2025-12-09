@@ -450,9 +450,9 @@ export default function UserHeader() {
           scrollamount="8"
           className="text-white font-medium"
         >
-          🏢 VĂN PHÒNG CHUYÊN NGHIỆP - Đồ dùng văn phòng cao cấp | ✨ Chất lượng
-          Nhật Bản - Giá hợp lý | 🚚 Giao hàng miễn phí từ 500k | 📞 Hotline:
-          1900-xxxx | Mua ngay để có trải nghiệm tuyệt vời!
+           NỘI THẤT VĂN PHÒNG - Đồ dùng văn phòng cao cấp |  Chất lượng
+          Nhật Bản - Giá hợp lý  |  Hotline:
+          1900 146398 | Mua ngay để có trải nghiệm tuyệt vời!
         </marquee>
       </div>
 
@@ -473,10 +473,10 @@ export default function UserHeader() {
               </div>
               <div>
                 <span className="font-bold text-xl text-white block leading-tight">
-                  OFFICE PRO
+                  NỘI THẤT VĂN PHÒNG
                 </span>
                 <span className="text-xs text-blue-200 block">
-                  Văn phòng chuyên nghiệp
+                  Nội thất văn phòng chất lượng
                 </span>
               </div>
             </div>

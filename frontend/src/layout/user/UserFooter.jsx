@@ -26,8 +26,8 @@ export default function UserFooter() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl text-white">OFFICE PRO</h3>
-                  <p className="text-blue-200 text-sm">Văn phòng chuyên nghiệp</p>
+                  <h3 className="font-bold text-xl text-white">NỘI THẤT VĂN PHÒNG</h3>
+                  <p className="text-blue-200 text-sm">Nội thất văn phòng chất lượng</p>
                 </div>
               </div>
               <p className="text-gray-300 text-sm leading-relaxed mb-4">
@@ -56,23 +56,18 @@ export default function UserFooter() {
             <h4 className="font-bold text-lg mb-4 text-white">Sản phẩm</h4>
             <ul className="space-y-3">
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                📝 Văn phòng phẩm
+                 Bàn làm việc
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                💻 Máy tính & Laptop
+                 Ghế văn phòng
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                🖨️ Máy in & Scan
+                ARM màn hình
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                🪑 Bàn ghế văn phòng
+                 Kệ bàn
               </li>
-              <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                📱 Thiết bị di động
-              </li>
-              <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                🔌 Phụ kiện điện tử
-              </li>
+             
             </ul>
           </Col>
 
@@ -107,11 +102,11 @@ export default function UserFooter() {
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-3 text-gray-300">
                 <FaPhone className="text-blue-400" />
-                <span>1900-xxxx (Miễn phí)</span>
+                <span>1900 146398 (Miễn phí)</span>
               </div>
               <div className="flex items-center gap-3 text-gray-300">
                 <FaEnvelope className="text-blue-400" />
-                <span>support@officepro.vn</span>
+                <span>noithatvanphong@gmail.com</span>
               </div>
               <div className="flex items-center gap-3 text-gray-300">
                 <FaMapMarkerAlt className="text-blue-400" />
@@ -119,27 +114,7 @@ export default function UserFooter() {
               </div>
             </div>
 
-            {/* Newsletter */}
-            <div>
-              <h5 className="font-semibold mb-3 text-white">Đăng ký nhận tin</h5>
-              <div className="flex">
-                <Input 
-                  placeholder="Email của bạn..." 
-                  className="rounded-l-lg"
-                  size="small"
-                />
-                <Button 
-                  type="primary" 
-                  className="rounded-r-lg bg-blue-600 hover:bg-blue-500 border-0"
-                  size="small"
-                >
-                  <FaPaperPlane />
-                </Button>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                Nhận ưu đãi độc quyền và tin tức mới nhất
-              </p>
-            </div>
+           
           </Col>
         </Row>
       </div>
@@ -150,9 +125,9 @@ export default function UserFooter() {
           <Row align="middle" justify="space-between">
             <Col xs={24} md={12}>
               <p className="text-gray-400 text-sm">
-                © 2025 <span className="font-semibold text-blue-400">OFFICE PRO</span>. 
+                © 2025 <span className="font-semibold text-blue-400">NỘI THẤT VĂN PHÒNG</span>. 
                 Tất cả quyền được bảo lưu. | 
-                <span className="ml-2">MST: 0123456789</span>
+                <span className="ml-2">Số điện thoại: 0123456789</span>
               </p>
             </Col>
             <Col xs={24} md={12}>

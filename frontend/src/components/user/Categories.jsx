@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { getPublicCategories } from "@/api/adminCategories";
 import { Spin } from "antd";
 import { Link } from "react-router-dom";
+import { 
+  onCategoryCreated, 
+  onCategoryUpdated, 
+  onCategoryDeleted 
+} from "@/utils/socket";
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
@@ -21,6 +26,63 @@ export default function Categories() {
     };
     fetchCategories();
   }, []);
+
+  // ===== SOCKET REAL-TIME: Tự động cập nhật khi admin thay đổi danh mục =====
+  useEffect(() => {
+    // Lắng nghe khi có danh mục mới được tạo
+    const unsubscribeCreated = onCategoryCreated((newCategory) => {
+      // Chỉ thêm danh mục mới nếu isActive = true (danh mục công khai)
+      // VÀ chưa tồn tại trong danh sách (kiểm tra theo id để tránh duplicate)
+      if (newCategory.isActive) {
+        setCategories((prev) => {
+          // Kiểm tra xem danh mục đã tồn tại chưa (dựa trên id)
+          const exists = prev.some((cat) => cat.id === newCategory.id);
+          if (exists) {
+            // Nếu đã tồn tại → Cập nhật thay vì thêm mới
+            return prev.map((cat) =>
+              cat.id === newCategory.id ? { ...cat, ...newCategory } : cat
+            );
+          }
+          // Nếu chưa tồn tại → Thêm mới vào đầu danh sách
+          return [newCategory, ...prev];
+        });
+      }
+    });
+
+    // Lắng nghe khi có danh mục được cập nhật
+    const unsubscribeUpdated = onCategoryUpdated((updatedCategory) => {
+      setCategories((prev) => {
+        // Kiểm tra xem category có trong state không
+        const exists = prev.some((cat) => cat.id === updatedCategory.id);
+        
+        if (exists) {
+          // Nếu có → Cập nhật và filter
+          return prev
+            .map((cat) => (cat.id === updatedCategory.id ? { ...cat, ...updatedCategory } : cat))
+            .filter((cat) => cat.isActive); // Loại bỏ nếu isActive = false
+        } else {
+          // Nếu không có trong state (đã bị filter trước đó)
+          // VÀ isActive = true → Thêm lại vào
+          if (updatedCategory.isActive) {
+            return [updatedCategory, ...prev];
+          }
+          return prev; // Nếu isActive = false → Không thêm
+        }
+      });
+    });
+
+    // Lắng nghe khi có danh mục bị xóa
+    const unsubscribeDeleted = onCategoryDeleted((data) => {
+      setCategories((prev) => prev.filter((cat) => cat.id !== data.id));
+    });
+
+    // Cleanup: Ngừng lắng nghe khi component unmount
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, []); // Chỉ chạy 1 lần khi mount
 
   if (loading) {
     return (

@@ -121,20 +121,46 @@ export const leaveOrderRoom = (orderId) => {
  * - Lắng nghe event 'order:status:updated' từ backend
  * - Gọi callback function khi nhận được update
  * - Trả về unsubscribe function để ngừng lắng nghe
+ * - Sử dụng handler chung để tránh duplicate listeners (toast nhiều lần)
  */
+// Danh sách callback đang lắng nghe order status updates
+let statusUpdateCallbacks = [];
+
+// Handler chung: nhận event → gọi tất cả callbacks (chỉ 1 listener đăng ký)
+const statusUpdateHandler = (data) => {
+  console.log('📦 Socket: Nhận được cập nhật trạng thái đơn hàng:', data);
+  statusUpdateCallbacks.forEach(cb => {
+    try {
+      cb(data);
+    } catch (error) {
+      console.error('❌ Lỗi khi xử lý callback cập nhật trạng thái đơn hàng:', error);
+    }
+  });
+};
+
 export const onOrderStatusUpdate = (callback) => {
   if (!socket) {
-    console.warn('Socket chưa được khởi tạo');
+    console.warn('⚠️ Socket chưa được khởi tạo');
     return () => {};
   }
 
-  socket.on('order:status:updated', (data) => {
-    console.log('Cập nhật trạng thái đơn hàng nhận được:', data);
-    callback(data);
-  });
+  // Thêm callback vào danh sách
+  statusUpdateCallbacks.push(callback);
 
+  // Nếu là callback đầu tiên → đăng ký listener (chỉ 1 lần)
+  if (statusUpdateCallbacks.length === 1) {
+    socket.on('order:status:updated', statusUpdateHandler);
+    console.log('✅ Đã đăng ký listener order:status:updated');
+  }
+
+  // Cleanup: xóa callback khỏi danh sách
   return () => {
-    socket.off('order:status:updated', callback);
+    statusUpdateCallbacks = statusUpdateCallbacks.filter(cb => cb !== callback);
+    // Nếu không còn callback nào → xóa listener
+    if (statusUpdateCallbacks.length === 0) {
+      socket.off('order:status:updated', statusUpdateHandler);
+      console.log('🗑️ Đã xóa listener order:status:updated');
+    }
   };
 };
 
@@ -218,4 +244,229 @@ export const joinAdminRoom = () => {
   }
 };
 
+/**
+ * HÀM 8: onCategoryCreated(callback)
+ * 
+ * MỤC ĐÍCH:
+ * - Lắng nghe event 'category:created' từ backend
+ * - Khi có danh mục mới được tạo, gọi callback để cập nhật UI
+ * - Trả về unsubscribe function để ngừng lắng nghe
+ * 
+ * @param {Function} callback - Hàm được gọi khi có danh mục mới (nhận data danh mục)
+ * @returns {Function} Unsubscribe function để ngừng lắng nghe
+ */
+export const onCategoryCreated = (callback) => {
+  if (!socket) {
+    console.warn('⚠️ Socket chưa được khởi tạo');
+    return () => {};
+  }
+
+  socket.on('category:created', (data) => {
+    console.log('✅ Danh mục mới được tạo:', data);
+    callback(data);
+  });
+
+  // Trả về hàm cleanup để ngừng lắng nghe
+  return () => {
+    socket.off('category:created', callback);
+  };
+};
+
+/**
+ * HÀM 9: onCategoryUpdated(callback)
+ * 
+ * MỤC ĐÍCH:
+ * - Lắng nghe event 'category:updated' từ backend
+ * - Khi có danh mục được cập nhật, gọi callback để cập nhật UI
+ * - Trả về unsubscribe function để ngừng lắng nghe
+ * 
+ * @param {Function} callback - Hàm được gọi khi có danh mục cập nhật (nhận data danh mục)
+ * @returns {Function} Unsubscribe function để ngừng lắng nghe
+ */
+export const onCategoryUpdated = (callback) => {
+  if (!socket) {
+    console.warn('⚠️ Socket chưa được khởi tạo');
+    return () => {};
+  }
+
+  socket.on('category:updated', (data) => {
+    console.log('🔄 Danh mục được cập nhật:', data);
+    callback(data);
+  });
+
+  return () => {
+    socket.off('category:updated', callback);
+  };
+};
+
+/**
+ * HÀM 10: onCategoryDeleted(callback)
+ * 
+ * MỤC ĐÍCH:
+ * - Lắng nghe event 'category:deleted' từ backend
+ * - Khi có danh mục bị xóa, gọi callback để cập nhật UI
+ * - Trả về unsubscribe function để ngừng lắng nghe
+ * 
+ * @param {Function} callback - Hàm được gọi khi có danh mục bị xóa (nhận categoryId)
+ * @returns {Function} Unsubscribe function để ngừng lắng nghe
+ */
+export const onCategoryDeleted = (callback) => {
+  if (!socket) {
+    console.warn('⚠️ Socket chưa được khởi tạo');
+    return () => {};
+  }
+
+  socket.on('category:deleted', (data) => {
+    console.log('🗑️ Danh mục bị xóa:', data);
+    callback(data);
+  });
+
+  return () => {
+    socket.off('category:deleted', callback);
+  };
+};
+
+/**
+ * HÀM 11: onUserDeactivated(callback) vô hiệu hóa user
+ * 
+ * MỤC ĐÍCH:
+ * - Lắng nghe event 'user:deactivated' từ backend
+ * - Khi user bị vô hiệu hóa, gọi callback để logout
+ * - Trả về unsubscribe function để ngừng lắng nghe
+ * 
+ * @param {Function} callback - Hàm được gọi khi user bị vô hiệu hóa (nhận { userId, message })
+ * @returns {Function} Unsubscribe function để ngừng lắng nghe
+ */
+export const onUserDeactivated = (callback) => {
+  if (!socket) {
+    console.warn('⚠️ Socket chưa được khởi tạo');
+    return () => {};
+  }
+
+  socket.on('user:deactivated', (data) => {
+    callback(data);
+  });
+
+  return () => {
+    socket.off('user:deactivated', callback);
+  };
+};
+
+/**
+ * SOCKET BANNER - Lắng nghe event từ backend để cập nhật slider real-time
+ * ở trên file soket fe phải ghi đúng tên 'banner:created ở backend
+ 
+ */
+
+// Lắng nghe banner mới → Gọi callback để thêm vào slider
+export const onBannerCreated = (callback) => {//callback là hàm được gọi khi nhận được event 'banner:created' từ backend
+  if (!socket) return () => {};//Nếu socket chưa được khởi tạo, trả về hàm rỗng
+  socket.on('banner:created', callback);//Lắng nghe event 'banner:created' từ backend
+  return () => socket.off('banner:created', callback);//Trả về hàm cleanup để ngừng lắng nghe
+};
+
+// Lắng nghe banner cập nhật → Gọi callback để cập nhật hoặc xóa khỏi slider
+export const onBannerUpdated = (callback) => {
+  if (!socket) return () => {};
+  socket.on('banner:updated', callback);
+  return () => socket.off('banner:updated', callback);
+};
+
+// Lắng nghe banner xóa → Gọi callback để xóa khỏi slider
+export const onBannerDeleted = (callback) => {
+  if (!socket) return () => {};//
+  socket.on('banner:deleted', callback);//Lắng nghe event 'banner:deleted' từ backend
+  return () => socket.off('banner:deleted', callback);//Trả về hàm cleanup để ngừng lắng nghe
+};
+
+/**
+ * SOCKET PRODUCT - Lắng nghe event từ backend để cập nhật sản phẩm real-time
+ */
+
+// Lắng nghe sản phẩm mới → Gọi callback để thêm vào danh sách
+export const onProductCreated = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  // Đăng ký listener
+  socket.on('product:created', callback);
+  console.log(' Đã đăng ký listener product:created');
+  
+  // Trả về hàm cleanup
+  return () => {
+    socket.off('product:created', callback);
+    console.log(' Đã cleanup listener product:created');
+  };
+};
+
+// Lắng nghe sản phẩm cập nhật → Gọi callback để cập nhật hoặc xóa khỏi danh sách
+export const onProductUpdated = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  // Đăng ký listener
+  socket.on('product:updated', callback);
+  console.log(' Đã đăng ký listener product:updated');
+  
+  // Trả về hàm cleanup
+  return () => {
+    socket.off('product:updated', callback);
+    console.log(' Đã cleanup listener product:updated');
+  };
+};
+
+// Lắng nghe sản phẩm xóa → Gọi callback để xóa khỏi danh sách
+export const onProductDeleted = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  // Đăng ký listener
+  socket.on('product:deleted', callback);
+  console.log(' Đã đăng ký listener product:deleted');
+  
+  // Trả về hàm cleanup
+  return () => {
+    socket.off('product:deleted', callback);
+    console.log(' Đã cleanup listener product:deleted');
+  };
+};
+
+// Lắng nghe biến thể mới → Gọi callback để thêm vào danh sách
+export const onVariantCreated = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  socket.on('variant:created', callback);
+  return () => socket.off('variant:created', callback);
+};
+
+// Lắng nghe biến thể cập nhật → Gọi callback để cập nhật
+export const onVariantUpdated = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  socket.on('variant:updated', callback);
+  return () => socket.off('variant:updated', callback);
+};
+
+// Lắng nghe biến thể xóa → Gọi callback để xóa khỏi danh sách
+export const onVariantDeleted = (callback) => {
+  if (!socket) {
+    console.warn(' Socket chưa được khởi tạo');
+    return () => {};
+  }
+  
+  socket.on('variant:deleted', callback);
+  return () => socket.off('variant:deleted', callback);
+};
 

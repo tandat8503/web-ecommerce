@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FaShoppingCart, FaSpinner } from "react-icons/fa";
 import useCartStore from "@/stores/cartStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
  * 🛒 CART BUTTON COMPONENT   VIẾT T3
@@ -34,6 +36,8 @@ export default function CartButton({
   disabled = false, //disabled khi đang loading
   validateBeforeAdd // Optional validation function từ parent
 }) {
+  const navigate = useNavigate();//kết nối với hook useNavigate để chuyển hướng
+  const { isAuthenticated } = useAuth();//kết nối với hook useAuth để lấy trạng thái đăng nhập
   const { addToCart, loading } = useCartStore();//kết nối với store để lấy hàm addToCart và loading
   
   const cartCount = useCartStore((state) => state.totalQuantity); //số lượng sản phẩm trong giỏ hàng
@@ -44,6 +48,14 @@ export default function CartButton({
     e.stopPropagation(); //ngăn chặn hành vi lan truyền của button
     
     if (isAdding || loading || disabled) return; //nếu đang thêm vào giỏ hàng hoặc đang loading thì không cho click
+    
+    // Kiểm tra đăng nhập trước khi thêm vào giỏ hàng
+    if (!isAuthenticated) {
+      // Lưu URL hiện tại để redirect về sau khi đăng nhập
+      const currentPath = window.location.pathname;
+      navigate(`/auth?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
     
     // Validation từ parent nếu có
     if (validateBeforeAdd && !validateBeforeAdd()) {

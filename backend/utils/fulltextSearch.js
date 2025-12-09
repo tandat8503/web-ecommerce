@@ -170,9 +170,11 @@ export async function searchProductsWithFullText({
       )`);
     }
 
-    // Public route chỉ lấy ACTIVE products
+    // Public route chỉ lấy ACTIVE products và từ category đang hoạt động
     if (isPublicRoute) {
       whereConditions.push(`p.status = 'ACTIVE'`);
+      // ✅ Chỉ lấy sản phẩm từ category đang hoạt động (isActive = true)
+      whereConditions.push(`c.is_active = true`);
     }
 
     const whereClause = whereConditions.length > 0 

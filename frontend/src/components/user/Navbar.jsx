@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -17,94 +17,162 @@ import {
 } from "@/components/ui/collapsible";
 import { FaBars, FaChevronDown } from "react-icons/fa";
 import { getPublicCategories } from "@/api/adminCategories";
+import { 
+  onCategoryCreated, 
+  onCategoryUpdated, 
+  onCategoryDeleted 
+} from "@/utils/socket";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);//open mobile menu
+  const [categories, setCategories] = useState([]); // Lưu tất cả categories
   const [menuItems, setMenuItems] = useState([
     { name: "Trang chủ", path: "/" },
   ]);
   const location = useLocation();//đường dẫn hiện tại
 
+  /**
+   * Hàm phân loại categories thành menu items
+   * Tách ra thành useCallback để tái sử dụng khi socket cập nhật
+   */
+  const buildMenuItems = useCallback((categories) => {
+    // Lọc categories thuộc nhóm Ghế Văn Phòng
+    const gheCategories = categories.filter((cat) => {
+      const name = cat.name.toLowerCase().trim();
+      const slug = cat.slug.toLowerCase();
+      return name.startsWith("ghế") || slug.startsWith("ghe");
+    });
+
+    // Lọc categories thuộc nhóm Bàn Văn Phòng
+    const banCategories = categories.filter((cat) => {
+      const name = cat.name.toLowerCase().trim();
+      const slug = cat.slug.toLowerCase();
+      return name.startsWith("bàn") || slug.startsWith("ban");
+    });
+
+    // Lọc các categories còn lại vào nhóm Nội Thất Khác
+    const otherCategories = categories.filter(
+      (cat) => !gheCategories.includes(cat) && !banCategories.includes(cat)
+    );
+
+    // Tạo menu items động
+    const newMenuItems = [
+      { name: "Trang chủ", path: "/" },
+    ];
+
+    // Thêm menu "Bàn Văn Phòng"
+    if (banCategories.length > 0) {
+      newMenuItems.push({
+        name: "Bàn Văn Phòng",
+        path: `/danh-muc/${banCategories[0].slug}`,
+        categories: banCategories,
+      });
+    }
+
+    // Thêm menu "Ghế Văn Phòng"
+    if (gheCategories.length > 0) {
+      newMenuItems.push({
+        name: "Ghế Văn Phòng",
+        path: `/danh-muc/${gheCategories[0].slug}`,
+        categories: gheCategories,
+      });
+    }
+
+    // Thêm menu "Nội Thất Khác"
+    if (otherCategories.length > 0) {
+      newMenuItems.push({
+        name: "Nội Thất Khác",
+        path: `/danh-muc/${otherCategories[0].slug}`,
+        categories: otherCategories,
+      });
+    }
+
+    return newMenuItems;
+  }, []);
+
+  // Fetch categories lần đầu
   useEffect(() => {
-    /**
-     * Fetch và phân loại categories từ API để hiển thị trong navbar
-     * Categories được chia thành 3 nhóm:
-     * - Ghế Văn Phòng: các categories có tên/slug bắt đầu bằng "Ghế"/"ghe"
-     * - Bàn Văn Phòng: các categories có tên/slug bắt đầu bằng "Bàn"/"ban"
-     * - Nội Thất Khác: các categories còn lại (kệ, tủ, v.v.)
-     */
     const fetchCategories = async () => {
       try {
-        // Lấy tất cả categories từ public API (không cần authentication)
         const response = await getPublicCategories();
-        const categories = response.data.items || [];
-
-        // Lọc categories thuộc nhóm Ghế Văn Phòng
-        // Kiểm tra tên hoặc slug bắt đầu bằng "ghế"
-        const gheCategories = categories.filter((cat) => {
-          const name = cat.name.toLowerCase().trim();//chuyển đổi thành chữ thường và loại bỏ khoảng trắng
-          const slug = cat.slug.toLowerCase();//chuyển đổi thành chữ thường
-          return name.startsWith("ghế") || slug.startsWith("ghe");//kiểm tra tên hoặc slug bắt đầu bằng "ghế"
-        });
-
-        // Lọc categories thuộc nhóm Bàn Văn Phòng
-        // Kiểm tra tên hoặc slug bắt đầu bằng "bàn"
-        const banCategories = categories.filter((cat) => {
-          const name = cat.name.toLowerCase().trim();
-          const slug = cat.slug.toLowerCase();
-          return name.startsWith("bàn") || slug.startsWith("ban");
-        });
-
-        // Lọc các categories còn lại vào nhóm Nội Thất Khác
-        // Bao gồm: kệ, tủ, và các loại nội thất khác
-        const otherCategories = categories.filter(
-          (cat) =>
-      //kiểm tra nếu category không thuộc nhóm Ghế Văn Phòng hoặc Bàn Văn Phòng
-            !gheCategories.includes(cat) && !banCategories.includes(cat)
-        );
-
-        // Tạo menu items động dựa trên categories đã phân loại
-        const newMenuItems = [
-          { name: "Trang chủ", path: "/" },
-        ];
-
-        // Thêm menu "Bàn Văn Phòng" với dropdown chứa tất cả categories bàn
-        if (banCategories.length > 0) {
-          newMenuItems.push({
-            name: "Bàn Văn Phòng",
-            path: `/danh-muc/${banCategories[0].slug}`, // Link mặc định đến category đầu tiên
-            categories: banCategories, // Danh sách categories con hiển thị trong dropdown
-          });
-        }
-
-        // Thêm menu "Ghế Văn Phòng" với dropdown chứa tất cả categories ghế
-        if (gheCategories.length > 0) {
-          newMenuItems.push({
-            name: "Ghế Văn Phòng",
-            path: `/danh-muc/${gheCategories[0].slug}`,
-            categories: gheCategories,
-          });
-        }
-
-        // Thêm menu "Nội Thất Khác" với dropdown chứa các categories còn lại
-        if (otherCategories.length > 0) {
-          newMenuItems.push({
-            name: "Nội Thất Khác",
-            path: `/danh-muc/${otherCategories[0].slug}`,
-            categories: otherCategories,
-          });
-        }
-
-        // Cập nhật menu items để re-render navbar
-        setMenuItems(newMenuItems);
+        const allCategories = response.data.items || [];
+        setCategories(allCategories);
+        setMenuItems(buildMenuItems(allCategories));
       } catch (error) {
         console.error("Lỗi khi tải categories:", error);
-        // Nếu có lỗi, giữ nguyên menu mặc định (Trang chủ)
       }
     };
 
     fetchCategories();
-  }, []);
+  }, [buildMenuItems]);
+
+  // ===== SOCKET REAL-TIME: Tự động cập nhật menu khi admin thay đổi danh mục =====
+  useEffect(() => {
+    // Lắng nghe khi có danh mục mới
+    const unsubscribeCreated = onCategoryCreated((newCategory) => {
+      if (newCategory.isActive) {
+        setCategories((prev) => {
+          // Kiểm tra xem danh mục đã tồn tại chưa (dựa trên id) để tránh duplicate
+          const exists = prev.some((cat) => cat.id === newCategory.id);
+          if (exists) {
+            // Nếu đã tồn tại → Cập nhật thay vì thêm mới
+            const updated = prev.map((cat) =>
+              cat.id === newCategory.id ? { ...cat, ...newCategory } : cat
+            );
+            setMenuItems(buildMenuItems(updated));
+            return updated;
+          } else {
+            // Nếu chưa tồn tại → Thêm mới vào đầu danh sách
+            const updated = [newCategory, ...prev];
+            setMenuItems(buildMenuItems(updated));
+            return updated;
+          }
+        });
+      }
+    });
+
+    // Lắng nghe khi có danh mục cập nhật
+    const unsubscribeUpdated = onCategoryUpdated((updatedCategory) => {
+      setCategories((prev) => {
+        // Kiểm tra xem category có trong state không
+        const exists = prev.some((cat) => cat.id === updatedCategory.id);
+        
+        let updated;
+        if (exists) {
+          // Nếu có → Cập nhật và filter
+          updated = prev
+            .map((cat) => (cat.id === updatedCategory.id ? { ...cat, ...updatedCategory } : cat))
+            .filter((cat) => cat.isActive); // Loại bỏ nếu isActive = false
+        } else {
+          // Nếu không có trong state (đã bị filter trước đó)
+          // VÀ isActive = true → Thêm lại vào
+          if (updatedCategory.isActive) {
+            updated = [updatedCategory, ...prev];
+          } else {
+            updated = prev; // Nếu isActive = false → Không thêm
+          }
+        }
+        
+        setMenuItems(buildMenuItems(updated));
+        return updated;
+      });
+    });
+
+    // Lắng nghe khi có danh mục bị xóa
+    const unsubscribeDeleted = onCategoryDeleted((data) => {
+      setCategories((prev) => {
+        const updated = prev.filter((cat) => cat.id !== data.id);
+        setMenuItems(buildMenuItems(updated));
+        return updated;
+      });
+    });
+
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, [buildMenuItems]);
 
   return (
     <header className="sticky top-[120px] z-50 w-full bg-white shadow-[0_4px_12px_-2px_rgba(59,130,246,0.2)]">

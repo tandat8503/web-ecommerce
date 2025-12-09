@@ -308,15 +308,15 @@ export function AddressForm({
               </Radio.Group>
             </Form.Item>
 
-          {/* Ghi chú */}
-          <Form.Item name="note" label="Ghi chú">  {/* ⚠️ PHẢI KHỚP với INIT_FORM.note và backend field */}
-            <TextArea rows={3} placeholder="Ghi chú thêm..." />
-          </Form.Item>
+          {/* Ghi chú - ĐÃ ẨN */}
+          {/* <Form.Item name="note" label="Ghi chú">  {/* ⚠️ PHẢI KHỚP với INIT_FORM.note và backend field */}
+          {/*   <TextArea rows={3} placeholder="Ghi chú thêm..." /> */}
+          {/* </Form.Item> */}
 
           {/* Checkbox: Đặt làm mặc định */}
-          <Form.Item name="isDefault" valuePropName="checked">  {/* ⚠️ PHẢI KHỚP với INIT_FORM.isDefault và backend field */}
+           <Form.Item name="isDefault" valuePropName="checked">  
             <Checkbox>Đặt làm mặc định</Checkbox>
-          </Form.Item>
+          </Form.Item> 
 
           {/* Nút Hủy và Submit */}
           <Form.Item className="mb-0">

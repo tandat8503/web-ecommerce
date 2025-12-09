@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { getOrderById, cancelOrder, confirmReceivedOrder } from "@/api/orders";
 import { toast } from "@/lib/utils";
+import { onOrderStatusUpdate, joinOrderRoom, leaveOrderRoom } from "@/utils/socket";
 
 export const getStatusLabel = (status) => {
   const labels = {
@@ -87,25 +88,51 @@ export const useOrderDetail = (id) => {
     fetchDetail(); 
   }, [fetchDetail]);
 
-  // ✅ Lắng nghe custom event từ InitUserSocket để tự động reload chi tiết
-  // Khi admin update đơn hàng → InitUserSocket hiện toast → Dispatch event → Reload chi tiết
+  // ✅ Join order room để nhận socket event khi vào trang chi tiết
   useEffect(() => {
-    const handleOrderUpdate = (event) => {
-      const data = event.detail;
-      // Chỉ reload nếu đúng đơn hàng đang xem
+    if (id) {
+      joinOrderRoom(Number(id));
+      console.log('📦 Joined order room:', id);
+      
+      return () => {
+        leaveOrderRoom(Number(id));
+        console.log('📦 Left order room:', id);
+      };
+    }
+  }, [id]);
+
+  // ✅ Socket real-time: Cập nhật trạng thái đơn hàng khi admin/user thay đổi
+  useEffect(() => {
+    const unsubscribeStatusUpdated = onOrderStatusUpdate((data) => {
+      // Chỉ cập nhật nếu đúng đơn hàng đang xem
       if (data.orderId === Number(id)) {
-        fetchDetail();
+        console.log('🔄 Socket: Order status updated trong detail page', data);
+        
+        // Cập nhật trạng thái đơn hàng ngay lập tức
+        setOrder(prev => {
+          if (!prev) return prev;
+          
+          return {
+            ...prev,
+            status: data.status,
+            updatedAt: data.updatedAt || new Date().toISOString(),
+            // Cập nhật timeline nếu có
+            timeline: {
+              ...prev.timeline,
+              ...(data.status === 'CANCELLED' && { cancelledAt: data.updatedAt }),
+              ...(data.status === 'CONFIRMED' && { confirmedAt: data.updatedAt }),
+              ...(data.status === 'PROCESSING' && { processingAt: data.updatedAt }),
+              ...(data.status === 'DELIVERED' && { deliveredAt: data.updatedAt }),
+            }
+          };
+        });
       }
-    };
+    });
 
-    //lắng nghe sự kiện 'order:status:updated'
-    window.addEventListener('order:status:updated', handleOrderUpdate);
-
-    //xóa sự kiện khi component unmount
     return () => {
-      window.removeEventListener('order:status:updated', handleOrderUpdate);
+      unsubscribeStatusUpdated();
     };
-  }, [id, fetchDetail]);
+  }, [id]); // Chỉ phụ thuộc vào id, không phụ thuộc vào order
 
   const handleCancel = async () => {
     try {

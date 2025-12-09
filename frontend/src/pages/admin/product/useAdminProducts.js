@@ -9,6 +9,11 @@ import {
 } from "@/api/adminProducts";
 import { getCategories } from "@/api/adminCategories";
 import { getBrands } from "@/api/adminBrands";
+import { 
+  onProductCreated, 
+  onProductUpdated, 
+  onProductDeleted 
+} from "@/utils/socket";
 
 /**
  * Custom hook quản lý toàn bộ logic cho AdminProducts
@@ -108,6 +113,41 @@ export function useAdminProducts() {
     fetchProducts();
     fetchSelectOptions();
   }, [pagination.page, pagination.limit, keyword]);
+
+  /**
+   * Socket real-time: Cập nhật products khi admin CRUD
+   */
+  useEffect(() => {
+    // Sản phẩm mới → Thêm vào danh sách
+    const unsubscribeCreated = onProductCreated((newProduct) => {
+      setProducts(prev => {
+        const exists = prev.some(p => p.id === newProduct.id);
+        if (exists) {
+          return prev.map(p => p.id === newProduct.id ? newProduct : p);
+        }
+        return [newProduct, ...prev];
+      });
+    });
+
+    // Sản phẩm cập nhật → Cập nhật trong danh sách
+    const unsubscribeUpdated = onProductUpdated((updatedProduct) => {
+      setProducts(prev => prev.map(p => 
+        p.id === updatedProduct.id ? updatedProduct : p
+      ));
+    });
+
+    // Sản phẩm xóa → Xóa khỏi danh sách
+    const unsubscribeDeleted = onProductDeleted((data) => {
+      setProducts(prev => prev.filter(p => p.id !== data.id));
+      setPagination(prev => ({ ...prev, total: prev.total - 1 }));
+    });
+
+    return () => {
+      unsubscribeCreated();
+      unsubscribeUpdated();
+      unsubscribeDeleted();
+    };
+  }, []);
 
   /**
    * Xử lý submit form (create/update) với FormData
