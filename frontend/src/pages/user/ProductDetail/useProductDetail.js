@@ -388,15 +388,27 @@ export function useProductDetail(productId) {
   };
 
   const handleQuantityChange = (newQuantity) => {
+    const MAX_PER_ACTION = 10; // BE giới hạn max số lượng sản phẩm mỗi lần thêm vào giỏ hàng  là 10
+
+    // Giới hạn dưới
     if (newQuantity < 1) {
       setQuantity(1);
       return;
     }
-    if (newQuantity > displayStock && displayStock > 0) {
-      setQuantity(displayStock);
-      alert(`Chỉ còn ${displayStock} sản phẩm trong kho`);
+
+    // Giới hạn trên theo tồn kho & giới hạn BE
+    const maxAllowed = Math.min(displayStock || MAX_PER_ACTION, MAX_PER_ACTION);//lấy số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10
+//nếu số lượng sản phẩm muốn thêm vào giỏ hàng lớn hơn số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10 thì set số lượng sản phẩm muốn thêm vào giỏ hàng là số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10
+    if (newQuantity > maxAllowed) {
+      setQuantity(maxAllowed);
+      if (maxAllowed < (displayStock || MAX_PER_ACTION)) {
+        alert(`Chỉ được chọn tối đa ${MAX_PER_ACTION} sản phẩm mỗi lần thêm vào giỏ hàng`);
+      } else {
+        alert(`Chỉ còn ${displayStock} sản phẩm trong kho`);
+      }
       return;
     }
+
     setQuantity(newQuantity);
   };
 

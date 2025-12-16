@@ -113,7 +113,7 @@ export const createCategory = async (req, res) => {
     const exists = await prisma.category.findUnique({ where: { slug } });
     if (exists) {
       logger.warn('Slug conflict', { slug, existingId: exists.id });
-      return res.status(409).json({ message: "Slug already exists" });
+      return res.status(409).json({ message: "Tên danh mục đã tồn tại" });
     }
 
     let imageUrl = null;

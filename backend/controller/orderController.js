@@ -618,14 +618,29 @@ export const confirmReceivedOrder = async (req, res) => {
     const { id } = req.params;
     if (!id || isNaN(id)) return res.status(400).json({ message: "ID đơn hàng không hợp lệ" });
 
-    const order = await prisma.order.findFirst({ where: { id: Number(id), userId } });
+    const order = await prisma.order.findFirst({ 
+      where: { id: Number(id), userId },
+      select: { 
+        id: true, 
+        status: true, 
+        userId: true, 
+        paymentMethod: true, // Cần để tự động cập nhật paymentStatus cho COD
+        paymentStatus: true  // Cần để kiểm tra trạng thái thanh toán hiện tại
+      }
+    });
     if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
     if (order.status !== "PROCESSING") {
       return res.status(400).json({ message: "Chỉ xác nhận khi đơn đang ở trạng thái Đang xử lý" });
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.order.update({ where: { id: order.id }, data: { status: "DELIVERED" } });
+      // Nếu là đơn COD và user xác nhận đã nhận hàng → tự động set paymentStatus = PAID
+      const updateData = { status: "DELIVERED" };
+      if (order.paymentMethod === 'COD') {
+        updateData.paymentStatus = 'PAID';
+      }
+      
+      await tx.order.update({ where: { id: order.id }, data: updateData });
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "DELIVERED" }
       });

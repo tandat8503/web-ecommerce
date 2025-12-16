@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getPaymentStatus } from '@/api/payment';
+import { getPaymentStatus, createVNPayPayment } from '@/api/payment';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { handleVNPayPayment } from './vnpayPayment';
 
 /**
  * Trang hiển thị kết quả thanh toán
@@ -80,6 +81,18 @@ export default function PaymentResult() {
     if (!code) return 'N/A';
     if (code === '00') return 'Thanh toán thành công';
     return code;
+  };
+
+  const handleRetryPayment = async () => {
+    try {
+      if (!orderId) return;
+      await handleVNPayPayment(Number(orderId), createVNPayPayment, (err) => {
+        console.error(err || 'Không thể tạo thanh toán VNPay, vui lòng thử lại.');
+        alert(err || 'Không thể tạo thanh toán VNPay, vui lòng thử lại.');
+      });
+    } catch {
+      // lỗi đã hiển thị qua alert
+    }
   };
 
   return (
@@ -236,7 +249,7 @@ export default function PaymentResult() {
 
             <div className="space-y-3">
               <button
-                onClick={() => navigate(`/orders/${orderId}`)}
+                onClick={handleRetryPayment}
                 className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl font-semibold"
               >
                 Thanh toán lại

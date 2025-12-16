@@ -198,7 +198,8 @@ export const handleVNPayCallback = async (req, res) => {
           data: {
             paymentStatus: 'PAID',// Trạng thái thanh toán là PAID => Thanh toán thành công
             paidAt: new Date(),// Lấy ngày giờ hiện tại
-            transactionId: verifyResult.transactionNo || payment.transactionId,// Lấy transaction ID
+            // KHÔNG cập nhật lại transactionId bằng mã giao dịch của VNPay
+            // để luôn giữ nguyên vnp_TxnRef ban đầu (dùng để đối chiếu ở return)
             vnpayTransactionNo: verifyResult.transactionNo || payment.vnpayTransactionNo,// Lấy mã giao dịch VNPay
             bankCode: verifyResult.bankCode || payment.bankCode,// Lấy mã ngân hàng
             responseCode: verifyResult.responseCode,// Lấy mã phản hồi
@@ -281,7 +282,8 @@ export const handleVNPayReturn = async (req, res) => {
             data: {
               paymentStatus: 'PAID',// Trạng thái thanh toán là PAID => Thanh toán thành công
               paidAt: new Date(),// Lấy ngày giờ hiện tại => Thanh toán thành công
-              transactionId: verifyResult.transactionNo || payment.transactionId,// Lấy transaction ID
+            // KHÔNG cập nhật lại transactionId bằng mã giao dịch của VNPay
+            // để luôn giữ nguyên vnp_TxnRef ban đầu (dùng để đối chiếu ở callback/return)
               vnpayTransactionNo: verifyResult.transactionNo || payment.vnpayTransactionNo,// Lấy mã giao dịch VNPay
               bankCode: verifyResult.bankCode || payment.bankCode,// Lấy mã ngân hàng
               responseCode: verifyResult.responseCode,// Lấy mã phản hồi

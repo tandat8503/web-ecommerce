@@ -250,6 +250,8 @@ export const updateOrder = async (req, res) => {
       select: { 
         status: true,
         userId: true, // Cần để gửi WebSocket
+        paymentMethod: true, // Cần để tự động cập nhật paymentStatus cho COD
+        paymentStatus: true, // Cần để kiểm tra trạng thái thanh toán hiện tại
         orderItems: {
           select: {
             productId: true,
@@ -330,9 +332,16 @@ export const updateOrder = async (req, res) => {
       }
 
       // 2. Cập nhật trạng thái đơn hàng
+      // Nếu chuyển sang DELIVERED và là đơn COD → tự động set paymentStatus = PAID
+      const updateData = { status };
+      if (status === 'DELIVERED' && currentOrder.paymentMethod === 'COD') {
+        updateData.paymentStatus = 'PAID';
+        logger.info('Tự động cập nhật paymentStatus = PAID cho đơn COD đã giao', { orderId: id });
+      }
+      
       const order = await tx.order.update({
         where: { id },
-        data: { status }
+        data: updateData
       });
 
       // 3. Lưu lịch sử thay đổi trạng thái
@@ -685,8 +694,8 @@ export const updateOrderNotes = async (req, res) => {
 
 /**
  * Lấy thống kê đơn hàng
- * - Thống kê theo khoảng thời gian: 7d, 30d, 90d, 1y
- * - Tổng số đơn, doanh thu, số đơn theo trạng thái
+ * - Thống kê theo khoảng thời gian: 7d, 30d, 90d, 1y, all
+ * - Tổng số đơn, doanh thu
  */
 export const getOrderStats = async (req, res) => {
   const context = { path: 'admin.orders.stats' };
@@ -703,35 +712,31 @@ export const getOrderStats = async (req, res) => {
       case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
       case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
       case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+      case 'all': startDate = null; break; // Lấy toàn bộ đơn hàng
       default: startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Query đồng thời: tổng số đơn, doanh thu, số đơn theo trạng thái
-    const [totalOrders, totalRevenue, ordersByStatus] = await Promise.all([
-      // Đếm tổng số đơn trong khoảng thời gian
-      prisma.order.count({ where: { createdAt: { gte: startDate } } }),
+    // Query đồng thời: tổng số đơn, doanh thu
+    const whereCondition = startDate ? { createdAt: { gte: startDate } } : {};
+    const whereConditionPaid = startDate 
+      ? { createdAt: { gte: startDate }, paymentStatus: 'PAID' }
+      : { paymentStatus: 'PAID' };
+    
+    const [totalOrders, totalRevenue] = await Promise.all([
+      // Đếm tổng số đơn trong khoảng thời gian (hoặc toàn bộ nếu period = 'all')
+      prisma.order.count({ where: whereCondition }),
       // Tính tổng doanh thu (chỉ đơn đã thanh toán)
       prisma.order.aggregate({
-        where: { createdAt: { gte: startDate }, paymentStatus: 'PAID' },
+        where: whereConditionPaid,
         _sum: { totalAmount: true }
-      }),
-      // Nhóm đơn theo trạng thái và đếm
-      prisma.order.groupBy({
-        by: ['status'],
-        where: { createdAt: { gte: startDate } },
-        _count: { status: true }
       })
     ]);
 
     // Format dữ liệu thống kê
     const stats = {
-      period,
-      totalOrders,
-      totalRevenue: totalRevenue._sum.totalAmount || 0,
-      ordersByStatus: ordersByStatus.reduce((acc, item) => {
-        acc[item.status] = item._count.status;
-        return acc;
-      }, {})
+      period, // thời gian đơn hàng hiện
+      totalOrders, // tổng số đơn
+      totalRevenue: totalRevenue._sum.totalAmount || 0, // tổng doanh thu
     };
 
     logger.success('Order stats fetched', { totalOrders });
@@ -749,4 +754,242 @@ export const getOrderStats = async (req, res) => {
     });
   }
 };
+
+/**
+ * Lấy thống kê doanh thu theo danh mục sản phẩm (dùng để vẽ Rose Chart)
+ * 
+ * Query params:
+ * - period: Khoảng thời gian thống kê (mặc định: '30d')
+ *   + '7d': 7 ngày gần nhất
+ *   + '30d': 30 ngày gần nhất (khuyến nghị)
+ *   + '90d': 90 ngày gần nhất (3 tháng)
+ *   + '1y': 1 năm gần nhất
+ *   + 'all': Toàn bộ lịch sử
+ * 
+ * Response: { data: [{ category: "Tên danh mục", revenue: 1000000 }, ...] }
+ * - category: Tên danh mục sản phẩm (vd: "Ghế văn phòng", "Bàn làm việc")
+ * - revenue: Tổng doanh thu của danh mục đó (VNĐ)
+ * - Dữ liệu đã sắp xếp theo revenue giảm dần (bán chạy nhất trước)
+ */
+export const getRevenueByCategory = async (req, res) => {
+  const context = { path: 'admin.orders.revenueByCategory' };
+  try {
+    logger.start(context.path, { period: req.query.period });
+
+    const { period = '30d' } = req.query; // Mặc định lấy 30 ngày gần nhất
+
+    // BƯỚC 1: Tính ngày bắt đầu dựa theo period
+    const now = new Date();
+    let startDate;
+    
+    switch (period) {
+      case '7d':  // 7 ngày gần nhất (tuần này)
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); 
+        break;
+      case '30d': // 30 ngày gần nhất (tháng này) - KHUYẾN NGHỊ
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); 
+        break;
+      case '90d': // 90 ngày gần nhất (quý này)
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); 
+        break;
+      case '1y':  // 1 năm gần nhất
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); 
+        break;
+      case 'all': // Toàn bộ lịch sử (từ khi shop hoạt động)
+        startDate = null; 
+        break;
+      default:    // Nếu không truyền gì, mặc định 30 ngày
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // BƯỚC 2: Tạo điều kiện where cho query
+    const whereCondition = startDate 
+      ? { createdAt: { gte: startDate }, paymentStatus: 'PAID' } // Lấy đơn từ startDate đến hiện tại
+      : { paymentStatus: 'PAID' };                               // Lấy toàn bộ (nếu period = 'all')
+
+    // BƯỚC 3: Lấy tất cả đơn hàng đã thanh toán trong khoảng thời gian
+    // Chỉ lấy thông tin cần thiết: orderItems -> product -> category.name
+    const paidOrders = await prisma.order.findMany({
+      where: whereCondition,
+      include: {
+        orderItems: {
+          include: {
+            product: {
+              include: {
+                category: { select: { name: true } } // Chỉ lấy tên danh mục
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // BƯỚC 4: Gom doanh thu theo danh mục
+    // Dùng Map để cộng dồn doanh thu của cùng 1 danh mục
+    const revenueMap = new Map();
+
+    for (const order of paidOrders) {//lấy tất cả đơn hàng đã thanh toán trong khoảng thời gian
+      for (const item of order.orderItems) {//lấy tất cả các sản phẩm trong đơn hàng
+        // Chỉ tính những item có sản phẩm và danh mục (bỏ qua sản phẩm đã xóa)
+        if (item.product?.category) {//nếu sản phẩm có danh mục
+          const categoryName = item.product.category.name;//lấy tên danh mục
+          const itemRevenue = Number(item.totalPrice) || 0; //lấy tổng số tiền của sản phẩm trong bảng orderItem
+          
+          // Cộng dồn vào tổng doanh thu của danh mục
+          const currentRevenue = revenueMap.get(categoryName) || 0;
+          //đơn đầu tiên thì currentRevenue = 0, itemRevenue là tổng số tiền của sản phẩm trong bảng orderItem
+          revenueMap.set(categoryName, currentRevenue + itemRevenue);
+        }
+      }
+    }
+
+    // BƯỚC 5: Chuyển Map thành mảng và sắp xếp ,
+// entries là phương thức của Map trả về một mảng các mảng con, mỗi mảng con là một cặp key-value
+    const data = Array.from(revenueMap.entries())
+      .map(([category, revenue]) => ({ 
+        category,  // Tên danh mục (dùng cho xField trong Rose chart)
+        revenue    // Doanh thu (dùng cho yField trong Rose chart)
+      }))
+      .sort((a, b) => b.revenue - a.revenue); // Sắp xếp giảm dần (bán chạy nhất trước)
+
+    // BƯỚC 6: Trả về kết quả
+    logger.success('Revenue by category fetched', { categories: data.length });
+    logger.end(context.path, { categories: data.length });
+    return res.json({ data });
+
+  } catch (error) {
+    logger.error('Failed to fetch revenue by category', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({
+      message: 'Lỗi khi lấy thống kê doanh thu theo danh mục',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Lấy thống kê sản phẩm bán chạy nhất
+ * 
+ * Query params:
+ * - period: Khoảng thời gian thống kê (mặc định: '30d')
+ * - limit: Số lượng sản phẩm top (mặc định: 5)
+ * 
+ * Response: { data: [{ productName, totalQuantity }, ...] }
+ * - productName: Tên sản phẩm
+ * - totalQuantity: Tổng số lượng bán được
+ */
+export const getTopProducts = async (req, res) => {
+  const context = { path: 'admin.orders.topProducts' };
+  try {
+    logger.start(context.path, { period: req.query.period, limit: req.query.limit });
+
+    const { period = '30d', limit = 10 } = req.query;
+
+    // BƯỚC 1: Tính ngày bắt đầu dựa theo period
+    const now = new Date();
+    let startDate;
+    
+    switch (period) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      case 'all':
+        startDate = null;
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // BƯỚC 2: Tạo điều kiện where cho query
+    const baseCondition = startDate ? { createdAt: { gte: startDate } } : {};
+    const whereCondition = {//điều kiện lấy đơn hàng
+      ...baseCondition,//điều kiện thời gian
+      OR: [
+        { paymentStatus: 'PAID' },//đơn hàng đã thanh toán thành công bằng VNPay
+        { 
+          AND: [
+            { status: 'DELIVERED' },//đơn hàng đã giao thành công
+            { paymentMethod: 'COD' }//đơn hàng đã thanh toán thành công bằng COD
+          ]
+        }
+      ]
+    };
+
+    // BƯỚC 3: Lấy tất cả orderItems từ các đơn hàng đã thanh toán
+    const orderItems = await prisma.orderItem.findMany({
+      where: {
+        order: whereCondition//điều kiện lấy đơn hàng
+      },
+      select: {
+        productId: true,//id sản phẩm
+        quantity: true,//số lượng sản phẩm
+      }
+    });
+
+    // BƯỚC 4: Gom thống kê theo productId ,cộng dồn số lượng sản phẩm đã bán
+    const productMap = new Map();//tạo map để lưu trữ số lượng sản phẩm đã bán
+
+    for (const item of orderItems) {//lấy tất cả orderItems từ các đơn hàng đã thanh toán
+      const productId = item.productId;//lấy id sản phẩm
+      const current = productMap.get(productId) || 0;//lấy tổng số lượng sản phẩm đã bán, nếu không có thì đặt giá trị 0
+      productMap.set(productId, current + item.quantity);//cộng dồn tổng số lượng sản phẩm đã bán
+    }
+
+    // BƯỚC 5: Chuyển Map thành mảng và sắp xếp
+    const topProducts = Array.from(productMap.entries())
+      .map(([productId, totalQuantity]) => ({ productId, totalQuantity }))//chuyển map thành mảng, mỗi mảng con là một cặp key-value
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)//sắp xếp theo số lượng sản phẩm đã bán giảm dần số lượng bán nhiều nhất sẽ ở đầu mảng
+      .slice(0, Number(limit));//lấy top limit sản phẩm bán chạy nhất
+
+    // BƯỚC 6: Lấy tên sản phẩm (chỉ lấy sản phẩm đang ACTIVE)
+    const productIds = topProducts.map(p => p.productId);//lấy id sản phẩm
+    const products = await prisma.product.findMany({
+      where: { 
+        id: { in: productIds },
+        status: 'ACTIVE' // Chỉ lấy sản phẩm đang hoạt động
+      },
+      select: { id: true, name: true },
+    });
+
+    // BƯỚC 7: Map productId -> tên sản phẩm
+    const productNameMap = new Map(products.map(p => [p.id, p.name]));
+
+    // BƯỚC 8: Format dữ liệu trả về (chỉ tên và số lượng)
+    // Chỉ lấy những sản phẩm thực sự tồn tại (có tên trong database)
+    const data = topProducts
+      .map(item => ({
+        productName: productNameMap.get(item.productId),//lấy tên sản phẩm
+        totalQuantity: item.totalQuantity,//số lượng sản phẩm đã bán
+      }))
+      .filter(item => item.productName); // Loại bỏ sản phẩm không tồn tại (undefined/null)
+
+    logger.success('Lấy thống kê sản phẩm bán chạy nhất thành công', { count: data.length });
+    logger.end(context.path, { count: data.length });
+    return res.json({ data });//trả về dữ liệu thống kê sản phẩm bán chạy nhất
+
+  } catch (error) {
+    logger.error('Lỗi khi lấy thống kê sản phẩm bán chạy nhất', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({
+      message: 'Lỗi khi lấy thống kê sản phẩm bán chạy',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
+  }
+};
+
 

@@ -131,7 +131,7 @@ export default function LoginForm({ onSwitchToRegister }) {
             >
               <Input
                 prefix={<FaEnvelope className="text-gray-400" />}
-                placeholder="Nhập email hoặc số điện thoại"
+                placeholder="Nhập email"
                 className="h-12 rounded-lg border-2 border-gray-200 focus:border-orange-500 focus:shadow-lg transition-all duration-300 hover:border-gray-300"
                 style={{ fontSize: '14px' }}
               />

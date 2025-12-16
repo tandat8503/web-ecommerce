@@ -145,7 +145,8 @@ const ProductInfo = () => {
               variant="outline"
               size="icon"
               onClick={() => handleQuantityChange(quantity + 1)}
-              disabled={quantity >= displayStock} // Disable khi đạt số lượng tối đa
+              // Giới hạn UI theo tồn kho & max 10 giống BE
+              disabled={quantity >= Math.min(displayStock || 10, 10)}
               className="cursor-pointer"
             >
               +

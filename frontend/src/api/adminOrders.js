@@ -52,3 +52,22 @@ export async function getOrderStats(params) {
   return await axiosClient.get("admin/orders/stats", { params });
 }
 
+/**
+ * Lấy thống kê doanh thu theo danh mục sản phẩm (admin) - Dùng cho Rose Chart
+ * @param {Object} params - Tham số query: period (7d, 30d, 90d, 1y, all)
+ * @returns {Promise} - { data: [{ category: "Tên danh mục", revenue: 1000000 }, ...] }
+ */
+export async function getRevenueByCategory(params) {
+  return await axiosClient.get("admin/orders/revenue-by-category", { params });
+}
+
+/**
+ * Lấy top sản phẩm bán chạy nhất (admin)
+ * @param {Object} params - Tham số query: period (7d, 30d, 90d, 1y, all), limit (mặc định: 10)
+ * @returns {Promise} - { data: [{ productName, totalQuantity }, ...] }
+ */
+export async function getTopProducts(params) {
+  return await axiosClient.get("admin/orders/top-products", { params });
+}
+
+

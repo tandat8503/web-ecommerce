@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Steps, Card, Descriptions, Tag, List, Space, Skeleton, Modal } from "antd";
+import { Steps, Card, Descriptions, Tag, List, Space, Skeleton, Modal, message } from "antd";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
 import { useOrderDetail, getStatusLabel, getStatusTagColor, getPaymentStatusLabel, getPaymentStatusTagColor } from "./useOrderDetail";
+import { handleVNPayPayment } from "@/features/payment";
+import { createVNPayPayment } from "@/api/payment";
 
 export default function OrderDetail() {
   const { id } = useParams();
@@ -31,6 +33,17 @@ export default function OrderDetail() {
 
   const handleCancelCancel = () => {
     setCancelModalVisible(false);
+  };
+//thanh toán lại VNPay nếu thanh toán thất bại
+  const handleRetryVNPay = async () => {
+    try {
+      if (!order?.id) return;
+      await handleVNPayPayment(order.id, createVNPayPayment, (err) => {
+        message.error(err || "Không thể tạo thanh toán VNPay, vui lòng thử lại.");
+      });
+    } catch {
+      // lỗi đã được hiển thị qua message ở trên
+    }
   };
 
   return (
@@ -90,6 +103,17 @@ export default function OrderDetail() {
                         <Tag color={getPaymentStatusTagColor(order.paymentSummary.status)}>
                           {getPaymentStatusLabel(order.paymentSummary)}
                         </Tag>
+                        {/* Nút thanh toán lại VNPay ngay cạnh trạng thái, dễ nhìn hơn */}
+                        {order.paymentMethod === "VNPAY" && order.paymentStatus !== "PAID" && (
+                          <Button
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600 text-white"
+                            disabled={actionLoading}
+                            onClick={handleRetryVNPay}
+                          >
+                            Thanh toán lại VNPay
+                          </Button>
+                        )}
                       </div>
                     </Descriptions.Item>
                   </>
@@ -153,7 +177,6 @@ export default function OrderDetail() {
                   }}
                 />
               </div>
-
               {/* Actions */}
               <div className="flex items-center justify-between pt-4 border-t">
                 <span className="text-gray-900 font-bold text-lg">Tổng tiền: <span className="text-xl font-bold text-red-600">{formatPrice(Number(order.totalAmount))}</span></span>

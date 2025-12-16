@@ -149,7 +149,7 @@ export function useAdminUser() {
   };
 
   /**
-   * Xử lý toggle trạng thái active/inactive của user
+   * Xử lý toggle trạng thái active/inactive của user bằng socket để vô hiệu hóa tài khoản
    * @param {number} id - ID của user
    * @param {boolean} currentStatus - Trạng thái hiện tại
    */
