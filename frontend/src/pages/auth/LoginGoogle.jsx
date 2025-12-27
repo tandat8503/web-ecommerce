@@ -34,13 +34,13 @@ export default function LoginGoogle() {
       localStorage.setItem("token", accessToken);
       localStorage.setItem("user", JSON.stringify(user));
 
-      console.log("✅ User data từ googleLogin response:", user);
-      console.log("✅ Avatar URL từ response:", user.avatar);
+      console.log(" User data từ googleLogin response:", user);
+      console.log(" Avatar URL từ response:", user.avatar);
 
       // Dispatch event để UserHeader cập nhật avatar
       window.dispatchEvent(new CustomEvent("userUpdated"));
 
-      toast.success("🎉 Đăng nhập Google thành công!");
+      toast.success(" Đăng nhập Google thành công!");
 
       // Kiểm tra xem có redirect URL không
       const redirectUrl = searchParams.get('redirect');

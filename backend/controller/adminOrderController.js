@@ -288,7 +288,7 @@ export const updateOrder = async (req, res) => {
       CONFIRMED: ['PROCESSING'],     // Đã xác nhận → Đang giao
       PROCESSING: ['DELIVERED']      // Đang giao → Đã giao
     };
-
+//Admin không được nhảy các trạng thái không hợp lệ
     const allowedStatuses = statusTransitions[currentOrder.status] || [];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ 

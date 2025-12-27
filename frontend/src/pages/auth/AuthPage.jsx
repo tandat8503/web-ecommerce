@@ -44,7 +44,7 @@ export default function AuthPage() {
               </div>
               <div>
                 <Title level={3} className="!mb-0 text-orange-500 group-hover:text-orange-600 transition-colors">
-                  OFFICE PRO
+                  Nội Thất Văn Phòng
                 </Title>
                 <Text className="text-xs text-gray-500">Bàn ghế văn phòng cao cấp</Text>
               </div>
@@ -142,7 +142,7 @@ export default function AuthPage() {
           <div className="text-center">
             <div className="mb-4">
               <Text className="text-gray-500 text-sm">
-                © 2024 OFFICE PRO. Tất cả quyền được bảo lưu.
+                © 2025 Nội Thất Văn Phòng. Tất cả quyền được bảo lưu.
               </Text>
             </div>
            

@@ -42,7 +42,7 @@ export default function LoginForm({ onSwitchToRegister }) {
         // Dispatch event để UserHeader cập nhật
         window.dispatchEvent(new CustomEvent('userUpdated'));
         
-        toast.success("🎉 Đăng nhập thành công!");
+        toast.success(" Đăng nhập thành công!");
         
         // Delay redirect để toast có thời gian hiển thị và UserHeader cập nhật
         setTimeout(() => {

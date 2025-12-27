@@ -10,7 +10,16 @@ export const getWishlist = async (req, res) => {
     const userId = req.user.id;
     
     const wishlist = await prisma.wishlist.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        // Chỉ lấy sản phẩm đang hoạt động (ACTIVE) và category đang hoạt động
+        product: {
+          status: 'ACTIVE',
+          category: {
+            isActive: true
+          }
+        }
+      },
       include: {
         product: {
           include: {

@@ -61,10 +61,10 @@ const ProductDetails = () => {
               <TableCell className="text-gray-600 font-medium">Sản phẩm nổi bật</TableCell>
               <TableCell>{product.isFeatured ? '⭐ Có' : ' Không'}</TableCell>
             </TableRow>
-            <TableRow>
+            {/* <TableRow>
               <TableCell className="text-gray-600 font-medium">Lượt xem</TableCell>
               <TableCell>{product.viewCount || 0} lượt</TableCell>
-            </TableRow>
+            </TableRow> */}
             <TableRow>
               <TableCell className="text-gray-600 font-medium">Ngày tạo</TableCell>
               <TableCell>{new Date(product.createdAt).toLocaleDateString('vi-VN')}</TableCell>

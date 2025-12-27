@@ -40,7 +40,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           borderBottom: "1px solid #f0f0f0",
         }}
       >
-        {collapsed ? "AP" : "Admin Panel"}
+        {collapsed ? "NTP" : "Nội thất văn phòng"}
       </div>
 
       {/* Menu */}

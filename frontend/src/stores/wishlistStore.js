@@ -71,13 +71,13 @@ const useWishlistStore = create((set, get) => ({
     set({ loading: true })
     try {
       const response = await addToWishlistAPI(productId)
-      toast.success("❤️ Đã thêm vào yêu thích")
+      toast.success(" Đã thêm vào yêu thích")
       
       // Refresh wishlist để có data đầy đủ
       await get().fetchWishlist()
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Không thể thêm vào yêu thích"
-      toast.error(`❌ ${errorMsg}`)
+      toast.error(` ${errorMsg}`)
       set({ error: errorMsg, loading: false })
     }
   },
@@ -89,13 +89,13 @@ const useWishlistStore = create((set, get) => ({
     set({ loading: true })
     try {
       const response = await removeFromWishlistAPI(productId)
-      toast.success("🗑️ Đã xóa khỏi yêu thích")
+      toast.success(" Đã xóa khỏi yêu thích")
       
       // Refresh wishlist để có data đầy đủ
       await get().fetchWishlist()
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Không thể xóa khỏi yêu thích"
-      toast.error(`❌ ${errorMsg}`)
+      toast.error(` ${errorMsg}`)
       set({ error: errorMsg, loading: false })
     }
   },
@@ -110,16 +110,16 @@ const useWishlistStore = create((set, get) => ({
       
       // Hiển thị toast dựa trên action
       if (response.action === 'added') {
-        toast.success("❤️ Đã thêm vào yêu thích")
+        toast.success(" Đã thêm vào yêu thích")
       } else if (response.action === 'removed') {
-        toast.success("🗑️ Đã xóa khỏi yêu thích")
+        toast.success(" Đã xóa khỏi yêu thích")
       }
       
       // Refresh wishlist để có data đầy đủ
       await get().fetchWishlist()
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Không thể cập nhật yêu thích"
-      toast.error(`❌ ${errorMsg}`)
+      toast.error(` ${errorMsg}`)
       set({ error: errorMsg, loading: false })
     }
   },
@@ -131,7 +131,7 @@ const useWishlistStore = create((set, get) => ({
     set({ loading: true })
     try {
       const response = await clearWishlistAPI()
-      toast.success(`🗑️ Đã xóa ${response.data.deletedCount} sản phẩm`)
+      toast.success(` Đã xóa ${response.data.deletedCount} sản phẩm`)
       
       set({ 
         items: [], 
@@ -139,7 +139,7 @@ const useWishlistStore = create((set, get) => ({
         loading: false 
       })
     } catch (error) {
-      toast.error("❌ Không thể xóa tất cả")
+      toast.error(" Không thể xóa tất cả")
       set({ 
         error: error.response?.data?.message || 'Lỗi', 
         loading: false 

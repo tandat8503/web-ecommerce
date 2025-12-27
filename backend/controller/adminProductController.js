@@ -475,21 +475,21 @@ export const deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Not found' });
     }
 
+    // Kiểm tra xem sản phẩm có trong đơn hàng không (ưu tiên kiểm tra đơn hàng trước)
+    // Nếu có thì không cho xóa vì cần giữ lịch sử đơn hàng
+    if (found.orderItems && found.orderItems.length > 0) {
+      logger.warn('Cannot delete product with orders', { id });
+      return res.status(400).json({ 
+        message: 'Không thể xóa sản phẩm đã có đơn hàng liên quan' 
+      });
+    }
+
     // Kiểm tra xem sản phẩm có biến thể không
     // Nếu có biến thể thì không cho xóa để tránh mất dữ liệu quan trọng
     if (found.variants && found.variants.length > 0) {
       logger.warn('Cannot delete product with variants', { id, variantCount: found.variants.length });
       return res.status(400).json({ 
         message: 'Không thể xóa sản phẩm đã có biến thể. Vui lòng xóa  biến thể trước.' 
-      });
-    }
-
-    // Kiểm tra xem sản phẩm có trong đơn hàng không
-    // Nếu có thì không cho xóa vì cần giữ lịch sử đơn hàng
-    if (found.orderItems && found.orderItems.length > 0) {
-      logger.warn('Cannot delete product with orders', { id });
-      return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm đã có trong đơn hàng. Vui lòng tắt hoạt động của sản phẩm thay vì xóa.' 
       });
     }
 

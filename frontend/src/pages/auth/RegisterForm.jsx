@@ -94,7 +94,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
         }
         
         console.log("Register successful");
-        toast.success(" Đăng ký thành công! Chào mừng bạn đến với OFFICE PRO!");
+        toast.success(" Đăng ký thành công! Chào mừng bạn đến với Nội Thất Văn Phòng!");
         
         // Kiểm tra xem có redirect URL không
         const redirectUrl = searchParams.get('redirect');

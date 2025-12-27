@@ -130,7 +130,7 @@ export default function Wishlist() {
                   <Badge>{wishlistCount} sản phẩm</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Những sản phẩm bạn yêu thích nhất ❤️
+                  Những sản phẩm bạn yêu thích nhất 
                 </p>
               </div>
             </div>
@@ -169,15 +169,22 @@ export default function Wishlist() {
 
       {/* Grid sản phẩm */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-        {wishlist.map((item) => (
-          <ProductCard 
-            key={item.id}
-            product={item.product}
-            showActions={true}
-            showBrand={true}
-            showStock={true}
-          />
-        ))}
+        {wishlist
+          .filter((item) => 
+            // Chỉ hiển thị sản phẩm hợp lệ: có product, status = ACTIVE, và category đang hoạt động
+            item?.product && 
+            item.product.status === 'ACTIVE' && 
+            item.product.category?.isActive !== false
+          )
+          .map((item) => (
+            <ProductCard 
+              key={item.id}
+              product={item.product} //Hiển thị sản phẩm hợp lệ
+              showActions={true}//Hiển thị các nút action
+              showBrand={true}//Hiển thị brand
+              showStock={true}//Hiển thị stock
+            />
+          ))}
       </div>
 
       {/* Action buttons */}

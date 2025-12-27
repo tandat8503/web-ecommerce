@@ -503,7 +503,7 @@ export default function UserHeader() {
               {/* Search box với History & Suggestions */}
               <div ref={searchWrapperRef} className="relative flex-1 z-[110]">
                 <Input.Search
-                  placeholder="Tìm kiếm sản phẩm (FullText search)..."
+                  placeholder="Tìm kiếm sản phẩm "
                   allowClear
                   className="rounded-full shadow-lg"
                   size="large"

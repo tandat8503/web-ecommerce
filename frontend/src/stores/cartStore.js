@@ -48,10 +48,10 @@ const useCartStore = create((set, get) => ({
     set({ loading: true })
     try {
       await addToCartAPI(cartData)
-      toast.success("🛒 Đã thêm vào giỏ hàng")
+      toast.success(" Đã thêm vào giỏ hàng")
       await get().fetchCart()
     } catch (error) {
-      toast.error(`❌ ${error.response?.data?.message || "Không thể thêm vào giỏ hàng"}`)
+      toast.error(` ${error.response?.data?.message || "Không thể thêm vào giỏ hàng"}`)
       set({ error: error.response?.data?.message, loading: false })
       throw error
     }
@@ -61,10 +61,10 @@ const useCartStore = create((set, get) => ({
     set({ loading: true })
     try {
       await updateCartItemAPI(cartItemId, quantity)
-      toast.success("✅ Đã cập nhật số lượng")
+      toast.success(" Đã cập nhật số lượng")
       await get().fetchCart()
     } catch (error) {
-      toast.error(`❌ ${error.response?.data?.message || "Không thể cập nhật"}`)
+      toast.error(` ${error.response?.data?.message || "Không thể cập nhật"}`)
       set({ error: error.response?.data?.message, loading: false })
     }
   },
@@ -73,10 +73,10 @@ const useCartStore = create((set, get) => ({
     set({ loading: true })
     try {
       await removeFromCartAPI(cartItemId)
-      toast.success("🗑️ Đã xóa khỏi giỏ hàng")
+      toast.success(" Đã xóa khỏi giỏ hàng")
       await get().fetchCart()
     } catch (error) {
-      toast.error(`❌ ${error.response?.data?.message || "Không thể xóa"}`)
+      toast.error(` ${error.response?.data?.message || "Không thể xóa"}`)
       set({ error: error.response?.data?.message, loading: false })
     }
   },
@@ -85,10 +85,10 @@ const useCartStore = create((set, get) => ({
     set({ loading: true })
     try {
       const response = await clearCartAPI()
-      toast.success(`🗑️ Đã xóa ${response.data.removedCount} sản phẩm`)
+      toast.success(` Đã xóa ${response.data.removedCount} sản phẩm`)
       set({ items: [], totalQuantity: 0, totalAmount: 0, loading: false, isFetching: false })
     } catch (error) {
-      toast.error("❌ Không thể xóa tất cả")
+      toast.error(" Không thể xóa tất cả")
       set({ error: error.response?.data?.message, loading: false, isFetching: false })
     }
   },
