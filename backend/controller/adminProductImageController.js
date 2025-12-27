@@ -179,10 +179,19 @@ export const updateProductImage = async (req, res) => {
 
     // Nếu có ảnh mới
     if (req.file) {
-      // Xóa ảnh cũ
+      // Xóa ảnh cũ (wrap trong try-catch để không block việc update)
       if (found.imagePublicId) {
-        await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-        logger.debug('Old image deleted', { publicId: found.imagePublicId });
+        try {
+          await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+          logger.debug('Old image deleted', { publicId: found.imagePublicId });
+        } catch (cloudError) {
+          logger.warn('Failed to delete old image from Cloudinary', { 
+            publicId: found.imagePublicId, 
+            error: cloudError.message,
+            imageId: id
+          });
+          // Tiếp tục update dù lỗi Cloudinary
+        }
       }
       updateData.imageUrl = req.file.path;
       updateData.imagePublicId = req.file.filename;
@@ -226,10 +235,20 @@ export const deleteProductImage = async (req, res) => {
       return res.status(404).json({ message: 'Image not found' });
     }
 
-    // Xóa ảnh khỏi Cloudinary
+    // Xóa ảnh khỏi Cloudinary (wrap trong try-catch để không block việc xóa trong DB)
     if (found.imagePublicId) {
-      await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
-      logger.debug('Image deleted from Cloudinary', { publicId: found.imagePublicId });
+      try {
+        await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
+        logger.debug('Image deleted from Cloudinary', { publicId: found.imagePublicId });
+      } catch (cloudError) {
+        // Log lỗi nhưng vẫn tiếp tục xóa trong DB để tránh dữ liệu không nhất quán
+        logger.warn('Failed to delete image from Cloudinary', { 
+          publicId: found.imagePublicId, 
+          error: cloudError.message,
+          imageId: id
+        });
+        // Tiếp tục xóa trong DB dù lỗi Cloudinary
+      }
     }
 
     await prisma.productImage.delete({ where: { id } });
