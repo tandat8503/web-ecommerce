@@ -109,5 +109,5 @@ export const verifyCallback = (params = {}) => {
 
 export default {
   createPayment,//tạo URL thanh toán
-  verifyCallback//xác thực callback
+  verifyCallback//xác thực callback từ VNPAY về hàm vnp_ReturnUrl của bạn đã khai báo trong config VNPAY_CONFIG
 };

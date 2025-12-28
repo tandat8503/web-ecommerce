@@ -147,7 +147,7 @@ export const createVNPayPayment = async (req, res) => {
 };
 
 // ============================================
-// XỬ LÝ CALLBACK VNPAY
+// XỬ LÝ CALLBACK VNPAY Hàm Callback (IPN) là để đảm bảo dữ liệu đơn hàng luôn được cập nhật kể cả khi khách tắt máy
 // ============================================
 export const handleVNPayCallback = async (req, res) => {
   try {
@@ -166,10 +166,10 @@ export const handleVNPayCallback = async (req, res) => {
     // Tìm bản ghi payment tương ứng trong DB để cập nhật trạng thái
     const payment = await prisma.payment.findFirst({
       where: {
-        paymentMethod: 'VNPAY',
-        transactionId: verifyResult.transactionId// Lấy transaction ID
+        paymentMethod: 'VNPAY',// Phương thức thanh toán là VNPay
+        transactionId: verifyResult.transactionId// Lấy transaction ID từ VNPay
       },
-      include: { order: true }// Lấy thông tin đơn hàng
+      include: { order: true }// Lấy thông tin đơn hàng từ DB
     });
 
     if (!payment) {
@@ -247,7 +247,7 @@ export const handleVNPayCallback = async (req, res) => {
 };
 
 // ============================================
-// XỬ LÝ RETURN VNPAY
+// XỬ LÝ RETURN VNPAY ,đưa khách hàng quay trở lại website của mình sau khi thanh toán xong để xem kết quả thanh toán fe
 // ============================================
 export const handleVNPayReturn = async (req, res) => {
   try {

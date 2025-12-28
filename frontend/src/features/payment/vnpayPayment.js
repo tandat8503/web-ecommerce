@@ -15,8 +15,8 @@
 export const handleVNPayPayment = async (orderId, createVNPayPayment, onError) => {
   try {
     // Gọi API tạo payment URL
-    const response = await createVNPayPayment(orderId);
-    const paymentData = response.data;
+    const response = await createVNPayPayment(orderId);//gọi api be
+    const paymentData = response.data;//lấy data từ response
 
     // Kiểm tra response
     if (paymentData?.success && paymentData?.data?.paymentUrl) {
