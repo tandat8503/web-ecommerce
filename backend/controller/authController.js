@@ -223,9 +223,25 @@ export const register = async (req, res) => {
     const accessToken = generateAccessToken(newUser.id)
 
     // Tặng mã chào mừng cho user mới (async, không chặn response)
-    grantWelcomeCoupon(newUser.id).catch(err => {
-      logger.error('Failed to grant welcome coupon (non-blocking)', { userId: newUser.id, error: err.message });
-    });
+    grantWelcomeCoupon(newUser.id)
+      .then(result => {
+        if (result) {
+          logger.info('Welcome coupon granted successfully', {
+            userId: newUser.id,
+            couponId: result.couponId,
+            expiresAt: result.expiresAt
+          });
+        } else {
+          logger.warn('Welcome coupon not granted (returned null)', { userId: newUser.id });
+        }
+      })
+      .catch(err => {
+        logger.error('Failed to grant welcome coupon (non-blocking)', {
+          userId: newUser.id,
+          error: err.message,
+          stack: err.stack
+        });
+      });
 
     logger.success('User registered', { userId: newUser.id, email: newUser.email });
     logger.end(context.path, { userId: newUser.id });
