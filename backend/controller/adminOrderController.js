@@ -37,30 +37,69 @@ export const listOrders = async (req, res) => {
     const { page = 1, limit = 10, status, q } = req.query;
     
     // Xây dựng điều kiện lọc
-    const conditions = [];
-    if (status) conditions.push({ status }); // Lọc theo trạng thái
-    if (q) {
-      // Tìm kiếm theo số đơn hàng hoặc tên khách hàng
-      conditions.push({
+    const whereConditions = [];
+    
+    // Luôn filter để chỉ lấy orders có paymentMethod hợp lệ (COD hoặc VNPAY)
+    // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
+    whereConditions.push({
+      paymentMethod: {
+        in: ['COD', 'VNPAY']
+      }
+    });
+    
+    // Lọc theo trạng thái (nếu có)
+    if (status && status.trim() !== '') {
+      const statusValue = status.trim().toUpperCase();
+      // Validate status value
+      const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
+      if (validStatuses.includes(statusValue)) {
+        whereConditions.push({ status: statusValue });
+      }
+    }
+    
+    // Tìm kiếm theo số đơn hàng hoặc tên khách hàng (nếu có)
+    if (q && q.trim() !== '') {
+      const searchTerm = q.trim();
+      whereConditions.push({
         OR: [
-          { orderNumber: { contains: q } },
-          { user: { firstName: { contains: q } } },
-          { user: { lastName: { contains: q } } }
+          { orderNumber: { contains: searchTerm } },
+          { user: { firstName: { contains: searchTerm } } },
+          { user: { lastName: { contains: searchTerm } } }
         ]
       });
     }
-    const where = conditions.length ? { AND: conditions } : undefined;
+    
+    // Kết hợp tất cả điều kiện với AND
+    const finalWhere = whereConditions.length > 0 
+      ? (whereConditions.length === 1 ? whereConditions[0] : { AND: whereConditions })
+      : undefined;
+    
+    // Log để debug (chỉ trong development)
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('Order filter query', { 
+        status, 
+        q, 
+        finalWhere: JSON.stringify(finalWhere, null, 2) 
+      });
+    }
 
     // Query đồng thời: lấy danh sách đơn và tổng số đơn
     const [items, total] = await Promise.all([
       prisma.order.findMany({
-        where,
+        where: finalWhere,
         orderBy: { createdAt: 'desc' }, // Sắp xếp mới nhất trước
         skip: (Number(page) - 1) * Number(limit), // Bỏ qua số đơn ở trang trước
         take: Number(limit), // Lấy số đơn mỗi trang
         include: {
           user: { select: { id: true, firstName: true, lastName: true, phone: true } },
           payments: {
+            where: {
+              // Chỉ lấy payments có paymentMethod hợp lệ (COD hoặc VNPAY)
+              // Loại bỏ những bản ghi có paymentMethod rỗng hoặc null
+              paymentMethod: {
+                in: ['COD', 'VNPAY']
+              }
+            },
             orderBy: { createdAt: 'desc' },
             select: {
               id: true,
@@ -87,7 +126,7 @@ export const listOrders = async (req, res) => {
           }
         }
       }),
-      prisma.order.count({ where }) // Đếm tổng số đơn
+      prisma.order.count({ where: finalWhere }) // Đếm tổng số đơn
     ]);
 
     // đoạn code này để parse shippingAddress từ JSON string thành object cho mỗi order
@@ -310,7 +349,7 @@ export const updateOrder = async (req, res) => {
           }
         });
 
-        // Trừ tồn kho cho từng item
+        // Trừ tồn kho cho từng item,currentStock: số lượng sản phẩm hiện có trong kho
         for (const item of orderItems) {
           if (item.variantId && item.variant) {
             const currentStock = item.variant.stockQuantity;

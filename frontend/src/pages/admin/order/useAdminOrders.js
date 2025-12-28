@@ -101,13 +101,29 @@ export function useAdminOrders() {
     try {
       setLoading(true);
       
-      // Gọi API với các tham số: page, limit, status (filter), q (search)
-      const res = await getOrders({
+      // Chuẩn bị params - chỉ gửi status nếu có giá trị
+      const params = {
         page: pagination.page,
         limit: pagination.limit,
-        status: statusFilter || undefined,
-        q: searchValue || undefined,
-      });
+      };
+      
+      // Chỉ thêm status nếu có giá trị (không phải rỗng)
+      if (statusFilter && statusFilter.trim() !== '') {
+        params.status = statusFilter.trim();
+      }
+      
+      // Chỉ thêm q nếu có giá trị (không phải rỗng)
+      if (searchValue && searchValue.trim() !== '') {
+        params.q = searchValue.trim();
+      }
+      
+      // Debug log (chỉ trong development)
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔍 Fetching orders with params:', params);
+      }
+      
+      // Gọi API với các tham số: page, limit, status (filter), q (search)
+      const res = await getOrders(params);
 
       // Backend trả về: { items, total, page, limit }
       const items = (res.data.items || []).map(order => {
