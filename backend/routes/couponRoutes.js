@@ -3,11 +3,11 @@ import {
     getUserCoupons,
     validateCoupon
 } from '../controller/couponController.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.use(authenticate);
+router.use(authenticateToken);
 
 router.get('/my-coupons', getUserCoupons);
 router.post('/validate', validateCoupon);
