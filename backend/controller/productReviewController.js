@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { grantFirstReviewCoupon } from '../services/couponService.js';
 
 /**
  * ===========================
@@ -58,8 +59,8 @@ const checkUserHasDeliveredOrder = async (userId, productId, orderId = null) => 
 export const createReview = async (req, res) => {
   const context = { path: 'user.productReview.create' };
   try {
-    logger.start(context.path, { 
-      userId: req.user.id, 
+    logger.start(context.path, {
+      userId: req.user.id,
       productId: req.body.productId,
       orderId: req.body.orderId
     });
@@ -70,15 +71,15 @@ export const createReview = async (req, res) => {
     // Validate input
     if (!productId || !rating) {
       logger.warn('Missing required fields', { productId, rating });
-      return res.status(400).json({ 
-        message: 'Vui lòng cung cấp đầy đủ thông tin (productId, rating)' 
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp đầy đủ thông tin (productId, rating)'
       });
     }
 
     if (rating < 1 || rating > 5) {
       logger.warn('Invalid rating', { rating });
-      return res.status(400).json({ 
-        message: 'Đánh giá phải từ 1 đến 5 sao' 
+      return res.status(400).json({
+        message: 'Đánh giá phải từ 1 đến 5 sao'
       });
     }
 
@@ -95,15 +96,15 @@ export const createReview = async (req, res) => {
 
     // ⭐ LOGIC ĐẶC BIỆT: Kiểm tra user có order DELIVERED chứa sản phẩm này
     const orderCheck = await checkUserHasDeliveredOrder(userId, productId, orderId);
-    
+
     if (!orderCheck.isValid) {
-      logger.warn('User does not have delivered order for product', { 
-        userId, 
-        productId, 
-        orderId 
+      logger.warn('User does not have delivered order for product', {
+        userId,
+        productId,
+        orderId
       });
-      return res.status(403).json({ 
-        message: 'Bạn chỉ có thể đánh giá sản phẩm sau khi đã nhận hàng (đơn hàng phải ở trạng thái Đã giao)' 
+      return res.status(403).json({
+        message: 'Bạn chỉ có thể đánh giá sản phẩm sau khi đã nhận hàng (đơn hàng phải ở trạng thái Đã giao)'
       });
     }
 
@@ -119,8 +120,8 @@ export const createReview = async (req, res) => {
 
     if (existingReview) {
       logger.warn('Review already exists', { productId, userId });
-      return res.status(400).json({ 
-        message: 'Bạn đã đánh giá sản phẩm này rồi. Bạn có thể chỉnh sửa đánh giá của mình.' 
+      return res.status(400).json({
+        message: 'Bạn đã đánh giá sản phẩm này rồi. Bạn có thể chỉnh sửa đánh giá của mình.'
       });
     }
 
@@ -162,15 +163,24 @@ export const createReview = async (req, res) => {
       }
     });
 
-    logger.success('Review created', { 
-      reviewId: review.id, 
-      productId, 
+    logger.success('Review created', {
+      reviewId: review.id,
+      productId,
       userId,
       rating,
       orderId: review.orderId,
       isVerified: review.isVerified
     });
     logger.end(context.path, { reviewId: review.id });
+
+    // Tặng mã giảm giá cho review đầu tiên (non-blocking)
+    grantFirstReviewCoupon(userId).catch(err => {
+      logger.error('Failed to grant first review coupon (non-blocking)', {
+        userId,
+        reviewId: review.id,
+        error: err.message
+      });
+    });
 
     return res.status(201).json({
       message: 'Đánh giá đã được đăng thành công',
@@ -184,9 +194,9 @@ export const createReview = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -287,9 +297,9 @@ export const getProductReviews = async (req, res) => {
       ratingDistribution[stat.rating] = stat._count.rating;
     });
 
-    logger.success('Product reviews fetched', { 
-      productId, 
-      total, 
+    logger.success('Product reviews fetched', {
+      productId,
+      total,
       count: reviews.length,
       averageRating: averageRating.toFixed(2)
     });
@@ -319,9 +329,9 @@ export const getProductReviews = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -393,9 +403,9 @@ export const getMyReviews = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -408,9 +418,9 @@ export const getMyReviews = async (req, res) => {
 export const updateMyReview = async (req, res) => {
   const context = { path: 'user.productReview.update' };
   try {
-    logger.start(context.path, { 
-      userId: req.user.id, 
-      reviewId: req.params.id 
+    logger.start(context.path, {
+      userId: req.user.id,
+      reviewId: req.params.id
     });
 
     const userId = req.user.id;
@@ -420,8 +430,8 @@ export const updateMyReview = async (req, res) => {
     // Validate rating nếu có
     if (rating !== undefined && (rating < 1 || rating > 5)) {
       logger.warn('Invalid rating', { rating });
-      return res.status(400).json({ 
-        message: 'Đánh giá phải từ 1 đến 5 sao' 
+      return res.status(400).json({
+        message: 'Đánh giá phải từ 1 đến 5 sao'
       });
     }
 
@@ -435,15 +445,15 @@ export const updateMyReview = async (req, res) => {
 
     if (!review) {
       logger.warn('Review not found or unauthorized', { reviewId: id, userId });
-      return res.status(404).json({ 
-        message: 'Không tìm thấy đánh giá hoặc bạn không có quyền chỉnh sửa' 
+      return res.status(404).json({
+        message: 'Không tìm thấy đánh giá hoặc bạn không có quyền chỉnh sửa'
       });
     }
 
     // Cập nhật
     const updated = await prisma.productReview.update({
       where: { id: Number(id) },
-      data: { 
+      data: {
         rating: rating !== undefined ? Number(rating) : undefined,
         title: title !== undefined ? (title?.trim() || null) : undefined,
         comment: comment !== undefined ? (comment?.trim() || null) : undefined,
@@ -490,9 +500,9 @@ export const updateMyReview = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -505,9 +515,9 @@ export const updateMyReview = async (req, res) => {
 export const deleteMyReview = async (req, res) => {
   const context = { path: 'user.productReview.delete' };
   try {
-    logger.start(context.path, { 
-      userId: req.user.id, 
-      reviewId: req.params.id 
+    logger.start(context.path, {
+      userId: req.user.id,
+      reviewId: req.params.id
     });
 
     const userId = req.user.id;
@@ -523,8 +533,8 @@ export const deleteMyReview = async (req, res) => {
 
     if (!review) {
       logger.warn('Review not found or unauthorized', { reviewId: id, userId });
-      return res.status(404).json({ 
-        message: 'Không tìm thấy đánh giá hoặc bạn không có quyền xóa' 
+      return res.status(404).json({
+        message: 'Không tìm thấy đánh giá hoặc bạn không có quyền xóa'
       });
     }
 
@@ -547,9 +557,9 @@ export const deleteMyReview = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -562,18 +572,18 @@ export const deleteMyReview = async (req, res) => {
 export const adminGetAllReviews = async (req, res) => {
   const context = { path: 'admin.productReview.list' };
   try {
-    logger.start(context.path, { 
+    logger.start(context.path, {
       query: req.query,
-      admin: req.user.id 
+      admin: req.user.id
     });
 
-    const { 
-      page = 1, 
-      limit = 10, 
-      productId, 
+    const {
+      page = 1,
+      limit = 10,
+      productId,
       isApproved,
       rating,
-      q 
+      q
     } = req.query;
 
     // Xây dựng điều kiện where
@@ -657,9 +667,9 @@ export const adminGetAllReviews = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -672,7 +682,7 @@ export const adminGetAllReviews = async (req, res) => {
 export const adminApproveReview = async (req, res) => {
   const context = { path: 'admin.productReview.approve' };
   try {
-    logger.start(context.path, { 
+    logger.start(context.path, {
       reviewId: req.params.id,
       admin: req.user.id,
       isApproved: req.body.isApproved
@@ -683,8 +693,8 @@ export const adminApproveReview = async (req, res) => {
 
     if (isApproved === undefined) {
       logger.warn('Missing isApproved field');
-      return res.status(400).json({ 
-        message: 'Vui lòng cung cấp trạng thái duyệt (isApproved: true/false)' 
+      return res.status(400).json({
+        message: 'Vui lòng cung cấp trạng thái duyệt (isApproved: true/false)'
       });
     }
 
@@ -701,7 +711,7 @@ export const adminApproveReview = async (req, res) => {
     // Cập nhật trạng thái
     const updated = await prisma.productReview.update({
       where: { id: Number(id) },
-      data: { 
+      data: {
         isApproved: isApproved === true || isApproved === 'true',
         updatedAt: new Date()
       },
@@ -730,15 +740,15 @@ export const adminApproveReview = async (req, res) => {
       }
     });
 
-    logger.success('Review approval status updated', { 
-      reviewId: id, 
-      isApproved: updated.isApproved 
+    logger.success('Review approval status updated', {
+      reviewId: id,
+      isApproved: updated.isApproved
     });
     logger.end(context.path, { reviewId: id });
 
     return res.json({
-      message: updated.isApproved 
-        ? 'Duyệt đánh giá thành công' 
+      message: updated.isApproved
+        ? 'Duyệt đánh giá thành công'
         : 'Từ chối đánh giá thành công',
       data: updated
     });
@@ -749,9 +759,9 @@ export const adminApproveReview = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -764,9 +774,9 @@ export const adminApproveReview = async (req, res) => {
 export const adminDeleteReview = async (req, res) => {
   const context = { path: 'admin.productReview.delete' };
   try {
-    logger.start(context.path, { 
+    logger.start(context.path, {
       reviewId: req.params.id,
-      admin: req.user.id 
+      admin: req.user.id
     });
 
     const { id } = req.params;
@@ -799,9 +809,9 @@ export const adminDeleteReview = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -864,9 +874,9 @@ export const adminGetReviewStats = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };

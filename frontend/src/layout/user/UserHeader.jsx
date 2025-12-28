@@ -34,21 +34,21 @@ const getSearchHistory = () => {
 
 const addToSearchHistory = (query) => {
   if (!query || !query.trim()) return;
-  
+
   try {
     let history = getSearchHistory();
-    
+
     // Xóa query cũ nếu đã tồn tại (để đưa lên đầu)
     history = history.filter(item => item.toLowerCase() !== query.toLowerCase());
-    
+
     // Thêm query mới vào đầu
     history.unshift(query.trim());
-    
+
     // Giới hạn 10 items
     if (history.length > MAX_HISTORY_ITEMS) {
       history = history.slice(0, MAX_HISTORY_ITEMS);
     }
-    
+
     localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
   } catch (error) {
     console.error('Error saving search history:', error);
@@ -130,7 +130,7 @@ const SearchHistoryDropdown = ({ history, onSelect, onRemove, onClear, visible }
           Xóa tất cả
         </button>
       </div>
-      
+
       <div className="py-1">
         {history.map((query, index) => (
           <div
@@ -161,13 +161,13 @@ const SearchHistoryDropdown = ({ history, onSelect, onRemove, onClear, visible }
 /* --------------------------
   Component con: Search Suggestions Dropdown (Autocomplete)
 --------------------------- */
-const SearchSuggestionsDropdown = ({ 
-  suggestions, 
-  loading, 
-  visible, 
-  onSelectProduct, 
+const SearchSuggestionsDropdown = ({
+  suggestions,
+  loading,
+  visible,
+  onSelectProduct,
   onViewAll,
-  searchQuery 
+  searchQuery
 }) => {
   if (!visible) return null;
 
@@ -190,7 +190,7 @@ const SearchSuggestionsDropdown = ({
           <div className="p-2 border-b bg-gray-50">
             <span className="text-xs text-gray-600 font-medium px-2">Gợi ý sản phẩm</span>
           </div>
-          
+
           <div className="py-1">
             {suggestions.map((product) => (
               <div
@@ -230,7 +230,7 @@ const SearchSuggestionsDropdown = ({
               </div>
             ))}
           </div>
-          
+
           <button
             onClick={onViewAll}
             className="w-full p-3 text-center text-blue-600 hover:bg-blue-50 font-medium text-sm border-t"
@@ -261,7 +261,7 @@ export default function UserHeader() {
     wishlistCount,
     handleLogout
   } = useUserHeader();
-  
+
   // State cho search (không có trong hook vì chỉ dùng ở component này)
   const [searchValue, setSearchValue] = useState("");
   const [searchHistory, setSearchHistory] = useState([]);
@@ -285,7 +285,7 @@ export default function UserHeader() {
         setShowSuggestions(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -307,7 +307,7 @@ export default function UserHeader() {
           limit: 5,
           page: 1
         });
-        
+
         setSuggestions(response.data?.items || []);
         setShowSuggestions(true);
         setShowHistory(false); // Ẩn history khi có suggestions
@@ -325,18 +325,18 @@ export default function UserHeader() {
   // Handle search submit
   const handleSearch = (value) => {
     const trimmedValue = value?.trim();
-    
+
     if (trimmedValue) {
       // Lưu vào history
       addToSearchHistory(trimmedValue);
       setSearchHistory(getSearchHistory());
-      
+
       // Navigate
       navigate(`/san-pham?q=${encodeURIComponent(trimmedValue)}`);
     } else {
       navigate("/san-pham");
     }
-    
+
     setSearchValue("");
     setShowHistory(false);
     setShowSuggestions(false);
@@ -400,29 +400,40 @@ export default function UserHeader() {
     },
     ...(user?.role !== 'ADMIN'
       ? [
-          {
-            key: "orders",
-            label: (
-              <Link to="/orders" className="flex items-center gap-2">
-                <FaShoppingBag className="text-green-500" />
-                Đơn mua
-              </Link>
-            ),
-          },
-        ]
+        {
+          key: "orders",
+          label: (
+            <Link to="/orders" className="flex items-center gap-2">
+              <FaShoppingBag className="text-green-500" />
+              Đơn mua
+            </Link>
+          ),
+        },
+        {
+          key: "coupons",
+          label: (
+            <Link to="/my-coupons" className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 100 4v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 100-4V6z" />
+              </svg>
+              Mã giảm giá
+            </Link>
+          ),
+        },
+      ]
       : []),
     ...(user?.role === 'ADMIN'
       ? [
-          {
-            key: "admin",
-            label: (
-              <Link to="/admin" className="flex items-center gap-2">
-                <FaUser className="text-blue-500" />
-                Quản trị
-              </Link>
-            ),
-          },
-        ]
+        {
+          key: "admin",
+          label: (
+            <Link to="/admin" className="flex items-center gap-2">
+              <FaUser className="text-blue-500" />
+              Quản trị
+            </Link>
+          ),
+        },
+      ]
       : []),
     { type: "divider" },
     {
@@ -450,7 +461,7 @@ export default function UserHeader() {
           scrollamount="8"
           className="text-white font-medium"
         >
-           NỘI THẤT VĂN PHÒNG - Đồ dùng văn phòng cao cấp |  Chất lượng
+          NỘI THẤT VĂN PHÒNG - Đồ dùng văn phòng cao cấp |  Chất lượng
           Nhật Bản - Giá hợp lý  |  Hotline:
           1900 146398 | Mua ngay để có trải nghiệm tuyệt vời!
         </marquee>
@@ -485,20 +496,20 @@ export default function UserHeader() {
           {/* Danh mục + tìm kiếm */}
           <Col xs={24} md={12}>
             <div className="flex items-center gap-3">
-             <Dropdown
-            popupRender={() => (
-              <CategoryDropdown
-                categories={categories}
-                loading={loadingCategories}
-              />
-            )}
-            trigger={["hover"]}     
-            placement="bottomLeft"
-          >
-            <Button className="flex items-center gap-2 bg-white hover:bg-gray-100 text-indigo-600 rounded-lg font-medium cursor-pointer shadow-md border-0">
-              <FaBars /> Danh mục
-            </Button>
-          </Dropdown>
+              <Dropdown
+                popupRender={() => (
+                  <CategoryDropdown
+                    categories={categories}
+                    loading={loadingCategories}
+                  />
+                )}
+                trigger={["hover"]}
+                placement="bottomLeft"
+              >
+                <Button className="flex items-center gap-2 bg-white hover:bg-gray-100 text-indigo-600 rounded-lg font-medium cursor-pointer shadow-md border-0">
+                  <FaBars /> Danh mục
+                </Button>
+              </Dropdown>
 
               {/* Search box với History & Suggestions */}
               <div ref={searchWrapperRef} className="relative flex-1 z-[110]">
@@ -519,7 +530,7 @@ export default function UserHeader() {
                   enterButton
                   loading={loadingSuggestions}
                 />
-                
+
                 {/* Search History Dropdown */}
                 <SearchHistoryDropdown
                   history={searchHistory}
@@ -528,7 +539,7 @@ export default function UserHeader() {
                   onRemove={handleRemoveHistory}
                   onClear={handleClearHistory}
                 />
-                
+
                 {/* Search Suggestions Dropdown (Autocomplete) */}
                 <SearchSuggestionsDropdown
                   suggestions={suggestions}

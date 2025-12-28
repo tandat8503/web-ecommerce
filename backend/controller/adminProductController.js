@@ -11,7 +11,7 @@ import { emitProductCreated, emitProductUpdated, emitProductDeleted } from '../c
 const includeBasic = {
   category: { select: { id: true, name: true, slug: true, isActive: true } }, // Chỉ lấy id, name, slug, isActive của category
   brand: { select: { id: true, name: true } }, // Chỉ lấy id, name của brand
-  variants: { 
+  variants: {
     where: { isActive: true }, // Chỉ lấy variants đang active
     select: { stockQuantity: true } // Chỉ cần stockQuantity để tính tổng
   }
@@ -34,16 +34,16 @@ export const listProducts = async (req, res) => {
       query: req.query,
       user: req.user ? { id: req.user.id, role: req.user.role } : 'No user'
     });
-    
+
     // Lấy các tham số từ query string với giá trị mặc định
     const { page = 1, limit = 10, q, categoryId, brandId, status, isFeatured, onSale, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
-    
+
     // Detect public/admin route
     const isPublicRoute = !req.user;
-    
+
     logger.debug('Query params', { page, limit, q, categoryId, brandId, status, isFeatured, onSale, sortBy, sortOrder, isPublicRoute });
 
     let items, total;
@@ -61,7 +61,7 @@ export const listProducts = async (req, res) => {
         skip,
         limit: limitNum
       });
-      
+
       items = result.items;
       total = result.total;
     } else {
@@ -70,12 +70,12 @@ export const listProducts = async (req, res) => {
       if (categoryId) and.push({ categoryId: Number(categoryId) });
       if (brandId) and.push({ brandId: Number(brandId) });
       if (status) and.push({ status: status.toUpperCase() });
-      
+
       // Filter theo isFeatured nếu có
       if (isFeatured !== undefined) {
         and.push({ isFeatured: isFeatured === 'true' || isFeatured === true });
       }
-      
+
       // Filter theo onSale nếu có (sản phẩm có salePrice và salePrice < price)
       if (onSale !== undefined && (onSale === 'true' || onSale === true)) {
         // Sản phẩm sale: có salePrice và salePrice < price
@@ -83,11 +83,11 @@ export const listProducts = async (req, res) => {
         // Frontend sẽ kiểm tra salePrice < price
         and.push({ salePrice: { not: null } });
       }
-      
+
       // Public route chỉ lấy ACTIVE products
       if (isPublicRoute) {
         and.push({ status: 'ACTIVE' });
-        
+
         // ✅ Public route chỉ lấy sản phẩm từ category đang hoạt động (isActive = true)
         // Filter sản phẩm từ category đang hoạt động
         and.push({
@@ -96,7 +96,7 @@ export const listProducts = async (req, res) => {
           }
         });
       }
-      
+
       const where = and.length ? { AND: and } : undefined;
 
       // Thực hiện 2 query song song để tối ưu performance
@@ -130,9 +130,9 @@ export const listProducts = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    const payload = { 
+    const payload = {
       success: false,
-      message: 'Server error' 
+      message: 'Server error'
     };
     // Chỉ hiển thị chi tiết lỗi trong môi trường development
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
@@ -146,22 +146,22 @@ export const listProducts = async (req, res) => {
 //   const context = { path: 'admin.products.get', params: req.params };
 //   try {
 //     console.log('START', context);
-    
+
 //     // Lấy ID từ URL params và chuyển đổi sang number
 //     const id = Number(req.params.id);
-    
+
 //     // Tìm sản phẩm theo ID với thông tin category và brand
 //     const product = await prisma.product.findUnique({ 
 //       where: { id }, 
 //       include: includeBasic 
 //     });
-    
+
 //     // Kiểm tra sản phẩm có tồn tại không
 //     if (!product) {
 //       console.warn('NOT_FOUND', context);
 //       return res.status(404).json({ message: 'Not found' });
 //     }
-    
+
 //     console.log('END', { ...context, id });
 //     return res.json(product);
 //   } catch (error) {
@@ -180,25 +180,25 @@ export const listProducts = async (req, res) => {
 export const getProduct = async (req, res) => {
   // 🔑 BƯỚC 1: Detect public/admin dựa vào req.user (GIỐNG listProducts)
   const isPublicRoute = !req.user;
-  
+
   // Tạo context với path tự động
-  const context = { 
+  const context = {
     path: isPublicRoute ? 'public.products.get' : 'admin.products.get'
   };
-  
+
   try {
     // Log phân biệt public vs admin
-    logger.start(context.path, { 
+    logger.start(context.path, {
       id: req.params.id,
-      isPublicRoute 
+      isPublicRoute
     });
-    
+
     // Lấy ID từ URL params
     const id = Number(req.params.id);
-    
+
     // 🔑 BƯỚC 2: Xây dựng điều kiện WHERE
     const where = { id };
-    
+
     // 🚨 QUAN TRỌNG: Public chỉ xem sản phẩm ACTIVE và từ category đang hoạt động
     if (isPublicRoute) {
       where.status = 'ACTIVE';
@@ -209,32 +209,32 @@ export const getProduct = async (req, res) => {
       logger.debug('Public API: Force status = ACTIVE and category.isActive = true', { id });
     }
     // Admin xem tất cả (không thêm điều kiện status và category.isActive)
-    
+
     // 🔑 BƯỚC 3: Dùng findFirst thay vì findUnique để có thể filter theo status và category
-    const product = await prisma.product.findFirst({ 
-      where, 
-      include: includeBasic 
+    const product = await prisma.product.findFirst({
+      where,
+      include: includeBasic
     });
-    
+
     // Kiểm tra sản phẩm có tồn tại không
     if (!product) {
       logger.warn('Product not found', { id, isPublicRoute });
       return res.status(404).json({ message: 'Not found' });
     }
-    
+
     // Tính tổng stock từ variants và thêm vào response
     const productWithStock = {
       ...product,
       stockQuantity: calculateTotalStock(product) // Thêm field stockQuantity tính từ variants
     };
-    
+
     // Log kết quả
     logger.success('Product fetched', { id, isPublicRoute, stockQuantity: productWithStock.stockQuantity });
     logger.end(context.path, { id });
     return res.json(productWithStock);
   } catch (error) {
     // Xử lý lỗi
-    logger.error('Failed to fetch product', { 
+    logger.error('Failed to fetch product', {
       path: context.path,
       error: error.message,
       stack: error.stack
@@ -249,7 +249,7 @@ export const createProduct = async (req, res) => {
   const context = { path: 'admin.products.create' };
   try {
     logger.start(context.path, { name: req.body.name });
-    
+
     const {
       name, slug: slugInput, price, salePrice, costPrice,
       description, metaTitle, metaDescription, categoryId, brandId, isActive, isFeatured
@@ -264,7 +264,7 @@ export const createProduct = async (req, res) => {
     // Xử lý image upload
     const imageUrl = req.file ? req.file.path : null;
     const imagePublicId = req.file ? req.file.filename : null;
-    
+
     if (req.file) {
       logger.debug('Image uploaded', { imageUrl, imagePublicId });
     }
@@ -285,6 +285,15 @@ export const createProduct = async (req, res) => {
     if (dupSlug) {
       logger.warn('Slug conflict', { slug });
       return res.status(409).json({ message: 'Slug already exists' });
+    }
+
+    // ✅ VALIDATION: Kiểm tra salePrice phải nhỏ hơn price
+    if (salePrice && Number(salePrice) >= Number(price)) {
+      logger.warn('Invalid salePrice', { price, salePrice });
+      return res.status(400).json({
+        success: false,
+        message: 'Giá khuyến mãi phải nhỏ hơn giá gốc'
+      });
     }
 
     // Chuẩn bị dữ liệu để tạo sản phẩm (CHỈ THÔNG TIN CHUNG + GIÁ)
@@ -323,10 +332,10 @@ export const createProduct = async (req, res) => {
 
     logger.success('Product created', { id: created.id, name: created.name });
     logger.end(context.path, { id: created.id });
-    
+
     // Gửi thông báo real-time đến tất cả client là tạo sản phẩm mới
     emitProductCreated(created);
-    
+
     return res.status(201).json(created);
   } catch (error) {
     logger.error('Failed to create product', {
@@ -344,7 +353,7 @@ export const updateProduct = async (req, res) => {
   const context = { path: 'admin.products.update' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const id = Number(req.params.id);
     const found = await prisma.product.findUnique({ where: { id } });
     if (!found) {
@@ -353,7 +362,7 @@ export const updateProduct = async (req, res) => {
     }
 
     const data = { ...req.body };
-    
+
     // Xử lý image upload
     if (req.file) {
       // Xóa ảnh cũ nếu có
@@ -414,6 +423,19 @@ export const updateProduct = async (req, res) => {
       data.costPrice = data.costPrice ? Number(data.costPrice).toFixed(2) : null;
     }
 
+    // ✅ VALIDATION: Kiểm tra salePrice phải nhỏ hơn price khi update
+    // Lấy giá hiện tại từ DB nếu không update
+    const finalPrice = data.price !== undefined ? Number(data.price) : Number(found.price);
+    const finalSalePrice = data.salePrice !== undefined ? (data.salePrice ? Number(data.salePrice) : null) : (found.salePrice ? Number(found.salePrice) : null);
+
+    if (finalSalePrice && finalSalePrice >= finalPrice) {
+      logger.warn('Invalid salePrice on update', { finalPrice, finalSalePrice });
+      return res.status(400).json({
+        success: false,
+        message: 'Giá khuyến mãi phải nhỏ hơn giá gốc'
+      });
+    }
+
     // Xử lý trạng thái từ isActive
     if (data.isActive !== undefined) {
       data.status = data.isActive === 'true' || data.isActive === true ? 'ACTIVE' : 'INACTIVE';
@@ -438,10 +460,10 @@ export const updateProduct = async (req, res) => {
 
     logger.success('Product updated', { id, name: updated.name });
     logger.end(context.path, { id });
-    
+
     // Gửi thông báo real-time đến tất cả client là cập nhật sản phẩm
     emitProductUpdated(updated);
-    
+
     return res.json(updated);
   } catch (error) {
     logger.error('Failed to update product', {
@@ -459,9 +481,9 @@ export const deleteProduct = async (req, res) => {
   const context = { path: 'admin.products.delete' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const id = Number(req.params.id);
-    const found = await prisma.product.findUnique({ 
+    const found = await prisma.product.findUnique({
       where: { id },
       include: {
         orderItems: { take: 1 }, // Chỉ cần kiểm tra có đơn hàng không
@@ -469,7 +491,7 @@ export const deleteProduct = async (req, res) => {
         variants: true
       }
     });
-    
+
     if (!found) {
       logger.warn('Product not found', { id });
       return res.status(404).json({ message: 'Not found' });
@@ -479,8 +501,8 @@ export const deleteProduct = async (req, res) => {
     // Nếu có thì không cho xóa vì cần giữ lịch sử đơn hàng
     if (found.orderItems && found.orderItems.length > 0) {
       logger.warn('Cannot delete product with orders', { id });
-      return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm đã có đơn hàng liên quan' 
+      return res.status(400).json({
+        message: 'Không thể xóa sản phẩm đã có đơn hàng liên quan'
       });
     }
 
@@ -488,8 +510,8 @@ export const deleteProduct = async (req, res) => {
     // Nếu có biến thể thì không cho xóa để tránh mất dữ liệu quan trọng
     if (found.variants && found.variants.length > 0) {
       logger.warn('Cannot delete product with variants', { id, variantCount: found.variants.length });
-      return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm đã có biến thể. Vui lòng xóa  biến thể trước.' 
+      return res.status(400).json({
+        message: 'Không thể xóa sản phẩm đã có biến thể. Vui lòng xóa  biến thể trước.'
       });
     }
 
@@ -503,9 +525,9 @@ export const deleteProduct = async (req, res) => {
             await cloudinary.uploader.destroy(image.imagePublicId, { invalidate: true });
             logger.debug('Product image deleted from Cloudinary', { publicId: image.imagePublicId });
           } catch (cloudError) {
-            logger.warn('Failed to delete image from Cloudinary', { 
-              publicId: image.imagePublicId, 
-              error: cloudError.message 
+            logger.warn('Failed to delete image from Cloudinary', {
+              publicId: image.imagePublicId,
+              error: cloudError.message
             });
             // Tiếp tục xóa dù lỗi Cloudinary
           }
@@ -518,9 +540,9 @@ export const deleteProduct = async (req, res) => {
           await cloudinary.uploader.destroy(found.imagePublicId, { invalidate: true });
           logger.debug('Primary image deleted from Cloudinary', { publicId: found.imagePublicId });
         } catch (cloudError) {
-          logger.warn('Failed to delete primary image from Cloudinary', { 
-            publicId: found.imagePublicId, 
-            error: cloudError.message 
+          logger.warn('Failed to delete primary image from Cloudinary', {
+            publicId: found.imagePublicId,
+            error: cloudError.message
           });
         }
       }
@@ -528,29 +550,29 @@ export const deleteProduct = async (req, res) => {
       // 3. Xóa các bản ghi liên quan (variants sẽ tự xóa do onDelete: Cascade)
       // Xóa wishlist items
       await tx.wishlist.deleteMany({ where: { productId: id } });
-      
+
       // Xóa shopping cart items
       await tx.shoppingCart.deleteMany({ where: { productId: id } });
-      
+
       // Xóa product images
       await tx.productImage.deleteMany({ where: { productId: id } });
-      
+
       // Xóa product comments
       await tx.productComment.deleteMany({ where: { productId: id } });
-      
+
       // Xóa product reviews
       await tx.productReview.deleteMany({ where: { productId: id } });
-      
+
       // 4. Cuối cùng xóa sản phẩm (variants sẽ tự xóa do cascade)
       await tx.product.delete({ where: { id } });
     });
-    
+
     logger.success('Product deleted', { id, name: found.name });
     logger.end(context.path, { id });
-    
+
     // Gửi thông báo real-time đến tất cả client là xóa sản phẩm
     emitProductDeleted(id);
-    
+
     return res.json({ success: true, message: 'Xóa sản phẩm thành công' });
   } catch (error) {
     logger.error('Failed to delete product', {
@@ -558,14 +580,14 @@ export const deleteProduct = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    
+
     // Kiểm tra lỗi foreign key constraint
     if (error.code === 'P2003' || error.message.includes('Foreign key constraint')) {
-      return res.status(400).json({ 
-        message: 'Không thể xóa sản phẩm vì đang được sử dụng trong hệ thống' 
+      return res.status(400).json({
+        message: 'Không thể xóa sản phẩm vì đang được sử dụng trong hệ thống'
       });
     }
-    
+
     const payload = { message: 'Server error' };
     if (process.env.NODE_ENV !== 'production') payload.error = error.message;
     return res.status(500).json(payload);
@@ -577,7 +599,7 @@ export const updateProductPrimaryImage = async (req, res) => {
   const context = { path: 'admin.products.updatePrimaryImage' };
   try {
     logger.start(context.path, { productId: req.params.id });
-    
+
     const productId = Number(req.params.id);
     const { imageUrl, imagePublicId } = req.body;
 
@@ -639,7 +661,7 @@ export const getProductsByCategory = async (req, res) => {
   const context = { path: 'admin.products.getByCategory' };
   try {
     logger.start(context.path, { categoryId: req.params.categoryId, query: req.query });
-    
+
     // Lấy categoryId từ URL params (ví dụ: /api/admin/products/category/1)
     const { categoryId } = req.params;
     // Lấy các tham số phân trang và sắp xếp từ query string với giá trị mặc định
@@ -652,7 +674,7 @@ export const getProductsByCategory = async (req, res) => {
     }
 
     // Kiểm tra category có tồn tại trong database không
-    const category = await prisma.category.findUnique({ 
+    const category = await prisma.category.findUnique({
       where: { id: Number(categoryId) },
       select: { id: true, name: true, slug: true, isActive: true } // Thêm isActive để kiểm tra
     });
@@ -694,7 +716,7 @@ export const getProductsByCategory = async (req, res) => {
     const [products, total] = await Promise.all([
       // Query 1: Lấy danh sách sản phẩm trong category với phân trang
       prisma.product.findMany({
-        where: { 
+        where: {
           categoryId: Number(categoryId), // Lọc theo category ID
           status: 'ACTIVE' // Chỉ lấy sản phẩm đang hoạt động, bỏ qua sản phẩm đã xóa/tạm dừng
         },
@@ -708,7 +730,7 @@ export const getProductsByCategory = async (req, res) => {
       }),
       // Query 2: Đếm tổng số sản phẩm trong category (chỉ sản phẩm ACTIVE)
       prisma.product.count({
-        where: { 
+        where: {
           categoryId: Number(categoryId),
           status: 'ACTIVE'
         }
@@ -731,7 +753,7 @@ export const getProductsByCategory = async (req, res) => {
         }
       }
     };
-    
+
     logger.end(context.path, { categoryId, total: products.length });
     return res.json(payload);
   } catch (error) {

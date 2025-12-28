@@ -1,4 +1,5 @@
 import ghnService from '../services/shipping/ghnService.js';
+import shippingService from '../services/shipping/shippingService.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -8,7 +9,7 @@ import logger from '../utils/logger.js';
 export const getProvinces = async (req, res) => {
   try {
     const result = await ghnService.getProvinces();
-    
+
     if (!result.success) {
       return res.status(500).json({
         success: false,
@@ -39,7 +40,7 @@ export const getProvinces = async (req, res) => {
 export const getDistricts = async (req, res) => {
   try {
     const { province_id } = req.query;
-    
+
     if (!province_id) {
       return res.status(400).json({
         success: false,
@@ -48,7 +49,7 @@ export const getDistricts = async (req, res) => {
     }
 
     const result = await ghnService.getDistricts(Number(province_id));
-    
+
     if (!result.success) {
       return res.status(500).json({
         success: false,
@@ -82,7 +83,7 @@ export const getWards = async (req, res) => {
   try {
     // Hỗ trợ cả GET (query params) và POST (body)
     const district_id = req.query.district_id || req.body.district_id;
-    
+
     if (!district_id) {
       return res.status(400).json({
         success: false,
@@ -91,7 +92,7 @@ export const getWards = async (req, res) => {
     }
 
     const result = await ghnService.getWards(Number(district_id));
-    
+
     if (!result.success) {
       return res.status(500).json({
         success: false,
@@ -139,7 +140,7 @@ export const calculateShippingFee = async (req, res) => {
       });
     }
 
-    const result = await ghnService.calculateShippingFee({
+    const result = await shippingService.calculateShippingFee({
       toDistrictId: Number(toDistrictId),
       toWardCode,
       weight: weight ? Number(weight) : undefined,
@@ -161,13 +162,17 @@ export const calculateShippingFee = async (req, res) => {
 
     return res.json({
       success: true,
-      message: 'Tính phí vận chuyển thành công',
+      message: result.isFreeShipping
+        ? `Miễn phí vận chuyển: ${result.freeShippingReason}`
+        : 'Tính phí vận chuyển thành công',
       data: {
         shippingFee: result.shippingFee,
         serviceFee: result.serviceFee,
         insuranceFee: result.insuranceFee,
         totalFee: result.totalFee,
         estimatedDeliveryTime: result.estimatedDeliveryTime,
+        isFreeShipping: result.isFreeShipping || false,
+        freeShippingReason: result.freeShippingReason || null,
       },
     });
   } catch (error) {

@@ -21,24 +21,44 @@ class LegalDocumentChunker:
     
     def extract_doc_info(self, text: str, filename: str = "") -> Dict[str, Any]:
         """Extract thông tin văn bản từ text"""
+        from .parser import LegalDocumentParser
+        
+        parser = LegalDocumentParser()
+        
+        # CRITICAL: Không bao giờ fallback về filename vì sẽ làm nhiễu vector search
+        # Phải luôn có tên luật chuẩn tiếng Việt
         doc_info = {
-            "doc_name": filename,
+            "doc_name": "",  # Sẽ được set sau khi extract hoặc guess
             "doc_type": "Văn bản",
             "source_id": "",
             "effective_date": None,
             "status": "active"
         }
         
-        # Try to extract doc type and name
-        for doc_type, pattern in self.doc_type_patterns.items():
-            match = pattern.search(text[:500])  # Check first 500 chars
+        # Try to extract doc name using improved method
+        extracted_doc_name = parser.extract_doc_name(text)
+        if extracted_doc_name:
+            doc_info["doc_name"] = extracted_doc_name
+        else:
+            # Fallback: Dùng filename-based mapping để đảm bảo luôn có tên luật
+            doc_info["doc_name"] = parser.guess_law_name_from_filename(filename)
+        
+        # Try to extract doc type
+        # Check if it's a Law (Luật)
+        if re.search(r'^LUẬT\s+', text[:200], re.IGNORECASE | re.MULTILINE):
+            doc_info["doc_type"] = "Luật"
+        elif re.search(r'Nghị\s+định\s+số', text[:200], re.IGNORECASE):
+            doc_info["doc_type"] = "Nghị định"
+            # Try to extract source_id for Nghị định
+            match = self.doc_type_patterns["Nghị định"].search(text[:500])
             if match:
-                doc_info["doc_type"] = doc_type
-                if doc_type == "Luật":
-                    doc_info["doc_name"] = match.group(0)
-                else:
-                    doc_info["source_id"] = match.group(1)
-                break
+                doc_info["source_id"] = match.group(1)
+        elif re.search(r'Thông\s+tư\s+số', text[:200], re.IGNORECASE):
+            doc_info["doc_type"] = "Thông tư"
+            # Try to extract source_id for Thông tư
+            match = self.doc_type_patterns["Thông tư"].search(text[:500])
+            if match:
+                doc_info["source_id"] = match.group(1)
         
         # Try to extract year and date
         year_match = re.search(r'(\d{4})', text[:200])
@@ -136,37 +156,57 @@ class LegalDocumentChunker:
         clause: Optional[str] = None,
         point: Optional[str] = None
     ) -> str:
-        """Làm giàu ngữ cảnh cho text embedding"""
-        parts = []
+        """
+        Context Injection cho text embedding - CỰC KỲ QUAN TRỌNG cho RAG Chatbot
         
-        # Add document context
+        Strategy: Luôn luôn đảm bảo mỗi chunk có đầy đủ context để Vector Search
+        có thể tìm chính xác ngay cả khi user query không rõ ràng.
+        
+        Format: [Tên Luật] - [Tên Điều] - [Khoản/Điểm] - [Nội dung]
+        
+        Ví dụ:
+        "Luật Doanh nghiệp 2020. Điều 13: Người đại diện theo pháp luật. Khoản 1. Người đại diện theo pháp luật của doanh nghiệp có các quyền và nghĩa vụ sau đây: ..."
+        
+        Tại sao quan trọng?
+        - Nếu chỉ có nội dung "Phạt tiền từ 10.000.000 đồng..." mà không có context,
+          Vector Search sẽ trả về mọi quy định phạt tiền từ nhiều luật khác nhau.
+        - Với context injection, Vector sẽ biết chính xác đây là quy định của Luật nào,
+          Điều nào, áp dụng cho hành vi gì.
+        """
+        # Build context string theo format tối ưu cho semantic search
+        context_parts = []
+        
+        # 1. Document level context (QUAN TRỌNG NHẤT)
         if doc_name:
-            parts.append(doc_name)
-        if doc_type:
-            parts.append(f"Loại: {doc_type}")
+            context_parts.append(f"Luật: {doc_name}")
         
-        # Add chapter
+        # 2. Chapter context (nếu có)
         if chapter:
-            parts.append(chapter)
+            context_parts.append(chapter)
         
-        # Add article
-        if article:
-            parts.append(article)
+        # 3. Article context (RẤT QUAN TRỌNG)
+        article_context = article
         if article_title:
-            parts.append(f"Tiêu đề: {article_title}")
+            article_context = f"{article}: {article_title}"
+        if article_context:
+            context_parts.append(article_context)
         
-        # Add clause if exists
+        # 4. Clause/Point context
         if clause:
-            parts.append(clause)
-        
-        # Add point if exists
+            context_parts.append(clause)
         if point:
-            parts.append(f"Điểm {point}")
+            context_parts.append(f"Điểm {point}")
         
-        # Add content
-        parts.append(f"Nội dung: {content}")
+        # 5. Content (nội dung chính)
+        # Đảm bảo content luôn có trong embedding text
+        if content:
+            context_parts.append(content)
         
-        return ". ".join(parts)
+        # Join với dấu ". " để tạo thành câu văn tự nhiên
+        # Format này giúp embedding model hiểu được mối quan hệ giữa các phần
+        enriched_text = ". ".join(context_parts)
+        
+        return enriched_text
     
     def create_chunk_json(
         self,

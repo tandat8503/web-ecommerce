@@ -1,11 +1,12 @@
 // controller/authController.js
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import prisma from '../config/prisma.js' 
+import prisma from '../config/prisma.js'
 import { JWT_CONFIG } from '../config/jwt.js'
 import { DEFAULT_AVATAR } from '../config/constants.js';
 import { OAuth2Client } from "google-auth-library";
 import logger from '../utils/logger.js';
+import { grantWelcomeCoupon } from '../services/couponService.js';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -23,7 +24,7 @@ export const login = async (req, res) => {
   const context = { path: 'auth.login' };
   try {
     logger.start(context.path, { email: req.body?.email });
-    
+
     const { email, password } = req.body
 
     // Validation
@@ -47,7 +48,7 @@ export const login = async (req, res) => {
         message: 'Email hoặc password không đúng'
       })
     }
-    
+
     // Phân loại user type dựa trên role
     const userType = user.role === 'ADMIN' ? 'admin' : 'user'
 
@@ -97,7 +98,7 @@ export const login = async (req, res) => {
 
     logger.success('Login successful', { userId: user.id, userType });
     logger.end(context.path, { userId: user.id, userType });
-    
+
     res.json({
       success: true,
       message: 'Đăng nhập thành công',
@@ -108,8 +109,8 @@ export const login = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error('Login failed', { 
-      path: context.path, 
+    logger.error('Login failed', {
+      path: context.path,
       error: error.message,
       stack: error.stack
     });
@@ -132,11 +133,11 @@ export const register = async (req, res) => {
   const context = { path: 'auth.register' };
   try {
     logger.start(context.path, { email: req.body?.email });
-    
+
     const { email, password, firstName, lastName, phone } = req.body
 
     // Validation cơ bản
-    if (!email || !password || !firstName || !lastName ) {
+    if (!email || !password || !firstName || !lastName) {
       logger.warn('Missing required fields');
       return res.status(400).json({
         success: false,
@@ -221,9 +222,14 @@ export const register = async (req, res) => {
     // Tạo access token
     const accessToken = generateAccessToken(newUser.id)
 
+    // Tặng mã chào mừng cho user mới (async, không chặn response)
+    grantWelcomeCoupon(newUser.id).catch(err => {
+      logger.error('Failed to grant welcome coupon (non-blocking)', { userId: newUser.id, error: err.message });
+    });
+
     logger.success('User registered', { userId: newUser.id, email: newUser.email });
     logger.end(context.path, { userId: newUser.id });
-    
+
     res.status(201).json({
       success: true,
       message: 'Đăng ký thành công',
@@ -234,8 +240,8 @@ export const register = async (req, res) => {
     })
 
   } catch (error) {
-    logger.error('Registration failed', { 
-      path: context.path, 
+    logger.error('Registration failed', {
+      path: context.path,
       error: error.message,
       stack: error.stack
     });
@@ -251,18 +257,18 @@ export const logout = async (req, res) => {
   const context = { path: 'auth.logout' };
   try {
     logger.start(context.path, { userId: req.user?.id });
-    
+
     logger.success('Logout successful', { userId: req.user?.id });
     logger.end(context.path);
-    
+
     res.json({
       success: true,
       message: 'Đăng xuất thành công'
     })
   } catch (error) {
-    logger.error('Logout failed', { 
-      path: context.path, 
-      error: error.message 
+    logger.error('Logout failed', {
+      path: context.path,
+      error: error.message
     });
     res.status(500).json({
       success: false,
@@ -276,7 +282,7 @@ export const googleLogin = async (req, res) => {
   const context = { path: 'auth.google' };
   try {
     logger.start(context.path);
-    
+
     const { token } = req.body;
     if (!token) {
       logger.warn('Missing Google token');
@@ -317,7 +323,7 @@ export const googleLogin = async (req, res) => {
       if (picture && picture !== user.avatar) {
         user = await prisma.user.update({
           where: { id: user.id },
-          data: { 
+          data: {
             avatar: picture,
             googleId: googleId || user.googleId,
           },
@@ -371,7 +377,7 @@ export const googleLogin = async (req, res) => {
       },
     });
   } catch (err) {
-    logger.error("Google login failed", { 
+    logger.error("Google login failed", {
       path: context.path,
       error: err.message,
       stack: err.stack

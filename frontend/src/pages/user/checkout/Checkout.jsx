@@ -31,9 +31,18 @@ export default function Checkout() {
     districts,
     wards,
     savingAddress,
+    couponCode,
+    appliedCoupon,
+    validatingCoupon,
+    couponError,
+    userCoupons,
+    loadingCoupons,
     setSelectedAddressId,
     setPaymentMethod,
     setCustomerNote,
+    setCouponCode,
+    handleApplyCoupon,
+    handleRemoveCoupon,
     handleAddressChange,
     handleProvinceChange,
     handleDistrictChange,
@@ -239,8 +248,8 @@ export default function Checkout() {
               {checkoutItems.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <p>Không có sản phẩm nào được chọn.</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="mt-4"
                     onClick={() => window.location.href = '/cart'}
                   >
@@ -249,71 +258,71 @@ export default function Checkout() {
                 </div>
               ) : (
                 checkoutItems.map((item) => {
-                const variant = item.variant;
-                const imageUrl =
-                  item.product?.primary_image || item.product?.image_url || "/placeholder-product.jpg";
-                const price = Number(item.final_price || item.product?.price || 0);
-                const isRemoving = removingItem === item.id;
+                  const variant = item.variant;
+                  const imageUrl =
+                    item.product?.primary_image || item.product?.image_url || "/placeholder-product.jpg";
+                  const price = Number(item.final_price || item.product?.price || 0);
+                  const isRemoving = removingItem === item.id;
 
-                return (
-                  <div key={item.id} className="flex gap-3 py-3 border-b last:border-0">
-                    <img src={imageUrl} alt={item.product?.name} className="w-16 h-16 object-cover rounded border" />
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{item.product?.name}</div>
-                      <div className="text-xs text-gray-500">
-                        {variant?.color && `Màu: ${variant.color}`}
-                        {variant?.width && ` | ${variant.width}x${variant.depth}x${variant.height}mm`}
-                      </div>
-                      <div className="text-sm text-orange-600 font-semibold mt-1">
-                        {formatPrice(price)} x {item.quantity}
-                      </div>
-                      {/* ✅ Nút cập nhật số lượng và xóa */}
-                      <div className="flex items-center gap-2 mt-2">
-                        <div className="flex items-center gap-1 border rounded">
+                  return (
+                    <div key={item.id} className="flex gap-3 py-3 border-b last:border-0">
+                      <img src={imageUrl} alt={item.product?.name} className="w-16 h-16 object-cover rounded border" />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{item.product?.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {variant?.color && `Màu: ${variant.color}`}
+                          {variant?.width && ` | ${variant.width}x${variant.depth}x${variant.height}mm`}
+                        </div>
+                        <div className="text-sm text-orange-600 font-semibold mt-1">
+                          {formatPrice(price)} x {item.quantity}
+                        </div>
+                        {/* ✅ Nút cập nhật số lượng và xóa */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-1 border rounded">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                              disabled={updatingQuantity || item.quantity <= 1}
+                            >
+                              <FaMinus className="h-3 w-3" />
+                            </Button>
+                            <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                              disabled={updatingQuantity}
+                            >
+                              <FaPlus className="h-3 w-3" />
+                            </Button>
+                          </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                            disabled={updatingQuantity || item.quantity <= 1}
+                            className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveItem(item.id)}
+                            disabled={isRemoving || updatingQuantity}
                           >
-                            <FaMinus className="h-3 w-3" />
-                          </Button>
-                          <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                            disabled={updatingQuantity}
-                          >
-                            <FaPlus className="h-3 w-3" />
+                            {isRemoving ? (
+                              <span className="text-xs">Đang xóa...</span>
+                            ) : (
+                              <>
+                                <FaTrash className="h-3 w-3 mr-1" />
+                                Xóa
+                              </>
+                            )}
                           </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleRemoveItem(item.id)}
-                          disabled={isRemoving || updatingQuantity}
-                        >
-                          {isRemoving ? (
-                            <span className="text-xs">Đang xóa...</span>
-                          ) : (
-                            <>
-                              <FaTrash className="h-3 w-3 mr-1" />
-                              Xóa
-                            </>
-                          )}
-                        </Button>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-orange-600">{formatPrice(price * item.quantity)}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold text-orange-600">{formatPrice(price * item.quantity)}</div>
-                    </div>
-                  </div>
-                );
-              })
+                  );
+                })
               )}
             </CardContent>
           </Card>
@@ -328,9 +337,8 @@ export default function Checkout() {
                 {["COD", "VNPAY"].map((method) => (
                   <label
                     key={method}
-                    className={`border rounded p-3 cursor-pointer text-sm flex items-center gap-2 ${
-                      paymentMethod === method ? "border-blue-600 bg-blue-50" : ""
-                    }`}
+                    className={`border rounded p-3 cursor-pointer text-sm flex items-center gap-2 ${paymentMethod === method ? "border-blue-600 bg-blue-50" : ""
+                      }`}
                   >
                     <input
                       type="radio"
@@ -342,6 +350,101 @@ export default function Checkout() {
                   </label>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Mã giảm giá */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Mã giảm giá</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {appliedCoupon ? (
+                // Đã áp dụng coupon
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded">
+                    <div>
+                      <div className="font-semibold text-green-700">{appliedCoupon.code}</div>
+                      <div className="text-sm text-gray-600">{appliedCoupon.name}</div>
+                      {appliedCoupon.applyToShipping && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          ✓ Giảm {formatPrice(appliedCoupon.discountShipping)} phí vận chuyển
+                        </div>
+                      )}
+                      {appliedCoupon.discountAmount > 0 && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          ✓ Giảm {formatPrice(appliedCoupon.discountAmount)} đơn hàng
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveCoupon}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Chưa áp dụng coupon - Hiển thị combobox chọn mã
+                <div className="space-y-3">
+                  {loadingCoupons ? (
+                    <div className="text-center py-4 text-gray-500">
+                      <span className="text-sm">Đang tải mã giảm giá...</span>
+                    </div>
+                  ) : userCoupons.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500">Bạn chưa có mã giảm giá nào</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Mã giảm giá sẽ được tặng khi bạn mua hàng hoặc đánh giá sản phẩm
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <Select
+                        placeholder="Chọn mã giảm giá"
+                        value={couponCode || undefined}
+                        onChange={handleApplyCoupon}
+                        className="w-full"
+                        loading={validatingCoupon}
+                        disabled={validatingCoupon}
+                      >
+                        {userCoupons.map((coupon) => (
+                          <Select.Option key={coupon.id} value={coupon.code}>
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <div className="font-semibold">{coupon.code}</div>
+                                <div className="text-xs text-gray-500">{coupon.name}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-orange-600 font-semibold">
+                                  {coupon.discountType === 'AMOUNT'
+                                    ? formatPrice(coupon.discountValue)
+                                    : `${coupon.discountValue}%`
+                                  }
+                                </div>
+                                {coupon.minimumAmount > 0 && (
+                                  <div className="text-xs text-gray-400">
+                                    Đơn tối thiểu {formatPrice(coupon.minimumAmount)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </Select.Option>
+                        ))}
+                      </Select>
+                      {couponError && (
+                        <p className="text-sm text-red-600">{couponError}</p>
+                      )}
+                      <p className="text-xs text-gray-500">
+                        Chọn mã giảm giá để nhận ưu đãi cho đơn hàng của bạn
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -400,6 +503,25 @@ export default function Checkout() {
                   </div>
                 )}
               </div>
+
+              {/* Hiển thị discount nếu có */}
+              {appliedCoupon && summary.totalDiscount > 0 && (
+                <>
+                  {summary.discountShipping > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Giảm phí vận chuyển</span>
+                      <span className="font-semibold">-{formatPrice(summary.discountShipping)}</span>
+                    </div>
+                  )}
+                  {summary.discountAmount > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>Giảm giá đơn hàng</span>
+                      <span className="font-semibold">-{formatPrice(summary.discountAmount)}</span>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div className="flex justify-between border-t pt-3 font-bold">
                 <span>Tổng cộng</span>
                 <span className="text-orange-600 text-lg">{formatPrice(summary.total)}</span>
@@ -423,8 +545,8 @@ export default function Checkout() {
       </div>
 
       {/* 📍 DIALOG CHỌN ĐỊA CHỈ KHÁC */}
-      <Dialog 
-        open={openAddressDialog} 
+      <Dialog
+        open={openAddressDialog}
         onOpenChange={(open) => {
           // Không cho phép đóng dialog bằng cách click ngoài hoặc ESC
           // Chỉ đóng khi user click nút "Hủy" hoặc "Thêm địa chỉ mới"
@@ -432,7 +554,7 @@ export default function Checkout() {
           setOpenAddressDialog(open);
         }}
       >
-        <DialogContent 
+        <DialogContent
           className="sm:max-w-[600px]"
           onEscapeKeyDown={(e) => e.preventDefault()} // Chặn ESC
           onPointerDownOutside={(e) => e.preventDefault()} // Chặn click ngoài
@@ -444,9 +566,8 @@ export default function Checkout() {
             {addresses.map((addr) => (
               <label
                 key={addr.id}
-                className={`flex items-start gap-3 border rounded p-3 cursor-pointer ${
-                  addr.id === selectedAddressId ? "border-blue-600 bg-blue-50" : ""
-                }`}
+                className={`flex items-start gap-3 border rounded p-3 cursor-pointer ${addr.id === selectedAddressId ? "border-blue-600 bg-blue-50" : ""
+                  }`}
               >
                 <input
                   type="radio"

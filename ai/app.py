@@ -212,12 +212,12 @@ async def chat(request: ChatRequest):
         if request.user_id:
             context["user_id"] = request.user_id
         
-        # TÁCH LUỒNG XỬ LÝ: User dùng Service mới (Nhanh, Gọn), Admin dùng Orchestrator cũ
+        # TÁCH LUỒNG XỬ LÝ: User dùng Improved Service (với Conversation Memory), Admin dùng Orchestrator cũ
         if request.user_type == "user":
-            # Dùng Service mới (Nhanh, Gọn) cho Khách hàng
-            from agents import user_chatbot_service
+            # ✅ Dùng Improved Service (với Intent Detection + Conversation Memory) cho Khách hàng
+            from services.chatbot.improved_user_chatbot import improved_user_chatbot_service
             
-            result = await user_chatbot_service.process_message(
+            result = await improved_user_chatbot_service.process_message(
                 user_message=request.message,
                 context=context
             )
@@ -237,7 +237,7 @@ async def chat(request: ChatRequest):
                 return ChatResponse(
                     success=True,
                     response=response_data,  # Structured response with text, type, data
-                    agent_type=result.get("agent_type", "user_chatbot_fast"),
+                    agent_type=result.get("agent_type", "user_chatbot_improved"),
                     data=data_value,  # Product cards data (wrapped in dict if list)
                     session_id=context.get("session_id")
                 )

@@ -28,6 +28,8 @@ import notificationRoutes from "./notificationRoutes.js"; // Routes quản lý t
 import productCommentRoutes from "./productCommentRoutes.js"; // Routes bình luận sản phẩm
 import productReviewRoutes from "./productReviewRoutes.js"; // Routes đánh giá sản phẩm
 import ghnRoutes from "./ghnRoutes.js"; // Routes GHN API (lấy địa chỉ & tính phí vận chuyển)
+import adminCouponManagementRoutes from "./adminCouponManagementRoutes.js"; // Routes quản lý khuyến mãi (admin)
+import couponRoutes from "./couponRoutes.js"; // Routes quản lý mã giảm giá người dùng
 
 /**
  * Function cấu hình tất cả routes cho ứng dụng
@@ -36,7 +38,7 @@ import ghnRoutes from "./ghnRoutes.js"; // Routes GHN API (lấy địa chỉ & 
 const routes = (app) => {
   // ==================== PUBLIC ROUTES ====================
   // Các routes không yêu cầu authentication
-  
+
   app.use("/api/auth", authRouter); // Authentication endpoints
   app.use("/api/addresses", addressRouter); // Address management endpoints
   app.use("/api/users", userRouter); // User information endpoints (public)
@@ -51,15 +53,15 @@ const routes = (app) => {
   app.use("/api/product-comments", productCommentRoutes); // Product comment endpoints (public + user + admin)
   app.use("/api/product-reviews", productReviewRoutes); // Product review endpoints (public + user + admin)
   app.use("/api/ghn", ghnRoutes); // GHN API endpoints (lấy địa chỉ & tính phí vận chuyển)
- 
+
   // ==================== USER ROUTES ====================
   // Các routes yêu cầu authentication nhưng không cần quyền admin
-  
+
   //app.use("/api/orders", userOrderRoutes); // User order management endpoints
-  
+
   // ==================== ADMIN ROUTES ====================
   // Tất cả routes admin đều yêu cầu authentication và quyền admin
-  
+
   app.use("/api/admin/categories", adminCategoryRoutes); // Category management
   app.use("/api/admin/products", adminProductRoutes); // Product management (CRUD + get by category)
   app.use("/api/admin/product-images", adminProductImageRoutes); // Product image management
@@ -68,7 +70,11 @@ const routes = (app) => {
   app.use("/api/admin/users", adminUserRoutes); // User management
   app.use("/api/admin/banners", adminBannerRoutes); // Banner management
   app.use("/api/admin/product-variants", adminProductVariantRoutes); // Product variant management
-  app.use("/api/admin/coupons", adminCouponRoutes); // Coupon management
+  app.use("/api/admin/coupons", adminCouponRoutes); // Coupon management (old system)
+  app.use("/api/admin/coupon-management", adminCouponManagementRoutes); // Coupon management (new system)
+
+  // ==================== USER COUPON ROUTES ====================
+  app.use("/api/coupons", couponRoutes); // User coupon endpoints
 };
 
 export default routes;

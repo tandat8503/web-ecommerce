@@ -3,6 +3,11 @@ import logger from '../utils/logger.js';
 import { emitNewOrder, emitOrderStatusUpdate } from '../config/socket.js';
 import { calculateShippingFee as ghnCalculateShippingFee } from '../services/shipping/ghnService.js';
 import { sendOrderConfirmationEmail } from '../services/Email/EmailServices.js';
+import {
+  validateAndApplyCoupon,
+  markCouponAsUsed,
+  grantFirstOrderCoupon
+} from '../services/couponService.js';
 
 const DEFAULT_SHIPPING_FEE = 30000;
 const DEFAULT_WEIGHT_PER_ITEM = 500; // gram
@@ -46,7 +51,7 @@ const buildShipmentMetrics = (cartItems) => {
       const lengthCm = mmToCm(variant.width);
       const widthCm = mmToCm(variant.depth);
       const heightCm = mmToCm(variant.height);
-      
+
       // Lấy kích thước lớn nhất cho mỗi chiều (khi có nhiều sản phẩm)
       if (lengthCm) metrics.length = Math.max(metrics.length, lengthCm);
       if (widthCm) metrics.width = Math.max(metrics.width, widthCm);
@@ -83,7 +88,7 @@ const generateOrderNumber = async (userId) => {
       select: { id: true }
     });
     if (!user) throw new Error("User không tồn tại");
-//lấy mã người dùng và định dạng thành 3 chữ số vd: 001
+    //lấy mã người dùng và định dạng thành 3 chữ số vd: 001
     const userCode = String(user.id).padStart(3, "0");
     const now = new Date();//lấy ngày hiện tại vd: 2025-10-30
     const year = now.getFullYear().toString();//lấy năm hiện tại vd: 2025
@@ -104,15 +109,15 @@ const generateOrderNumber = async (userId) => {
         createdAt: { gte: startOfDay, lt: endOfDay }//lấy thời gian đầu tiên của ngày hiện tại đến thời gian cuối cùng của ngày hiện tại
       }
     });
-//lấy số thứ tự đơn của user trong ngày (001, 002, ...)
+    //lấy số thứ tự đơn của user trong ngày (001, 002, ...)
     const seq = String(todayCount + 1).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
-//định dạng thành <maKH><YYYYMMDD><SEQ3> vd: 00120251030001
+    //định dạng thành <maKH><YYYYMMDD><SEQ3> vd: 00120251030001
     return `${userCode}${dateCode}${seq}`;
   } catch (e) {
     logger.error('Failed to generate order number', { error: e.message, stack: e.stack });
     const userCode = String(userId).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
-    return `${userCode}${new Date().toISOString().slice(0,10).replace(/-/g,'')}${Date.now().toString().slice(-3)}`;
-    
+    return `${userCode}${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${Date.now().toString().slice(-3)}`;
+
   }
 };
 
@@ -196,7 +201,7 @@ export const createOrder = async (req, res) => {
       } else {
         stock = item.product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
       }
-      
+
       if (item.quantity > stock) {
         return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
       }
@@ -212,8 +217,8 @@ export const createOrder = async (req, res) => {
         variantId: item.variantId ?? null,
         productName: item.product.name,
         productSku: item.product.slug,
-        variantName: item.variant ? 
-          `${item.variant.color || ''} ${item.variant.width ? `${item.variant.width}x${item.variant.depth}x${item.variant.height}mm` : ''}`.trim() 
+        variantName: item.variant ?
+          `${item.variant.color || ''} ${item.variant.width ? `${item.variant.width}x${item.variant.depth}x${item.variant.height}mm` : ''}`.trim()
           : null,
         quantity: item.quantity,
         unitPrice,
@@ -245,7 +250,7 @@ export const createOrder = async (req, res) => {
         addressType: shippingAddress.addressType,
         note: shippingAddress.note
       });
-      
+
       const order = await tx.order.create({
         data: {
           orderNumber,
@@ -270,7 +275,7 @@ export const createOrder = async (req, res) => {
           paymentStatus: "PENDING",
           amount: totalAmount,
           transactionId
-          
+
         }
       });
 
@@ -355,7 +360,7 @@ export const createOrder = async (req, res) => {
         }));
 
         // Format shippingAddress thành string cho email
-        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+        const shippingAddressString = typeof shippingAddressParsed === 'object'
           ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
           : orderDetails.shippingAddress;
 
@@ -376,6 +381,15 @@ export const createOrder = async (req, res) => {
         error: emailError.message
       });
     }
+
+    // BƯỚC 10: Tặng mã giảm giá cho đơn hàng đầu tiên (non-blocking)
+    grantFirstOrderCoupon(userId).catch(err => {
+      logger.error('Failed to grant first order coupon (non-blocking)', {
+        userId,
+        orderId: created.id,
+        error: err.message
+      });
+    });
 
     return res.status(201).json({ message: "Tạo đơn hàng thành công", order: orderDetails });
   } catch (error) {
@@ -451,7 +465,7 @@ export const getOrderById = async (req, res) => {
 
     // Dựng timeline từ lịch sử thay đổi trạng thái (chính xác 100%)
     const paidPayment = order.payments.find((p) => p.paymentStatus === "PAID");
-    
+
     // Tìm thời gian của từng status trong history (lấy lần xuất hiện cuối cùng để chính xác)
     const getStatusTime = (targetStatus) => {
       // Tìm tất cả các record có status này và lấy record mới nhất
@@ -461,7 +475,7 @@ export const getOrderById = async (req, res) => {
       const latestItem = historyItems[historyItems.length - 1];
       return latestItem.createdAt;
     };
-    
+
     //tạo timeline từ lịch sử thay đổi trạng thái
     const timeline = {
       //thời gian tạo đơn hàng
@@ -490,7 +504,7 @@ export const getOrderById = async (req, res) => {
 
     const payment = order.payments.find((p) => p.paymentMethod === order.paymentMethod) || order.payments[0] || null;
     const summaryStatus = order.paymentStatus || payment?.paymentStatus || "PENDING";
-  //tạo summary thanh toán
+    //tạo summary thanh toán
     const paymentSummary = (() => {
       if (!payment) {
         return {
@@ -499,7 +513,7 @@ export const getOrderById = async (req, res) => {
           paidAt: null//thời gian thanh toán
         };
       }
-//thanh toán cod
+      //thanh toán cod
       if (order.paymentMethod === "COD") {
         const status =
           order.status === "DELIVERED"
@@ -532,14 +546,14 @@ export const getOrderById = async (req, res) => {
       };
     })();
 
-    return res.status(200).json({ 
-      message: "Lấy chi tiết đơn hàng thành công", 
-      order: { 
-        ...order, 
+    return res.status(200).json({
+      message: "Lấy chi tiết đơn hàng thành công",
+      order: {
+        ...order,
         shippingAddress: parsedShippingAddress, // Parse shippingAddress
         timeline,
         paymentSummary
-      } 
+      }
     });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi server", error: error.message });
@@ -573,7 +587,7 @@ export const cancelOrder = async (req, res) => {
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "CANCELLED" }
       });
-      
+
       // Chỉ cập nhật payment status cho COD
       if (order.paymentMethod === "COD") {
         await tx.payment.updateMany({

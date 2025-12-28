@@ -1,4 +1,4 @@
-import { createBrowserRouter} from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 //Admin
 import AdminLayout from "@/layout/admin/AdminLayout";
 import Dashboard from "@/pages/admin/Dashboard";
@@ -26,6 +26,7 @@ import MyOrders from "@/pages/user/orders/MyOrders";
 import OrderDetail from "@/pages/user/orders/OrderDetail";
 import OrderReview from "@/pages/user/orders/OrderReview";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
+import MyCoupons from "@/pages/user/coupons/MyCoupons";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
 
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: "orders", element: <MyOrders /> },
       { path: "orders/:id/review", element: <OrderReview /> },
       { path: "orders/:id", element: <OrderDetail /> },
+      { path: "my-coupons", element: <MyCoupons /> },
       { path: "profile-manager", element: <ProfileManager /> },
     ],
   },
@@ -61,7 +63,7 @@ const router = createBrowserRouter([
     element: <AuthPage />,
   },
 
- 
+
   // Route admin với layout (chỉ admin mới vào được)
   {
     path: "/admin",
@@ -88,7 +90,7 @@ const router = createBrowserRouter([
     path: "*",
     element: <NotFound />,
   },
- 
+
 ]);
 
 export default router;
