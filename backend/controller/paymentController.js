@@ -77,6 +77,7 @@ export const createVNPayPayment = async (req, res) => {
     // Khi giao dịch trước thất bại => reset dữ liệu để cho phép tạo session thanh toán mới
     if (payment.paymentStatus === 'FAILED') {
       // Ghi xuống DB để reset trạng thái payment
+      // Cập nhật amount từ order.totalAmount để đảm bảo có discount nếu có
       await prisma.payment.update({
         where: { id: payment.id },
         data: {
@@ -87,7 +88,8 @@ export const createVNPayPayment = async (req, res) => {
           vnpayTransactionNo: null,// Mã giao dịch VNPay là null
           bankCode: null,// Mã ngân hàng là null
           responseCode: null,// Mã phản hồi là null
-          payDate: null// Ngày thanh toán là null
+          payDate: null,// Ngày thanh toán là null
+          amount: order.totalAmount// Cập nhật amount từ order.totalAmount (đã bao gồm discount)
         }
       });
     }
@@ -115,13 +117,15 @@ export const createVNPayPayment = async (req, res) => {
     );
 
     // Lưu xuống DB thông tin session thanh toán mới (URL + hạn sử dụng) để frontend redirect user
+    // Cập nhật amount từ order.totalAmount để đảm bảo có discount nếu có
     await prisma.payment.update({
       where: { id: payment.id },// Lấy ID của payment
       data: {
         transactionId: paymentData.transactionId,// Lấy transaction ID
         paymentUrl: paymentData.paymentUrl,// Lấy URL thanh toán
         expiresAt: paymentData.expiresAt,// Lấy hạn sử dụng
-        partnerCode: 'VNPAY'// Mã đối tác là VNPay
+        partnerCode: 'VNPAY',// Mã đối tác là VNPay
+        amount: order.totalAmount// Cập nhật amount từ order.totalAmount (đã bao gồm discount)
       }
     });
 

@@ -300,7 +300,7 @@ export default function AdminOrders() {
         },
         { name: "customerNote", label: "Ghi chú khách hàng", render: (v) => v || "-" },
         { name: "adminNote", label: "Ghi chú admin", render: (v) => v || "-" },
-        { name: "trackingCode", label: "Mã vận đơn", render: (v) => v || "-" },
+        // { name: "trackingCode", label: "Mã vận đơn", render: (v) => v || "-" },
         {
           name: "orderItems",
           label: "Danh sách sản phẩm",

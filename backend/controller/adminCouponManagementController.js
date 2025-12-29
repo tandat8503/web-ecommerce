@@ -25,6 +25,7 @@ export const getAllCoupons = async (req, res) => {
                         }
                     }
                 },
+                // usedCount đã có sẵn trong model Coupon, không cần select riêng
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: Number(limit)

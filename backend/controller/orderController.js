@@ -126,7 +126,7 @@ export const createOrder = async (req, res) => {
   try {
     // BƯỚC 1: Lấy dữ liệu đầu vào cơ bản
     const userId = req.user.id;
-    const { addressId, paymentMethod, customerNote, cartItemIds } = req.body;
+    const { addressId, paymentMethod, customerNote, cartItemIds, couponCode } = req.body;
 
     // BƯỚC 2: Lấy giỏ hàng (chỉ item được chọn) và địa chỉ giao hàng của user
     if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
@@ -226,8 +226,33 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // BƯỚC 4: Tính tổng đơn
-    const discountAmount = 0; // bản cơ bản: chưa áp dụng giảm giá
+    // BƯỚC 4: Tính tổng đơn (áp dụng coupon nếu có)
+    let discountAmount = 0;//giảm giá
+    let couponId = null;//id của coupon
+    let discountShipping = 0;//giảm phí ship
+    
+    // Nếu có couponCode, validate và tính discount
+    if (couponCode) {
+      const couponResult = await validateAndApplyCoupon(userId, couponCode, subtotal, shippingFee);
+      
+      if (couponResult.success) {
+        discountAmount = Number(couponResult.discountAmount || 0);//giảm giá
+        discountShipping = Number(couponResult.discountShipping || 0);//giảm phí ship
+        couponId = couponResult.coupon.id;//id của coupon
+        
+        // Giảm phí ship nếu coupon áp dụng cho shipping
+        if (discountShipping > 0) {
+          shippingFee = Math.max(0, shippingFee - discountShipping);
+        }
+      } else {
+        // Nếu coupon không hợp lệ, trả về lỗi
+        return res.status(400).json({ 
+          success: false,
+          message: couponResult.message || 'Mã giảm giá không hợp lệ' 
+        });
+      }
+    }
+    
     //tổng tiền cuối cùng của đơn hàng = tổng tiền của đơn hàng + phí ship - giảm giá
     const totalAmount = subtotal + shippingFee - discountAmount;
 
@@ -286,6 +311,40 @@ export const createOrder = async (req, res) => {
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "PENDING" }
       });
+
+      // 6.3.2 Lưu CouponUsage nếu có sử dụng coupon (trong cùng transaction)
+      if (couponId) {
+        // Cập nhật UserCoupon
+        await tx.userCoupon.update({
+          where: {
+            userId_couponId: {
+              userId,
+              couponId
+            }
+          },
+          data: {
+            isUsed: true,
+            usedAt: new Date()
+          }
+        });
+
+        // Tăng usedCount của Coupon
+        await tx.coupon.update({
+          where: { id: couponId },
+          data: {
+            usedCount: { increment: 1 }
+          }
+        });
+
+        // Tạo CouponUsage record
+        await tx.couponUsage.create({
+          data: {
+            userId,
+            couponId,
+            orderId: order.id
+          }
+        });
+      }
 
       // 6.4 KHÔNG trừ tồn kho ở đây
       // Tồn kho sẽ được trừ khi admin xác nhận đơn (chuyển sang CONFIRMED)

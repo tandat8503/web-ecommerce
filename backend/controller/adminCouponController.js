@@ -335,13 +335,16 @@ export const deleteCoupon = async (req, res) => {
 export const shareCouponToUsers = async (req, res) => {
   const context = { path: 'admin.coupon.share' };
   try {
-    logger.start(context.path, { id: req.params.id });
+    logger.start(context.path, { id: req.params.id, body: req.body });
 
     const { id } = req.params;
     const { userIds, shareToAll } = req.body;
 
+    // ✅ Xử lý shareToAll linh hoạt (có thể là string "true" hoặc boolean)
+    const shouldShareToAll = shareToAll === true || shareToAll === "true" || shareToAll === "1";
+
     // Validate input
-    if (!shareToAll && (!userIds || !Array.isArray(userIds) || userIds.length === 0)) {
+    if (!shouldShareToAll && (!userIds || !Array.isArray(userIds) || userIds.length === 0)) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng chọn ít nhất một người dùng'
@@ -362,7 +365,7 @@ export const shareCouponToUsers = async (req, res) => {
 
     // Get target users
     let targetUsers = [];
-    if (shareToAll) {
+    if (shouldShareToAll) {
       // Get all active users (exclude admins)
       targetUsers = await prisma.user.findMany({
         where: {
@@ -370,6 +373,10 @@ export const shareCouponToUsers = async (req, res) => {
           role: { not: 'ADMIN' }
         },
         select: { id: true }
+      });
+      logger.info('Share to all users', { 
+        totalUsers: targetUsers.length,
+        couponId: coupon.id 
       });
     } else {
       // Get specific users
@@ -380,12 +387,30 @@ export const shareCouponToUsers = async (req, res) => {
         },
         select: { id: true }
       });
+      logger.info('Share to specific users', { 
+        requestedCount: userIds.length,
+        foundCount: targetUsers.length,
+        couponId: coupon.id 
+      });
     }
 
     if (targetUsers.length === 0) {
+      logger.warn('No valid users found', { 
+        shareToAll: shouldShareToAll,
+        userIds: userIds || []
+      });
       return res.status(400).json({
         success: false,
         message: 'Không tìm thấy người dùng hợp lệ'
+      });
+    }
+
+    // ✅ Kiểm tra xem prisma.userCoupon có tồn tại không
+    if (!prisma.userCoupon) {
+      logger.error('prisma.userCoupon is undefined - Prisma client may need regeneration');
+      return res.status(500).json({
+        success: false,
+        message: 'Lỗi hệ thống: Prisma client chưa được khởi tạo đúng. Vui lòng chạy: npx prisma generate'
       });
     }
 
@@ -394,53 +419,90 @@ export const shareCouponToUsers = async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + 30);
 
     // Share coupon to users (create UserCoupon records)
-    const createPromises = targetUsers.map(user =>
-      prisma.userCoupon.upsert({
-        where: {
-          userId_couponId: {
-            userId: user.id,
-            couponId: coupon.id
+    const createPromises = targetUsers.map(async (user) => {
+      try {
+        // Check if UserCoupon already exists
+        const existingUserCoupon = await prisma.userCoupon.findUnique({
+          where: {
+            userId_couponId: {
+              userId: user.id,
+              couponId: coupon.id
+            }
           }
-        },
-        update: {
-          // If already exists, update expiry date
-          expiresAt
-        },
-        create: {
-          userId: user.id,
-          couponId: coupon.id,
-          expiresAt
+        });
+
+        if (existingUserCoupon) {
+          // Update expiry date if already exists
+          const updated = await prisma.userCoupon.update({
+            where: {
+              id: existingUserCoupon.id
+            },
+            data: {
+              expiresAt
+            }
+          });
+          logger.debug('Updated existing UserCoupon', { 
+            userId: user.id, 
+            couponId: coupon.id 
+          });
+          return updated;
+        } else {
+          // Create new UserCoupon
+          const created = await prisma.userCoupon.create({
+            data: {
+              userId: user.id,
+              couponId: coupon.id,
+              expiresAt
+            }
+          });
+          logger.debug('Created new UserCoupon', { 
+            userId: user.id, 
+            couponId: coupon.id 
+          });
+          return created;
         }
-      }).catch(err => {
+      } catch (err) {
         // Log error but continue with other users
-        logger.warn('Failed to share coupon to user', {
+        logger.error('Failed to share coupon to user', {
           userId: user.id,
           couponId: coupon.id,
-          error: err.message
+          error: err.message,
+          stack: err.stack
         });
         return null;
-      })
-    );
+      }
+    });
 
     const results = await Promise.all(createPromises);
     const successCount = results.filter(r => r !== null).length;
+    const failedCount = targetUsers.length - successCount;
+
+    if (failedCount > 0) {
+      logger.warn('Some users failed to receive coupon', {
+        total: targetUsers.length,
+        success: successCount,
+        failed: failedCount
+      });
+    }
 
     logger.success('Coupon shared to users', {
       couponId: coupon.id,
       couponCode: coupon.code,
       targetCount: targetUsers.length,
       successCount,
-      shareToAll
+      failedCount,
+      shareToAll: shouldShareToAll
     });
     logger.end(context.path, { couponId: coupon.id });
 
     return res.json({
       success: true,
-      message: `Đã chia sẻ mã giảm giá cho ${successCount} người dùng`,
+      message: `Đã chia sẻ mã giảm giá cho ${successCount} người dùng${failedCount > 0 ? ` (${failedCount} thất bại)` : ''}`,
       data: {
         couponCode: coupon.code,
         totalUsers: targetUsers.length,
-        sharedCount: successCount
+        sharedCount: successCount,
+        failedCount
       }
     });
   } catch (error) {

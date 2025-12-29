@@ -230,23 +230,41 @@ export default function AdminCoupons() {
       title: "Giới hạn sử dụng",
       dataIndex: "usageLimit",
       key: "usageLimit",
-      width: 120,
-      render: (limit) =>
-        limit ? (
-          <Tag
-            color="magenta"
-            style={{ fontSize: "12px", fontWeight: "bold" }}
-          >
-            {limit} lượt sử dụng
-          </Tag>
-        ) : (
-          <Tag
-            color="default"
-            style={{ fontSize: "12px", fontStyle: "italic" }}
-          >
-            Không giới hạn
-          </Tag>
-        ),
+      width: 180,
+      render: (limit, record) => {
+        const usedCount = record.usedCount || 0;//số lần sử dụng của coupon
+        const remaining = limit ? limit - usedCount : null;//số lần sử dụng còn lại của coupon
+        
+        return (
+          <div style={{ fontSize: "12px" }}>
+            {limit ? (
+              <>
+                <Tag
+                  color="magenta"
+                  style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "4px" }}
+                >
+                  {limit} lượt tối đa
+                </Tag>
+                <div style={{ marginTop: "4px" }}>
+                  <Tag
+                    color={remaining > 0 ? "green" : "red"}
+                    style={{ fontSize: "11px" }}
+                  >
+                    Đã dùng: {usedCount} / Còn lại: {remaining >= 0 ? remaining : 0}
+                  </Tag>
+                </div>
+              </>
+            ) : (
+              <Tag
+                color="default"
+                style={{ fontSize: "12px", fontStyle: "italic" }}
+              >
+                Không giới hạn (Đã dùng: {usedCount})
+              </Tag>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: "Thời gian",
