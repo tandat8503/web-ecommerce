@@ -13,16 +13,21 @@ import {
   InputNumber,
   DatePicker,
   Switch,
+  Modal,
+  Checkbox,
+  message,
 } from "antd";
 import { FaPlus, FaEdit, FaTrash, FaEye } from "react-icons/fa";
-import { Loader2 } from "lucide-react";
+import { Loader2, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import CrudModal from "@/pages/hepler/CrudModal";
 import DetailModal from "@/pages/hepler/DetailModal";
 import { formatPrice } from "@/lib/utils";
+import { getUsersForSharing, shareCouponToUsers } from "@/api/adminCoupons";
 import dayjs from "dayjs";
 import { useAdminCoupons } from "./useAdminCoupons";
+import { useState, useEffect } from "react";
 
 const { Search } = Input;
 const { Option } = Select;
@@ -55,6 +60,121 @@ export default function AdminCoupons() {
     getCouponStatus,
     processEditingRecord,
   } = useAdminCoupons();
+
+  // Share coupon state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [sharingCoupon, setSharingCoupon] = useState(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [shareToAll, setShareToAll] = useState(false);
+  const [searchUsers, setSearchUsers] = useState("");
+  const [usersPagination, setUsersPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0
+  });
+
+  // Fetch users for sharing
+  const fetchUsers = async (page = 1, search = "") => {
+    try {
+      setLoadingUsers(true);
+      const response = await getUsersForSharing({
+        page,
+        limit: usersPagination.pageSize,
+        search
+      });
+
+      if (response.data.success) {
+        setUsers(response.data.data.users);
+        setUsersPagination({
+          ...usersPagination,
+          current: page,
+          total: response.data.data.pagination.total
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      message.error('Không thể tải danh sách người dùng');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (shareModalOpen) {
+      fetchUsers(1, "");
+      setSelectedUserIds([]);
+      setShareToAll(false);
+      setSearchUsers("");
+    }
+  }, [shareModalOpen]);
+
+  const openShareModal = (coupon) => {
+    setSharingCoupon(coupon);
+    setShareModalOpen(true);
+  };
+
+  const closeShareModal = () => {
+    setShareModalOpen(false);
+    setSharingCoupon(null);
+  };
+
+  const handleShare = async () => {
+    if (!shareToAll && selectedUserIds.length === 0) {
+      message.warning('Vui lòng chọn ít nhất một người dùng hoặc chọn "Tất cả người dùng"');
+      return;
+    }
+
+    try {
+      setSharing(true);
+      const response = await shareCouponToUsers(sharingCoupon.id, {
+        userIds: selectedUserIds,
+        shareToAll
+      });
+
+      if (response.data.success) {
+        message.success(response.data.message);
+        closeShareModal();
+      }
+    } catch (error) {
+      console.error('Failed to share coupon:', error);
+      const errorMsg = error.response?.data?.message || 'Không thể chia sẻ mã giảm giá';
+      message.error(errorMsg);
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const userColumns = [
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      width: '30%'
+    },
+    {
+      title: 'Họ tên',
+      key: 'fullName',
+      width: '25%',
+      render: (_, record) => `${record.firstName} ${record.lastName}`
+    },
+    {
+      title: 'Số điện thoại',
+      dataIndex: 'phone',
+      key: 'phone',
+      width: '20%',
+      render: (phone) => phone || '-'
+    },
+    {
+      title: 'Ngày đăng ký',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: '25%',
+      render: (date) => new Date(date).toLocaleDateString('vi-VN')
+    }
+  ];
 
   // ===========================
   // TABLE COLUMNS CONFIGURATION
@@ -171,6 +291,15 @@ export default function AdminCoupons() {
               ) : (
                 <FaEye />
               )}
+            </Button>
+          </Tooltip>
+          <Tooltip title="Chia sẻ mã">
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-white"
+              size="sm"
+              onClick={() => openShareModal(record)}
+            >
+              <Share2 size={14} />
             </Button>
           </Tooltip>
           <Tooltip title="Sửa">
@@ -529,6 +658,133 @@ export default function AdminCoupons() {
         fields={detailFields}
         width={600}
       />
+
+      {/* Modal Share Coupon */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <Share2 size={20} className="text-blue-600" />
+            <span>Chia sẻ mã giảm giá</span>
+          </div>
+        }
+        open={shareModalOpen}
+        onCancel={closeShareModal}
+        width={900}
+        footer={[
+          <Button key="cancel" variant="secondary" onClick={closeShareModal}>
+            Hủy
+          </Button>,
+          <Button
+            key="share"
+            onClick={handleShare}
+            disabled={sharing}
+          >
+            {sharing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Share2 size={16} className="mr-2" />}
+            Chia sẻ
+          </Button>
+        ]}
+      >
+        {/* Coupon Info */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-600 mb-1">Mã giảm giá</div>
+              <div className="text-2xl font-bold text-blue-600">{sharingCoupon?.code}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-gray-600 mb-1">Giá trị</div>
+              <div className="text-xl font-semibold text-orange-600">
+                {sharingCoupon?.discountType === 'PERCENT'
+                  ? `${sharingCoupon?.discountValue}%`
+                  : formatPrice(sharingCoupon?.discountValue)}
+              </div>
+            </div>
+          </div>
+          <div className="text-sm text-gray-600 mt-2">{sharingCoupon?.name}</div>
+        </div>
+
+        {/* Share to all checkbox */}
+        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <Checkbox
+            checked={shareToAll}
+            onChange={(e) => {
+              setShareToAll(e.target.checked);
+              if (e.target.checked) {
+                setSelectedUserIds([]);
+              }
+            }}
+          >
+            <span className="font-semibold">Chia sẻ cho tất cả người dùng</span>
+            <span className="text-sm text-gray-600 ml-2">
+              (Mã sẽ được tự động thêm vào kho coupon của tất cả user)
+            </span>
+          </Checkbox>
+        </div>
+
+        {/* Search */}
+        <div className="mb-4">
+          <Search
+            placeholder="Tìm kiếm theo email, tên, số điện thoại..."
+            value={searchUsers}
+            onChange={(e) => {
+              setSearchUsers(e.target.value);
+              fetchUsers(1, e.target.value);
+            }}
+            disabled={shareToAll}
+            allowClear
+          />
+        </div>
+
+        {/* Users table */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-semibold text-gray-700">
+              Danh sách người dùng
+              {!shareToAll && selectedUserIds.length > 0 && (
+                <span className="ml-2 text-blue-600">
+                  ({selectedUserIds.length} đã chọn)
+                </span>
+              )}
+            </span>
+          </div>
+
+          <Table
+            rowSelection={shareToAll ? undefined : {
+              selectedRowKeys: selectedUserIds,
+              onChange: (selectedKeys) => setSelectedUserIds(selectedKeys)
+            }}
+            columns={userColumns}
+            dataSource={users}
+            rowKey="id"
+            loading={loadingUsers}
+            pagination={{
+              ...usersPagination,
+              showSizeChanger: false,
+              showTotal: (total) => `Tổng ${total} người dùng`,
+              onChange: (page) => fetchUsers(page, searchUsers)
+            }}
+            scroll={{ y: 400 }}
+            size="small"
+          />
+        </div>
+
+        {/* Summary */}
+        {(shareToAll || selectedUserIds.length > 0) && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="text-sm">
+              <span className="font-semibold text-green-700">Sẽ chia sẻ cho: </span>
+              <span className="text-green-600">
+                {shareToAll
+                  ? `Tất cả ${usersPagination.total} người dùng`
+                  : `${selectedUserIds.length} người dùng đã chọn`}
+              </span>
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              Mã sẽ có hiệu lực trong 30 ngày kể từ khi được chia sẻ
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

@@ -383,13 +383,14 @@ export const createOrder = async (req, res) => {
     }
 
     // BƯỚC 10: Tặng mã giảm giá cho đơn hàng đầu tiên (non-blocking)
-    grantFirstOrderCoupon(userId).catch(err => {
-      logger.error('Failed to grant first order coupon (non-blocking)', {
-        userId,
-        orderId: created.id,
-        error: err.message
-      });
-    });
+    // TODO: Tính năng tạm thời tắt - Chỉ giữ lại mã chào mừng người dùng mới
+    // grantFirstOrderCoupon(userId).catch(err => {
+    //   logger.error('Failed to grant first order coupon (non-blocking)', {
+    //     userId,
+    //     orderId: created.id,
+    //     error: err.message
+    //   });
+    // });
 
     return res.status(201).json({ message: "Tạo đơn hàng thành công", order: orderDetails });
   } catch (error) {
@@ -632,12 +633,12 @@ export const confirmReceivedOrder = async (req, res) => {
     const { id } = req.params;
     if (!id || isNaN(id)) return res.status(400).json({ message: "ID đơn hàng không hợp lệ" });
 
-    const order = await prisma.order.findFirst({ 
+    const order = await prisma.order.findFirst({
       where: { id: Number(id), userId },
-      select: { 
-        id: true, 
-        status: true, 
-        userId: true, 
+      select: {
+        id: true,
+        status: true,
+        userId: true,
         paymentMethod: true, // Cần để tự động cập nhật paymentStatus cho COD
         paymentStatus: true  // Cần để kiểm tra trạng thái thanh toán hiện tại
       }
@@ -653,7 +654,7 @@ export const confirmReceivedOrder = async (req, res) => {
       if (order.paymentMethod === 'COD') {
         updateData.paymentStatus = 'PAID';
       }
-      
+
       await tx.order.update({ where: { id: order.id }, data: updateData });
       await tx.orderStatusHistory.create({
         data: { orderId: order.id, status: "DELIVERED" }

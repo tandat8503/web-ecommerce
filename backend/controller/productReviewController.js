@@ -174,13 +174,14 @@ export const createReview = async (req, res) => {
     logger.end(context.path, { reviewId: review.id });
 
     // Tặng mã giảm giá cho review đầu tiên (non-blocking)
-    grantFirstReviewCoupon(userId).catch(err => {
-      logger.error('Failed to grant first review coupon (non-blocking)', {
-        userId,
-        reviewId: review.id,
-        error: err.message
-      });
-    });
+    // TODO: Tính năng tạm thời tắt - Chỉ giữ lại mã chào mừng người dùng mới
+    // grantFirstReviewCoupon(userId).catch(err => {
+    //   logger.error('Failed to grant first review coupon (non-blocking)', {
+    //     userId,
+    //     reviewId: review.id,
+    //     error: err.message
+    //   });
+    // });
 
     return res.status(201).json({
       message: 'Đánh giá đã được đăng thành công',

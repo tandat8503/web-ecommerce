@@ -8,7 +8,7 @@ export const createCoupon = async (req, res) => {
   const context = { path: 'admin.coupon.create' };
   try {
     logger.start(context.path, { code: req.body.code });
-    
+
     // Lấy dữ liệu từ request body
     const {
       code,           // Mã giảm giá (ví dụ: WELCOME10)
@@ -53,7 +53,7 @@ export const createCoupon = async (req, res) => {
 
     logger.success('Coupon created', { couponId: coupon.id, code: coupon.code });
     logger.end(context.path, { couponId: coupon.id });
-    
+
     res.status(201).json({
       message: "Tạo mã giảm giá thành công",
       data: coupon
@@ -79,10 +79,10 @@ export const getCoupons = async (req, res) => {
   const context = { path: "admin.coupons.list", query: req.query };
   try {
     const { page = 1, limit = 10, q, status } = req.query;
-    
+
     // Xây dựng điều kiện WHERE
     const where = {};
-    
+
     // Tìm kiếm theo mã hoặc tên
     if (q) {
       where.OR = [
@@ -90,7 +90,7 @@ export const getCoupons = async (req, res) => {
         { name: { contains: q } }
       ];
     }
-    
+
     // Lọc theo trạng thái
     if (status === 'true') {
       where.isActive = true;
@@ -127,7 +127,7 @@ export const getCouponById = async (req, res) => {
   const context = { path: 'admin.coupon.getById' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const { id } = req.params;
 
     // Kiểm tra ID có hợp lệ không
@@ -150,7 +150,7 @@ export const getCouponById = async (req, res) => {
 
     logger.success('Coupon fetched', { couponId: coupon.id });
     logger.end(context.path, { couponId: coupon.id });
-    
+
     res.status(200).json({
       message: "Lấy chi tiết mã giảm giá thành công",
       data: coupon
@@ -176,7 +176,7 @@ export const updateCoupon = async (req, res) => {
   const context = { path: 'admin.coupon.update' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const { id } = req.params;
     const {
       code,
@@ -231,7 +231,7 @@ export const updateCoupon = async (req, res) => {
     if (usageLimit !== undefined && usageLimit !== null) updateData.usageLimit = usageLimit;
     if (startDate !== undefined && startDate !== '') updateData.startDate = new Date(startDate);
     if (endDate !== undefined && endDate !== '') updateData.endDate = new Date(endDate);
-    
+
     // ✅ Sửa: Xử lý isActive linh hoạt hơn
     if (isActive !== undefined && isActive !== '') {
       updateData.isActive = isActive === "true" || isActive === true;
@@ -245,7 +245,7 @@ export const updateCoupon = async (req, res) => {
 
     logger.success('Coupon updated', { couponId: updatedCoupon.id });
     logger.end(context.path, { couponId: updatedCoupon.id });
-    
+
     res.status(200).json({
       message: "Cập nhật mã giảm giá thành công",
       data: updatedCoupon
@@ -271,7 +271,7 @@ export const deleteCoupon = async (req, res) => {
   const context = { path: 'admin.coupon.delete' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const { id } = req.params;
 
     // Kiểm tra ID có hợp lệ không
@@ -310,7 +310,7 @@ export const deleteCoupon = async (req, res) => {
 
     logger.success('Coupon deleted', { couponId: id });
     logger.end(context.path, { couponId: id });
-    
+
     res.status(200).json({
       message: "Xóa mã giảm giá thành công"
     });
@@ -324,6 +324,206 @@ export const deleteCoupon = async (req, res) => {
     res.status(500).json({
       message: "Lỗi server",
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Share coupon to users
+ * POST /api/admin/coupons/:id/share
+ */
+export const shareCouponToUsers = async (req, res) => {
+  const context = { path: 'admin.coupon.share' };
+  try {
+    logger.start(context.path, { id: req.params.id });
+
+    const { id } = req.params;
+    const { userIds, shareToAll } = req.body;
+
+    // Validate input
+    if (!shareToAll && (!userIds || !Array.isArray(userIds) || userIds.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn ít nhất một người dùng'
+      });
+    }
+
+    // Find coupon
+    const coupon = await prisma.coupon.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy mã giảm giá'
+      });
+    }
+
+    // Get target users
+    let targetUsers = [];
+    if (shareToAll) {
+      // Get all active users (exclude admins)
+      targetUsers = await prisma.user.findMany({
+        where: {
+          isActive: true,
+          role: { not: 'ADMIN' }
+        },
+        select: { id: true }
+      });
+    } else {
+      // Get specific users
+      targetUsers = await prisma.user.findMany({
+        where: {
+          id: { in: userIds.map(id => Number(id)) },
+          isActive: true
+        },
+        select: { id: true }
+      });
+    }
+
+    if (targetUsers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Không tìm thấy người dùng hợp lệ'
+      });
+    }
+
+    // Calculate expiry date (30 days from now)
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+
+    // Share coupon to users (create UserCoupon records)
+    const createPromises = targetUsers.map(user =>
+      prisma.userCoupon.upsert({
+        where: {
+          userId_couponId: {
+            userId: user.id,
+            couponId: coupon.id
+          }
+        },
+        update: {
+          // If already exists, update expiry date
+          expiresAt
+        },
+        create: {
+          userId: user.id,
+          couponId: coupon.id,
+          expiresAt
+        }
+      }).catch(err => {
+        // Log error but continue with other users
+        logger.warn('Failed to share coupon to user', {
+          userId: user.id,
+          couponId: coupon.id,
+          error: err.message
+        });
+        return null;
+      })
+    );
+
+    const results = await Promise.all(createPromises);
+    const successCount = results.filter(r => r !== null).length;
+
+    logger.success('Coupon shared to users', {
+      couponId: coupon.id,
+      couponCode: coupon.code,
+      targetCount: targetUsers.length,
+      successCount,
+      shareToAll
+    });
+    logger.end(context.path, { couponId: coupon.id });
+
+    return res.json({
+      success: true,
+      message: `Đã chia sẻ mã giảm giá cho ${successCount} người dùng`,
+      data: {
+        couponCode: coupon.code,
+        totalUsers: targetUsers.length,
+        sharedCount: successCount
+      }
+    });
+  } catch (error) {
+    logger.error('Share coupon error', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi chia sẻ mã giảm giá'
+    });
+  }
+};
+
+/**
+ * Get list of users for sharing
+ * GET /api/admin/coupons/users
+ */
+export const getUsersForSharing = async (req, res) => {
+  const context = { path: 'admin.coupon.getUsers' };
+  try {
+    logger.start(context.path, req.query);
+
+    const { search, page = 1, limit = 50 } = req.query;
+
+    const where = {
+      isActive: true,
+      role: { not: 'ADMIN' }
+    };
+
+    if (search) {
+      where.OR = [
+        { email: { contains: search } },
+        { firstName: { contains: search } },
+        { lastName: { contains: search } },
+        { phone: { contains: search } }
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          avatar: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit)
+      }),
+      prisma.user.count({ where })
+    ]);
+
+    logger.success('Users fetched for sharing', { total, count: users.length });
+    logger.end(context.path, { total });
+
+    return res.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(total / Number(limit))
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Get users for sharing error', {
+      path: context.path,
+      error: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách người dùng'
     });
   }
 };

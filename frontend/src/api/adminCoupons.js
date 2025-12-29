@@ -49,13 +49,34 @@ export async function deleteCoupon(id) {
   return await axiosClient.delete(`admin/coupons/${id}`);
 }
 
+/**
+ * Lấy danh sách users để share coupon (admin)
+ * @param {Object} params - Tham số query: search, page, limit
+ * @returns {Promise} Response chứa danh sách users
+ */
+export async function getUsersForSharing(params) {
+  return await axiosClient.get('admin/coupons/users', { params });
+}
+
+/**
+ * Share coupon cho users (admin)
+ * @param {number|string} couponId - ID của mã giảm giá
+ * @param {Object} data - { userIds: number[], shareToAll: boolean }
+ * @returns {Promise} Response xác nhận share thành công
+ */
+export async function shareCouponToUsers(couponId, data) {
+  return await axiosClient.post(`admin/coupons/${couponId}/share`, data);
+}
+
 // Default export object chứa tất cả functions
 const adminCouponsAPI = {
   getCoupons,
   getCouponById,
   createCoupon,
   updateCoupon,
-  deleteCoupon
+  deleteCoupon,
+  getUsersForSharing,
+  shareCouponToUsers
 };
 
 export default adminCouponsAPI;
