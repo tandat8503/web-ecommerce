@@ -411,23 +411,23 @@ export default function Checkout() {
                         loading={validatingCoupon}
                         disabled={validatingCoupon}
                       >
-                        {userCoupons.map((coupon) => (
-                          <Select.Option key={coupon.id} value={coupon.code}>
-                            <div className="flex justify-between items-center">
+                        {userCoupons.map((userCoupon) => (
+                          <Select.Option key={userCoupon.id} value={userCoupon.coupon.code}>
+                            <div className="flex items-center justify-between">
                               <div>
-                                <div className="font-semibold">{coupon.code}</div>
-                                <div className="text-xs text-gray-500">{coupon.name}</div>
+                                <div className="font-semibold">{userCoupon.coupon.code}</div>
+                                <div className="text-xs text-gray-500">{userCoupon.coupon.name}</div>
                               </div>
                               <div className="text-right">
-                                <div className="text-orange-600 font-semibold">
-                                  {coupon.discountType === 'AMOUNT'
-                                    ? formatPrice(coupon.discountValue)
-                                    : `${coupon.discountValue}%`
+                                <div className="font-semibold text-orange-600">
+                                  {userCoupon.coupon.discountType === 'AMOUNT'
+                                    ? formatPrice(userCoupon.coupon.discountValue)
+                                    : `${userCoupon.coupon.discountValue}%`
                                   }
                                 </div>
-                                {coupon.minimumAmount > 0 && (
+                                {userCoupon.coupon.minimumAmount > 0 && (
                                   <div className="text-xs text-gray-400">
-                                    Đơn tối thiểu {formatPrice(coupon.minimumAmount)}
+                                    Đơn tối thiểu {formatPrice(userCoupon.coupon.minimumAmount)}
                                   </div>
                                 )}
                               </div>
