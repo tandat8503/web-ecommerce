@@ -8,7 +8,7 @@ export async function getAddresses() {
 }
 
 /**
- * Lấy địa chỉ mặc định
+ * Lấy địa chỉ mặc định (nếu có)
  */
 export async function getDefaultAddress() {
   return await axiosClient.get("/addresses/default");
