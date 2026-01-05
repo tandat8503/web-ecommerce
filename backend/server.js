@@ -18,27 +18,56 @@ app.use(helmet())
 
 // --- CORS CONFIGURATION ---
 // Chỗ mới: sửa lỗi crash preflight và cho phép FE kết nối
+// const allowedOrigins = [
+//   'https://web-ecommerce-rosy.vercel.app', // FE đã deploy
+//   'https://web-ecommerce-1.onrender.com',
+//   'http://localhost:5173'                  // FE local
+// ]
+
+// app.use(cors({
+//   origin: function(origin, callback) {
+//     // Cho phép request không có origin (ví dụ Postman, curl)
+//     if (!origin) return callback(null, true)
+
+//     if (allowedOrigins.includes(origin)) {
+//       return callback(null, true)
+//     } else {
+//       return callback(new Error('CORS blocked by server'), false)
+//     }
+//   },
+//   credentials: true,             // nếu dùng cookie
+//   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+//   allowedHeaders: ['Content-Type','Authorization'],
+// }))
+
+// --- CORS CONFIGURATION ---
 const allowedOrigins = [
-  'https://web-ecommerce-rosy.vercel.app', // FE đã deploy
-  'https://web-ecommerce-1.onrender.com',
-  'http://localhost:5173'                  // FE local
+  'https://web-ecommerce-rosy.vercel.app', 
+  'http://localhost:5173'
 ]
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Cho phép request không có origin (ví dụ Postman, curl)
-    if (!origin) return callback(null, true)
+    // Cho phép request không có origin (ví dụ Postman)
+    if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true)
+    // Kiểm tra nếu origin nằm trong danh sách hoặc là sub-domain của vercel/render
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.endsWith('.vercel.app') || 
+                      origin.endsWith('.onrender.com');
+
+    if (isAllowed) {
+      return callback(null, true);
     } else {
-      return callback(new Error('CORS blocked by server'), false)
+      // Nếu vẫn bị lỗi, bạn có thể tạm thời dùng: return callback(null, true); 
+      // để mở cho tất cả mọi người (rồi sửa bảo mật sau)
+      return callback(new Error('CORS blocked by server'), false);
     }
   },
-  credentials: true,             // nếu dùng cookie
+  credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],
-}))
+}));
 
 // --- Chỗ mới: Xoá app.options('*') gây crash
 // Express + cors middleware tự động xử lý OPTIONS preflight
