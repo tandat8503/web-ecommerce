@@ -20,6 +20,7 @@ app.use(helmet())
 // Chỗ mới: sửa lỗi crash preflight và cho phép FE kết nối
 const allowedOrigins = [
   'https://web-ecommerce-rosy.vercel.app', // FE đã deploy
+  'https://web-ecommerce-1.onrender.com',
   'http://localhost:5173'                  // FE local
 ]
 
