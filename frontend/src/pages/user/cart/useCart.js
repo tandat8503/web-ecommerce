@@ -11,6 +11,7 @@ export function useCart() {
     items: cartItems,
     totalQuantity: cartCount,
     totalAmount,
+    hasUnavailableItems,//kiểm tra sản phẩm có còn hàng không
     loading,
     fetchCart,
     updateCartItem,
@@ -60,6 +61,7 @@ export function useCart() {
     cartItems,
     cartCount,
     totalAmount,
+    hasUnavailableItems,//kiểm tra sản phẩm có còn hàng không
     loading,
     updatingItems,
     handleUpdateQuantity,

@@ -16,6 +16,7 @@ const useCartStore = create((set, get) => ({
   items: [],
   totalQuantity: 0,
   totalAmount: 0,
+  hasUnavailableItems: false, // Có sản phẩm không còn tồn kho hoặc không còn bán
   loading: false,
   error: null,
   isFetching: false,
@@ -27,11 +28,13 @@ const useCartStore = create((set, get) => ({
       const response = await getCart()
       const items = response.data.cart || []
       const totalAmount = response.data.total_amount || 0
+      const hasUnavailableItems = response.data.has_unavailable_items || false
 
       set({
         items,
         totalQuantity: items.length,
         totalAmount,
+        hasUnavailableItems,//kiểm tra sản phẩm có còn hàng không
         loading: false,
         isFetching: false
       })

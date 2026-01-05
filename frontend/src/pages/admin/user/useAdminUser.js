@@ -161,7 +161,9 @@ export function useAdminUser() {
       fetchUsers();
     } catch (err) {
       console.error(err);
-      toast.error("Cập nhật trạng thái thất bại");
+      // Lấy message chi tiết từ backend (ví dụ: thông báo về đơn hàng chưa hoàn tất)
+      const errorMessage = err.response?.data?.message || "Cập nhật trạng thái thất bại";
+      toast.error(errorMessage);
     } finally {
       setLoadingUserId(null);
     }

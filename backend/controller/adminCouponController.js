@@ -33,7 +33,7 @@ export const createCoupon = async (req, res) => {
       });
     }
 
-    // ✅ Sửa: Xử lý isActive linh hoạt hơn
+    //  Sửa: Xử lý isActive linh hoạt hơn
     const isActiveValue = isActive === "true" || isActive === true;
 
     // Tạo mã giảm giá mới trong database
@@ -232,7 +232,7 @@ export const updateCoupon = async (req, res) => {
     if (startDate !== undefined && startDate !== '') updateData.startDate = new Date(startDate);
     if (endDate !== undefined && endDate !== '') updateData.endDate = new Date(endDate);
 
-    // ✅ Sửa: Xử lý isActive linh hoạt hơn
+    //  Sửa: Xử lý isActive linh hoạt hơn
     if (isActive !== undefined && isActive !== '') {
       updateData.isActive = isActive === "true" || isActive === true;
     }

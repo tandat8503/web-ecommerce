@@ -22,6 +22,7 @@ const getStatusLabel = (status) => {
   return labels[status] || status;
 };
 
+
 /**
  * Lấy danh sách đơn hàng cho admin
  * - Phân trang: page, limit
@@ -236,10 +237,22 @@ export const getOrder = async (req, res) => {
       logger.warn('Failed to parse shippingAddress', { orderId: order.id, error: e.message });
     }
 
+    // Lấy bankCode từ payments (nếu có)
+    let bankInfo = null;
+    if (order.payments && order.payments.length > 0) {
+      const payment = order.payments[0]; // Lấy payment đầu tiên
+      if (payment.bankCode) {
+        bankInfo = {
+          bankCode: payment.bankCode
+        };
+      }
+    }
+
     const orderWithSafeItems = {
       ...order,
       shippingAddress: parsedShippingAddress, // Parse shippingAddress
-      orderItems: orderItemsWithProducts
+      orderItems: orderItemsWithProducts,
+      bankInfo // Thêm thông tin bankCode từ payments
     };
     
     logger.success('Order fetched', { id });

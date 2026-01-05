@@ -152,21 +152,21 @@ export default function AdminOrders() {
       fixed: "right",
       render: (_, record) => (
         <Space size="small">
-          {/* Nút xem chi tiết */}  
+          {/* Nút xem chi tiết */}
           <Tooltip title="Xem chi tiết">
             <Button className="cursor-pointer" variant="secondary" size="sm" onClick={() => handleViewDetail(record.id)}>
               <FaEye />
             </Button>
           </Tooltip>
 
-{/* cập nhật trạng thái đơn hàng và thanh toán online nếu chưa thanh toán thành công */}
+          {/* cập nhật trạng thái đơn hàng và thanh toán online nếu chưa thanh toán thành công */}
           {/* Dropdown cập nhật trạng thái (chỉ hiện khi có trạng thái có thể chuyển) */}
           {record.availableStatuses?.length > 0 && (
             <Tooltip
               title={
-                record.paymentMethod === 'VNPAY' && 
-                record.paymentStatus !== 'PAID' && 
-                record.availableStatuses.some(s => s.value === 'CONFIRMED')
+                record.paymentMethod === 'VNPAY' &&
+                  record.paymentStatus !== 'PAID' &&
+                  record.availableStatuses.some(s => s.value === 'CONFIRMED')
                   ? record.paymentStatus === 'FAILED'
                     ? `Không thể xác nhận: Thanh toán VNPay thất bại`
                     : `Không thể xác nhận: Thanh toán VNPay chưa thành công`
@@ -184,11 +184,11 @@ export default function AdminOrders() {
                 </Option>
                 {record.availableStatuses.map((s) => {
                   // Disable option "Đã xác nhận" nếu đơn hàng online (VNPAY) chưa thanh toán thành công
-                  const isDisabled = 
-                    s.value === 'CONFIRMED' && 
-                    record.paymentMethod === 'VNPAY' && 
+                  const isDisabled =
+                    s.value === 'CONFIRMED' &&
+                    record.paymentMethod === 'VNPAY' &&
                     record.paymentStatus !== 'PAID';
-                  
+
                   // Xác định thông báo tooltip dựa trên payment method
                   const getTooltipMessage = () => {
                     if (!isDisabled) return undefined;
@@ -197,10 +197,10 @@ export default function AdminOrders() {
                     }
                     return `Thanh toán VNPay chưa thành công`;
                   };
-                  
+
                   return (
-                    <Option 
-                      key={s.value} 
+                    <Option
+                      key={s.value}
                       value={s.value}
                       disabled={isDisabled}
                       title={getTooltipMessage()}
@@ -258,80 +258,92 @@ export default function AdminOrders() {
   // Cấu hình các field hiển thị trong modal chi tiết
   const detailFields = detailData
     ? [
-        { name: "id", label: "ID" },
-        { name: "orderNumber", label: "Mã đơn hàng", render: (v) => <strong>{v}</strong> },
-        {
-          name: "status",
-          label: "Trạng thái",
-          render: (v) => <Tag color={getStatusColor(v)}>{getStatusLabel(v)}</Tag>,
+      { name: "id", label: "ID" },
+      { name: "orderNumber", label: "Mã đơn hàng", render: (v) => <strong>{v}</strong> },
+      {
+        name: "status",
+        label: "Trạng thái",
+        render: (v) => <Tag color={getStatusColor(v)}>{getStatusLabel(v)}</Tag>,
+      },
+      {
+        name: "user",
+        label: "Khách hàng",
+        render: (v) => (v ? `${v.firstName || ""} ${v.lastName || ""}`.trim() : "-"),
+      },
+      { name: "user", label: "Email", render: (v) => v?.email || "-" },
+      { name: "subtotal", label: "Tạm tính", render: (v) => formatPrice(Number(v || 0)) },
+      { name: "shippingFee", label: "Phí vận chuyển", render: (v) => formatPrice(Number(v || 0)) },
+      { name: "discountAmount", label: "Giảm giá", render: (v) => formatPrice(Number(v || 0)) },
+      {
+        name: "totalAmount",
+        label: "Tổng tiền",
+        render: (v) => <span className="font-semibold text-red-600">{formatPrice(Number(v || 0))}</span>,
+      },
+      { name: "paymentMethod", label: "Phương thức thanh toán" },
+      {
+        name: "paymentStatus",
+        label: "Trạng thái thanh toán",
+        render: (_, record) => renderPaymentStatusTag(record),
+      },
+      {
+        name: "bankInfo",
+        label: "Ngân hàng thanh toán",
+        render: (v) => {
+          if (!v || !v.bankCode) return "-";
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-blue-600">{v.bankCode}</span>
+            </div>
+          );
         },
-        {
-          name: "user",
-          label: "Khách hàng",
-          render: (v) => (v ? `${v.firstName || ""} ${v.lastName || ""}`.trim() : "-"),
+      },
+      {
+        name: "shippingAddress",
+        label: "Địa chỉ giao hàng",
+        render: (v) => {
+          if (!v) return "-";
+          return (
+            <div>
+              <div className="font-medium">{v.fullName} • {v.phone}</div>
+              <div className="text-gray-600">{v.streetAddress}, {v.ward}, {v.district}, {v.city}</div>
+            </div>
+          );
         },
-        { name: "user", label: "Email", render: (v) => v?.email || "-" },
-        { name: "subtotal", label: "Tạm tính", render: (v) => formatPrice(Number(v || 0)) },
-        { name: "shippingFee", label: "Phí vận chuyển", render: (v) => formatPrice(Number(v || 0)) },
-        { name: "discountAmount", label: "Giảm giá", render: (v) => formatPrice(Number(v || 0)) },
-        {
-          name: "totalAmount",
-          label: "Tổng tiền",
-          render: (v) => <span className="font-semibold text-red-600">{formatPrice(Number(v || 0))}</span>,
-        },
-        { name: "paymentMethod", label: "Phương thức thanh toán" },
-        {
-          name: "paymentStatus",
-          label: "Trạng thái thanh toán",
-          render: (_, record) => renderPaymentStatusTag(record),
-        },
-        {
-          name: "shippingAddress",
-          label: "Địa chỉ giao hàng",
-          render: (v) => {
-            if (!v) return "-";
-            return (
-              <div>
-                <div className="font-medium">{v.fullName} • {v.phone}</div>
-                <div className="text-gray-600">{v.streetAddress}, {v.ward}, {v.district}, {v.city}</div>
-              </div>
-            );
-          },
-        },
-        { name: "customerNote", label: "Ghi chú khách hàng", render: (v) => v || "-" },
-        { name: "adminNote", label: "Ghi chú admin", render: (v) => v || "-" },
-        // { name: "trackingCode", label: "Mã vận đơn", render: (v) => v || "-" },
-        {
-          name: "orderItems",
-          label: "Danh sách sản phẩm",
-          render: (items) => {
-            if (!items || !Array.isArray(items)) return "-";
-            return (
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="border p-2 rounded">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={item.product?.imageUrl || "/placeholder-product.jpg"}
-                        alt={item.productName}
-                        className="h-12 w-12 rounded border object-cover"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium">{item.productName}</div>
-                        {item.variantName && <div className="text-sm text-gray-500">{item.variantName}</div>}
-                        <div className="text-sm text-gray-600">
-                          SL: {item.quantity} × {formatPrice(Number(item.unitPrice))} ={" "}
-                          <span className="font-semibold">{formatPrice(Number(item.totalPrice))}</span>
-                        </div>
+      },
+      { name: "customerNote", label: "Ghi chú khách hàng", render: (v) => v || "-" },
+      { name: "adminNote", label: "Ghi chú admin", render: (v) => v || "-" },
+      // { name: "trackingCode", label: "Mã vận đơn", render: (v) => v || "-" },
+      {
+        name: "orderItems",
+        label: "Danh sách sản phẩm",
+        render: (items) => {
+          if (!items || !Array.isArray(items)) return "-";
+          return (
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="border p-2 rounded">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={item.product?.imageUrl || "/placeholder-product.jpg"}
+                      alt={item.productName}
+                      className="h-12 w-12 rounded border object-cover"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium">{item.productName}</div>
+                      {item.variantName && <div className="text-sm text-gray-500">{item.variantName}</div>}
+                      <div className="text-sm text-gray-600">
+                        SL: {item.quantity} × {formatPrice(Number(item.unitPrice))} ={" "}
+                        <span className="font-semibold">{formatPrice(Number(item.totalPrice))}</span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            );
-          },
+                </div>
+              ))}
+            </div>
+          );
         },
-      ]
+      },
+    ]
     : [];
 
   // ========== NOTES MODAL FIELDS ==========
@@ -413,7 +425,7 @@ export default function AdminOrders() {
                   rowKey="id"
                   columns={columns}
                   dataSource={orders}
-                 
+
                   pagination={{
                     current: pagination.page,
                     pageSize: pagination.limit,

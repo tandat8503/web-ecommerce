@@ -34,7 +34,7 @@ export default function OrderDetail() {
   const handleCancelCancel = () => {
     setCancelModalVisible(false);
   };
-//thanh toán lại VNPay nếu thanh toán thất bại
+  //thanh toán lại VNPay nếu thanh toán thất bại
   const handleRetryVNPay = async () => {
     try {
       if (!order?.id) return;
@@ -69,8 +69,8 @@ export default function OrderDetail() {
                 />
               </div>
 
-               {/* Ghi chú admin */}
-               {order.adminNote && (
+              {/* Ghi chú admin */}
+              {order.adminNote && (
                 <div className="border-2 border-red-400 bg-blue-50 rounded-lg p-4 shadow-md">
                   <div className="flex items-start gap-3">
                     <h3 className="text-base font-semibold text-blue-800 whitespace-nowrap">Ghi chú từ shop:</h3>
@@ -116,6 +116,14 @@ export default function OrderDetail() {
                         )}
                       </div>
                     </Descriptions.Item>
+                    {/* Hiển thị ngân hàng thanh toán nếu có (lấy từ database) */}
+                    {order.bankInfo && (
+                      <Descriptions.Item label="Ngân hàng thanh toán">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold ">{order.bankInfo.bankCode}</span>
+                        </div>
+                      </Descriptions.Item>
+                    )}
                   </>
                 )}
               </Descriptions>
@@ -142,7 +150,7 @@ export default function OrderDetail() {
                 </Descriptions.Item>
               </Descriptions>
 
-             
+
 
               {/* Sản phẩm */}
               <div>

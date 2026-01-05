@@ -136,6 +136,17 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ message: "Thiếu thông tin bắt buộc" });
     }
 
+    // Kiểm tra firstName và lastName không chứa ký tự đặc biệt
+    const nameRegex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/;
+    
+    if (!nameRegex.test(firstName)) {
+      return res.status(400).json({ message: "Họ không được chứa ký tự đặc biệt hoặc số" });
+    }
+
+    if (!nameRegex.test(lastName)) {
+      return res.status(400).json({ message: "Tên không được chứa ký tự đặc biệt hoặc số" });
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existing) {
       return res.status(400).json({ message: "Email đã tồn tại" });
@@ -207,11 +218,20 @@ export const updateUser = async (req, res) => {
     // Chuẩn bị data cập nhật
     const updateData = {};
 
+    // Kiểm tra firstName và lastName không chứa ký tự đặc biệt (nếu có cập nhật)
+    const nameRegex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/;
+
     if (firstName) {
+      if (!nameRegex.test(firstName)) {
+        return res.status(400).json({ message: "Họ không được chứa ký tự đặc biệt hoặc số" });
+      }
       updateData.firstName = firstName;
     }
 
     if (lastName) {
+      if (!nameRegex.test(lastName)) {
+        return res.status(400).json({ message: "Tên không được chứa ký tự đặc biệt hoặc số" });
+      }
       updateData.lastName = lastName;
     }
 
@@ -237,6 +257,30 @@ export const updateUser = async (req, res) => {
       if (req.user && req.user.id === parseInt(id) && isActive === false) {
         return res.status(400).json({ message: "Không thể vô hiệu hóa tài khoản của chính bạn" });
       }
+
+      // Kiểm tra user có đơn hàng chưa hoàn tất không (khi muốn vô hiệu hóa)
+      if (isActive === false && user.isActive === true) {
+        const pendingOrders = await prisma.order.findMany({
+          where: {
+            userId: parseInt(id),
+            status: {
+              in: ['PENDING', 'CONFIRMED', 'PROCESSING']
+            }
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true
+          }
+        });
+
+        if (pendingOrders.length > 0) {
+          return res.status(400).json({ 
+            message: `Không thể vô hiệu hóa tài khoản vì đang có ${pendingOrders.length} đơn hàng chưa hoàn tất. Vui lòng xử lý xong các đơn hàng trước.`
+          });
+        }
+      }
+
       updateData.isActive = isActive;
     }
 

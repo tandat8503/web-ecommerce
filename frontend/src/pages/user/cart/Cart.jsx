@@ -1,4 +1,4 @@
-import { FaShoppingCart, FaTrash, FaPlus, FaMinus, FaArrowLeft, FaCheckCircle } from "react-icons/fa";
+import { FaShoppingCart, FaTrash, FaPlus, FaMinus, FaArrowLeft, FaCheckCircle, FaExclamationCircle } from "react-icons/fa";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +9,14 @@ import { formatPrice } from "@/lib/utils";
 import { useCart } from "./useCart";
 
 /**
- * 🛒 CART PAGE - Trang giỏ hàng
+ *  CART PAGE - Trang giỏ hàng
  */
 export default function Cart() {
   const {
     cartItems,
     cartCount,
     totalAmount,
+    hasUnavailableItems,//kiểm tra sản phẩm có còn hàng không
     loading,
     updatingItems,
     handleUpdateQuantity,//cập nhật số lượng sản phẩm
@@ -78,7 +79,7 @@ export default function Cart() {
           {cartCount > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button className="cursor-pointer" variant="outline" size="sm">
                   <FaTrash className="mr-2 h-3.5 w-3.5" />
                   Xóa tất cả
                 </Button>
@@ -91,8 +92,8 @@ export default function Cart() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Hủy</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearAll} className="bg-red-500 hover:bg-red-600">
+                  <AlertDialogCancel className="cursor-pointer">Hủy</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearAll} className="cursor-pointer bg-red-500 hover:bg-red-600">
                     Xác nhận
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -118,75 +119,116 @@ export default function Cart() {
               </TableHeader>
               <TableBody>
                 {cartItems.map((item) => {
-                    const isUpdating = updatingItems.has(item.id);
-                    const variant = item.variant;
-                    const imageUrl = item.product.primary_image || item.product.image_url || "/placeholder-product.jpg";
-                    const hasDiscount = item.sale_price && item.sale_price < item.unit_price;
+                  const isUpdating = updatingItems.has(item.id);
+                  const variant = item.variant;
+                  const imageUrl = item.product.primary_image || item.product.image_url || "/placeholder-product.jpg";
+                  const hasDiscount = item.sale_price && item.sale_price < item.unit_price;
+                  const isAvailable = item.is_available !== false; // Kiểm tra sản phẩm có còn hàng không
 
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="flex gap-3 items-start">
-                            <img src={imageUrl} alt={item.product.name} className="h-16 w-16 object-cover rounded border flex-shrink-0" />
-                            <div className="min-w-0 space-y-1">
-                              <h3 className="font-semibold text-sm line-clamp-2">{item.product.name}</h3>
-                              {hasDiscount && (
-                                <Badge className="bg-red-500 text-white text-xs mt-1">
-                                  -{Math.round(((item.unit_price - item.sale_price) / item.unit_price) * 100)}%
-                                </Badge>
-                              )}
-                            </div>
+                  return (
+                    <TableRow key={item.id} className={!isAvailable ? "opacity-60 bg-gray-50" : ""}>
+                      <TableCell>
+                        <div className="flex gap-3 items-start">
+                          <img src={imageUrl} alt={item.product.name} className="h-16 w-16 object-cover rounded border flex-shrink-0" />
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="font-semibold text-sm line-clamp-2">{item.product.name}</h3>
+                            {hasDiscount && (
+                              <Badge className="bg-red-500 text-white text-xs mt-1">
+                                -{Math.round(((item.unit_price - item.sale_price) / item.unit_price) * 100)}%
+                              </Badge>
+                            )}
+                            {!isAvailable && (
+                              <Badge className="bg-orange-500 text-white text-xs mt-1">
+                                {item.unavailable_reason || "Không còn bán"}
+                              </Badge>
+                            )}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {variant?.color ? (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                              {variant.color}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {variant?.width && variant?.depth && variant?.height ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700">
-                              {variant.width}×{variant.depth}×{variant.height}cm
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <p className="font-semibold text-sm">{formatPrice(item.final_price)}</p>
-                          {hasDiscount && (
-                            <p className="text-xs text-gray-500 line-through">{formatPrice(item.unit_price)}</p>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {variant?.color ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                            {variant.color}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {variant?.width && variant?.depth && variant?.height ? (
+                          <Badge variant="outline" className="bg-green-50 text-green-700">
+                            {variant.width}×{variant.depth}×{variant.height}cm
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <p className="font-semibold text-sm">{formatPrice(item.final_price)}</p>
+                        {hasDiscount && (
+                          <p className="text-xs text-gray-500 line-through">{formatPrice(item.unit_price)}</p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {!isAvailable ? (
+                          <div className="flex items-center justify-center">
+                            <span className="text-xs text-gray-500">-</span>
+                          </div>
+                        ) : (
                           <div className="flex items-center justify-center gap-2">
-                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)} disabled={isUpdating || item.quantity <= 1}>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                              disabled={isUpdating || item.quantity <= 1}
+                            >
                               <FaMinus className="h-3 w-3" />
                             </Button>
                             <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)} disabled={isUpdating}>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                              disabled={isUpdating}
+                            >
                               <FaPlus className="h-3 w-3" />
                             </Button>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <p className="font-bold text-red-600 text-sm">{formatPrice(item.final_price * item.quantity)}</p>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoveItem(item.id)} className="text-red-600 hover:text-red-700 h-7 w-7 p-0">
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <p className="font-bold text-red-600 text-sm">{formatPrice(item.final_price * item.quantity)}</p>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {!isAvailable ? (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="cursor-pointer h-8 px-3 text-xs font-semibold"
+                          >
+                            <FaTrash className=" mr-1 h-3 w-3" />
+                            Xóa
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="cursor-pointer text-red-600 hover:text-red-700 h-7 w-7 p-0"
+                          >
                             <FaTrash className="h-3 w-3" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Card>
 
           {/* Tóm tắt đơn hàng */}
           <div className="md:flex md:justify-end">
@@ -198,6 +240,21 @@ export default function Cart() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                {hasUnavailableItems && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-orange-600 text-lg">
+                        <FaExclamationCircle />
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-orange-800">Sản phẩm không còn hàng</p>
+                        <p className="text-xs text-orange-700 mt-1">
+                          Vui lòng xóa các sản phẩm không còn bán hoặc hết hàng trước khi thanh toán.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tạm tính:</span>
@@ -213,12 +270,16 @@ export default function Cart() {
                     <span className="text-lg font-semibold">Thành tiền:</span>
                     <span className="text-xl font-bold text-red-600">{formatPrice(totalAmount)}</span>
                   </div>
-                  <Button onClick={handleCheckout} className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-4 font-semibold text-sm" disabled={cartCount === 0}>
-                    <FaCheckCircle className="mr-2" />
-                    Thanh toán 
+                  <Button
+                    onClick={handleCheckout}
+                    className="cursor-pointer w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white py-4 font-semibold text-sm"
+                    disabled={cartCount === 0 || hasUnavailableItems}
+                  >
+                    <FaCheckCircle className="mr-2 " />
+                    {hasUnavailableItems ? "Không thể thanh toán" : "Thanh toán"}
                   </Button>
-                  <Button variant="outline" onClick={handleContinueShopping} className="w-full py-4 text-sm">
-                    <FaArrowLeft className="mr-2" />
+                  <Button variant="outline" onClick={handleContinueShopping} className="cursor-pointer w-full py-4 text-sm">
+                    <FaArrowLeft className="mr-2 " />
                     Tiếp tục mua sắm
                   </Button>
                 </div>

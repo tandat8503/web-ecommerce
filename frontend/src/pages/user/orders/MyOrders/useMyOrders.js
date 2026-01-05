@@ -38,9 +38,35 @@ export const useMyOrders = () => {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await getUserOrders({ page, limit, status: status || undefined });
+      // Chỉ gửi status nếu không phải empty string
+      const params = { page, limit };
+      if (status && status !== "") {
+        params.status = status;
+      }
+      
+      console.log("🔍 [MyOrders] Fetching with:", { 
+        page, 
+        limit, 
+        status, 
+        params,
+        statusType: typeof status 
+      });
+      
+      const { data } = await getUserOrders(params);
+      
+      console.log("📦 [MyOrders] Response:", { 
+        itemsCount: data.items?.length,
+        total: data.total,
+        firstItem: data.items?.[0]?.status,
+        allStatuses: data.items?.map(o => o.status)
+      });
+      
       setOrders(data.items || []);
       setTotal(data.total || 0);
+    } catch (error) {
+      console.error(" [MyOrders] Error:", error);
+      setOrders([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -50,7 +76,7 @@ export const useMyOrders = () => {
     fetchOrders(); 
   }, [fetchOrders]);
 
-  // ✅ Lắng nghe custom event từ InitUserSocket để tự động reload danh sách
+  //  Lắng nghe custom event từ InitUserSocket để tự động reload danh sách
   // Khi admin update đơn hàng → InitUserSocket hiện toast → Dispatch event → Reload danh sách
   useEffect(() => {
     const handleOrderUpdate = () => {

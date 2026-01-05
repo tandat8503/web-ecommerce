@@ -41,7 +41,7 @@ const buildShipmentMetrics = (cartItems) => {
     const quantity = item.quantity || 1;
     metrics.weight += DEFAULT_WEIGHT_PER_ITEM * quantity;
 
-    // ✅ Sử dụng kích thước từ product_variant nếu có
+    //  Sử dụng kích thước từ product_variant nếu có
     const variant = item.variant;
     if (variant) {
       // Chuyển đổi từ mm sang cm
@@ -191,8 +191,21 @@ export const createOrder = async (req, res) => {
     // BƯỚC 3: Chuẩn hóa item và tính tiền
     let subtotal = 0;
     const orderItems = [];
+    const unavailableProducts = []; // Danh sách sản phẩm không tồn tại
 
     for (const item of cartItems) {
+      // Kiểm tra sản phẩm có còn active không
+      if (item.product.status !== 'ACTIVE') {
+        unavailableProducts.push(`"${item.product.name}" không còn bán`);
+        continue; // Bỏ qua sản phẩm này
+      }
+
+      // Kiểm tra variant có còn active không (nếu có variant)
+      if (item.variant && !item.variant.isActive) {
+        unavailableProducts.push(`Phiên bản "${item.variant.color || ''}" của "${item.product.name}" không còn bán`);
+        continue; // Bỏ qua sản phẩm này
+      }
+
       // Kiểm tra tồn kho (chỉ kiểm tra, không trừ)
       // Tồn kho sẽ được trừ khi admin xác nhận đơn (CONFIRMED)
       let stock = 0;
@@ -203,7 +216,8 @@ export const createOrder = async (req, res) => {
       }
 
       if (item.quantity > stock) {
-        return res.status(400).json({ message: `Sản phẩm "${item.product.name}" chỉ còn ${stock} sản phẩm` });
+        unavailableProducts.push(`"${item.product.name}" chỉ còn ${stock} sản phẩm`);
+        continue; // Bỏ qua sản phẩm này
       }
 
       // Tính tiền
@@ -223,6 +237,20 @@ export const createOrder = async (req, res) => {
         quantity: item.quantity,
         unitPrice,
         totalPrice,
+      });
+    }
+
+    // Nếu có sản phẩm không tồn tại, trả về lỗi
+    if (unavailableProducts.length > 0) {
+      return res.status(400).json({ 
+        message: `Không thể đặt hàng vì có sản phẩm không còn: ${unavailableProducts.join(', ')}. Vui lòng xóa các sản phẩm này khỏi giỏ hàng.`
+      });
+    }
+
+    // Nếu không có sản phẩm nào tồn tại
+    if (orderItems.length === 0) {
+      return res.status(400).json({ 
+        message: "Không có sản phẩm nào tồn tại trong giỏ hàng để đặt hàng"
       });
     }
 
@@ -463,8 +491,26 @@ export const getUserOrders = async (req, res) => {
     const userId = req.user.id;
     const { page = 1, limit = 10, status } = req.query;
 
-    const where = { userId };
-    if (status) where.status = status;
+    console.log("[getUserOrders] Request:", { userId, page, limit, status, statusType: typeof status });
+//lấy order của user theo userId và lọc theo status đơn hàng 
+    const where = { 
+      userId,
+      // Chỉ lấy orders có paymentMethod hợp lệ (COD hoặc VNPAY)
+      // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
+      paymentMethod: {
+        in: ['COD', 'VNPAY']
+      }
+    };
+    
+    // Lọc theo trạng thái (nếu có) - giống logic admin
+    if (status && status.trim() !== '') {
+      const statusValue = status.trim().toUpperCase();
+      // Validate status value
+      const validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'DELIVERED', 'CANCELLED'];
+      if (validStatuses.includes(statusValue)) {
+        where.status = statusValue;
+      }
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -479,7 +525,7 @@ export const getUserOrders = async (req, res) => {
       prisma.order.count({ where })
     ]);
 
-    // ✅ Parse shippingAddress từ JSON string thành object cho mỗi order
+    //  Parse shippingAddress từ JSON string thành object cho mỗi order
     const itemsWithParsedAddress = items.map(order => {
       let parsedShippingAddress = order.shippingAddress;
       try {
@@ -552,7 +598,7 @@ export const getOrderById = async (req, res) => {
       paymentConfirmedAt: paidPayment?.paidAt || null
     };
 
-    // ✅ Parse shippingAddress từ JSON string thành object
+    // Parse shippingAddress từ JSON string thành object
     let parsedShippingAddress = order.shippingAddress;
     try {
       if (typeof order.shippingAddress === 'string') {
@@ -606,13 +652,22 @@ export const getOrderById = async (req, res) => {
       };
     })();
 
+    // Lấy thông tin ngân hàng từ payment (lấy trực tiếp từ database)
+    let bankInfo = null;
+    if (payment && payment.bankCode) {
+      bankInfo = {
+        bankCode: payment.bankCode
+      };
+    }
+
     return res.status(200).json({
       message: "Lấy chi tiết đơn hàng thành công",
       order: {
         ...order,
         shippingAddress: parsedShippingAddress, // Parse shippingAddress
         timeline,
-        paymentSummary
+        paymentSummary,
+        bankInfo // Thêm thông tin tên ngân hàng từ database
       }
     });
   } catch (error) {
@@ -672,7 +727,7 @@ export const cancelOrder = async (req, res) => {
     // Gửi socket event để admin nhận được cập nhật real-time
     if (updatedOrder) {
       emitOrderStatusUpdate(updatedOrder.userId, {
-        id: updatedOrder.id, // ⚠️ PHẢI LÀ 'id' (socket.js dùng orderData.id)
+        id: updatedOrder.id, //  PHẢI LÀ 'id' (socket.js dùng orderData.id)
         orderNumber: updatedOrder.orderNumber,
         status: updatedOrder.status,
         statusLabel: 'Đã hủy'
@@ -729,7 +784,7 @@ export const confirmReceivedOrder = async (req, res) => {
     // Gửi socket event để admin nhận được cập nhật real-time từ phía user
     if (updatedOrder) {
       emitOrderStatusUpdate(updatedOrder.userId, {
-        id: updatedOrder.id, // ⚠️ PHẢI LÀ 'id' (socket.js dùng orderData.id)
+        id: updatedOrder.id, //  PHẢI LÀ 'id' (socket.js dùng orderData.id)
         orderNumber: updatedOrder.orderNumber,
         status: updatedOrder.status,
         statusLabel: 'Đã giao'

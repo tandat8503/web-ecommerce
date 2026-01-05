@@ -30,13 +30,26 @@ export const getCart = async (req, res) => {
     // Tính toán giá và format response
     // ========================================
     let total_amount = 0; // Tổng tiền toàn bộ giỏ hàng
+    let has_unavailable_items = false; // sản phẩm không còn tồn kho hoặc không còn bán
     
     const processedItems = cartItems.map(item => {
       const unit_price = item.product.price;//giá gốc
       const sale_price = item.product.salePrice;//giá khuyến mãi
       const final_price = sale_price || unit_price;//giá cuối cùng ưu tiên giá khuyến mãi,không có thì dùng unit_price
       const item_total = final_price * item.quantity; // Tổng tiền của item này = giá cuối cùng * số lượng
-      total_amount += item_total; // Cộng dồn vào tổng tiền
+      
+      // Kiểm tra sản phẩm có còn khả dụng không
+      const is_product_available = item.product.status === 'ACTIVE';
+      const is_variant_available = item.variant ? item.variant.isActive : true;
+      const has_stock = item.variant ? item.variant.stockQuantity >= item.quantity : true;
+      const is_available = is_product_available && is_variant_available && has_stock;//kiểm tra sản phẩm có còn tồn kho và còn bán
+      
+      // Chỉ cộng vào tổng tiền nếu sản phẩm còn khả dụng
+      if (is_available) {
+        total_amount += item_total; // Cộng dồn vào tổng tiền
+      } else {
+        has_unavailable_items = true;// có sản phẩm không còn tồn kho hoặc không còn bán
+      }
 
       // Format response theo chuẩn snake_case (giống DB)
       return {
@@ -48,6 +61,12 @@ export const getCart = async (req, res) => {
         sale_price: sale_price ? Number(sale_price) : null, // Giá sale (nếu có)
         final_price: Number(final_price), // Giá cuối cùng
         total_price: Number(item_total), // Tổng tiền của item này
+        is_available, // Sản phẩm có còn khả dụng không
+        unavailable_reason: !is_available ? (
+          !is_product_available ? 'Sản phẩm không còn bán' :
+          !is_variant_available ? 'Biến thể sản phẩm không còn bán' :
+          'Không đủ hàng trong kho'
+        ) : null,
         
         // Thông tin sản phẩm (từ bảng products)
         product: {
@@ -57,7 +76,8 @@ export const getCart = async (req, res) => {
           image_url: item.product.imageUrl,//URL ảnh sản phẩm
           primary_image: item.product.images[0]?.imageUrl, // Ảnh chính
           price: Number(item.product.price),//Giá gốc
-          sale_price: sale_price ? Number(sale_price) : null//Giá khuyến mãi
+          sale_price: sale_price ? Number(sale_price) : null,//Giá khuyến mãi
+          status: item.product.status // Trạng thái sản phẩm (ACTIVE, INACTIVE, OUT_OF_STOCK)
         },
         
         // Thông tin biến thể (từ bảng product_variants)
@@ -83,7 +103,8 @@ export const getCart = async (req, res) => {
     res.status(200).json({
       message: "Lấy giỏ hàng thành công",
       cart: processedItems,
-      total_amount: Number(total_amount.toFixed(2)) // Làm tròn 2 chữ số thập phân
+      total_amount: Number(total_amount.toFixed(2)), // Làm tròn 2 chữ số thập phân
+      has_unavailable_items // sản phẩm không còn tồn kho hoặc không còn bán
     });
     
   } catch (error) {
@@ -96,7 +117,7 @@ export const getCart = async (req, res) => {
 };
 
 /**
- * ➕ ADD TO CART - Thêm sản phẩm vào giỏ hàng
+ * ADD TO CART - Thêm sản phẩm vào giỏ hàng
  
  */
 export const addToCart = async (req, res) => {
@@ -164,7 +185,7 @@ export const addToCart = async (req, res) => {
     // ========================================
     // BƯỚC 3: Kiểm tra tồn kho
     // ========================================
-    // ✅ ĐÚNG: CHỈ kiểm tra tồn kho của variant CỤ THỂ này
+    //  ĐÚNG: CHỈ kiểm tra tồn kho của variant CỤ THỂ này
     // VD: Ghế màu đỏ có 10 cái → stock_quantity = 10
     if (stock_quantity < quantity) {
       return res.status(400).json({ 
@@ -252,8 +273,7 @@ export const addToCart = async (req, res) => {
 };
 
 /**
- * 🔄 UPDATE CART ITEM - Cập nhật số lượng sản phẩm
- * Route: PUT /api/cart/update/:cartItemId
+ *  UPDATE CART ITEM - Cập nhật số lượng sản phẩm
  * Body: { quantity }
  */
 export const updateCartItem = async (req, res) => {
@@ -297,7 +317,7 @@ export const updateCartItem = async (req, res) => {
     let stock_quantity = 0;
     
     if (cartItem.variantId && cartItem.variant) {
-      // ✅ ĐÚNG: Cart item có variant_id cụ thể
+      //  ĐÚNG: Cart item có variant_id cụ thể
       // → CHỈ kiểm tra tồn kho của variant ĐÓ
       // VD: Ghế màu đỏ có 10 cái → stock_quantity = 10
       stock_quantity = cartItem.variant.stockQuantity;
@@ -306,8 +326,8 @@ export const updateCartItem = async (req, res) => {
         stock: stock_quantity 
       });
     } else {
-      // ❌ LỖI LOGIC CŨ: Không nên tính tổng tất cả variants
-      // ✅ ĐÚNG: Nếu cart item KHÔNG có variant_id → Báo lỗi
+      //  LỖI LOGIC CŨ: Không nên tính tổng tất cả variants
+      //  ĐÚNG: Nếu cart item KHÔNG có variant_id → Báo lỗi
       // Vì trong DB schema, mỗi cart item PHẢI có variant_id cụ thể
       return res.status(400).json({ 
         message: "Sản phẩm phải có biến thể cụ thể (màu sắc, kích thước)" 
@@ -347,8 +367,7 @@ export const updateCartItem = async (req, res) => {
 };
 
 /**
- * 🗑️ REMOVE FROM CART - Xóa sản phẩm khỏi giỏ hàng
- * Route: DELETE /api/cart/remove/:cartItemId
+ *  REMOVE FROM CART - Xóa sản phẩm khỏi giỏ hàng
  */
 export const removeFromCart = async (req, res) => {
   try {
@@ -397,8 +416,7 @@ export const removeFromCart = async (req, res) => {
 };
 
 /**
- * 🧹 CLEAR CART - Xóa tất cả sản phẩm trong giỏ hàng
- * Route: DELETE /api/cart/clear
+ *  CLEAR CART - Xóa tất cả sản phẩm trong giỏ hàng
  */
 export const clearCart = async (req, res) => {
   try {
@@ -431,8 +449,7 @@ export const clearCart = async (req, res) => {
 };
 
 /**
- * 🔢 GET CART COUNT - Lấy số lượng sản phẩm trong giỏ hàng
- * Route: GET /api/cart/count
+ *  GET CART COUNT - Lấy số lượng sản phẩm trong giỏ hàng
  */
 export const getCartCount = async (req, res) => {
   try {

@@ -164,6 +164,26 @@ export const register = async (req, res) => {
       })
     }
 
+    // Kiểm tra firstName và lastName không chứa ký tự đặc biệt
+    // Chỉ cho phép chữ cái (bao gồm tiếng Việt có dấu) và khoảng trắng
+    const nameRegex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/;
+    
+    if (!nameRegex.test(firstName)) {
+      logger.warn('Invalid firstName format', { firstName });
+      return res.status(400).json({
+        success: false,
+        message: 'Họ không được chứa ký tự đặc biệt hoặc số'
+      })
+    }
+
+    if (!nameRegex.test(lastName)) {
+      logger.warn('Invalid lastName format', { lastName });
+      return res.status(400).json({
+        success: false,
+        message: 'Tên không được chứa ký tự đặc biệt hoặc số'
+      })
+    }
+
     // Kiểm tra email đã tồn tại chưa
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() }

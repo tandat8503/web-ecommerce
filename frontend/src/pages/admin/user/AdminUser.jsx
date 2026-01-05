@@ -66,13 +66,25 @@ export default function AdminUser() {
       name: "firstName",
       label: "Họ",
       component: <Input placeholder="Nhập họ" />,
-      rules: [{ required: true, message: "Bắt buộc" }],
+      rules: [
+        { required: true, message: "Bắt buộc" },
+        {
+          pattern: /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/,
+          message: "Họ không được chứa ký tự đặc biệt hoặc số!"
+        }
+      ],
     },
     {
       name: "lastName",
       label: "Tên",
       component: <Input placeholder="Nhập tên" />,
-      rules: [{ required: true, message: "Bắt buộc" }],
+      rules: [
+        { required: true, message: "Bắt buộc" },
+        {
+          pattern: /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/,
+          message: "Tên không được chứa ký tự đặc biệt hoặc số!"
+        }
+      ],
     },
     {
       name: "phone",

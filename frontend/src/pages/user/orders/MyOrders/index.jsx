@@ -130,8 +130,11 @@ export default function MyOrders() {
           {/* Tabs trạng thái */}
           <div className="px-6 pt-6 border-b bg-white">
             <Tabs
-              activeKey={status}
-              onChange={(key) => { setPage(1); setStatus(key); }}
+              activeKey={status}//set trạng thái 
+              onChange={(key) => {
+                setStatus(key);//set trạng thái khi thay đổi
+                setPage(1);//set trang khi thay đổi
+              }}
               items={STATUS_TABS.map((t) => ({ key: t.key, label: t.label }))}
             />
           </div>

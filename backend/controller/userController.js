@@ -125,8 +125,23 @@ export const updateUserProfile = async (req, res) => {
 
     const updateData = {};
 
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
+    // Kiểm tra firstName và lastName không chứa ký tự đặc biệt (nếu có cập nhật)
+    const nameRegex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/;
+
+    if (firstName) {
+      if (!nameRegex.test(firstName)) {
+        return res.status(400).json({ message: "Họ không được chứa ký tự đặc biệt hoặc số" });
+      }
+      updateData.firstName = firstName;
+    }
+
+    if (lastName) {
+      if (!nameRegex.test(lastName)) {
+        return res.status(400).json({ message: "Tên không được chứa ký tự đặc biệt hoặc số" });
+      }
+      updateData.lastName = lastName;
+    }
+
     if (phone) updateData.phone = phone;
 
     // Nếu có file upload avatar mới

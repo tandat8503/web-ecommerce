@@ -33,9 +33,9 @@ export default function RegisterForm({ onSwitchToLogin }) {
   // Kiểm tra form có hợp lệ không
   const isFormValid = () => {
     const { firstName, lastName, email, password, confirmPassword } = formValues;
-    return firstName && lastName && email && password && confirmPassword && 
-           firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' && 
-           password.trim() !== '' && confirmPassword.trim() !== '' && password.length >= 6;
+    return firstName && lastName && email && password && confirmPassword &&
+      firstName.trim() !== '' && lastName.trim() !== '' && email.trim() !== '' &&
+      password.trim() !== '' && confirmPassword.trim() !== '' && password.length >= 6;
   };
 
   // Xử lý khi form values thay đổi
@@ -47,7 +47,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
   const onFinish = async (values) => {
     try {
       setLoading(true);
-      
+
       // Chuẩn bị data, loại bỏ phone nếu trống
       const registerData = {
         firstName: values.firstName,
@@ -56,22 +56,22 @@ export default function RegisterForm({ onSwitchToLogin }) {
         password: values.password,
         confirmPassword: values.confirmPassword
       };
-      
+
       // Chỉ thêm phone nếu có giá trị
       if (values.phone && values.phone.trim()) {
         registerData.phone = values.phone.trim();
       }
-      
+
       console.log("Register data being sent:", registerData);
-      
+
       const response = await register(registerData);
       console.log("Register response:", response);
-      
+
       if (response.data.success) {
         console.log("Register response user data:", response.data.data.user);
         localStorage.setItem("token", response.data.data.accessToken);
         localStorage.setItem("user", JSON.stringify(response.data.data.user));
-        
+
         // Gọi API getUserProfile để lấy đầy đủ thông tin user (bao gồm avatar)
         try {
           console.log("Fetching full user profile after registration...");
@@ -80,11 +80,11 @@ export default function RegisterForm({ onSwitchToLogin }) {
             const fullUserData = profileResponse.data.data.user;
             console.log("Full user profile from API:", fullUserData);
             console.log("Full user profile avatar:", fullUserData.avatar);
-            
+
             // Cập nhật localStorage với thông tin đầy đủ
             localStorage.setItem("user", JSON.stringify(fullUserData));
             console.log("Updated localStorage with full user profile");
-            
+
             // Dispatch event để UserHeader cập nhật
             window.dispatchEvent(new CustomEvent('userUpdated'));
           }
@@ -92,10 +92,10 @@ export default function RegisterForm({ onSwitchToLogin }) {
           console.error("Error fetching full user profile:", profileError);
           // Vẫn tiếp tục với user data từ register nếu có lỗi
         }
-        
+
         console.log("Register successful");
         toast.success(" Đăng ký thành công! Chào mừng bạn đến với Nội Thất Văn Phòng!");
-        
+
         // Kiểm tra xem có redirect URL không
         const redirectUrl = searchParams.get('redirect');
         if (redirectUrl) {
@@ -108,9 +108,9 @@ export default function RegisterForm({ onSwitchToLogin }) {
     } catch (error) {
       console.error("Register error:", error);
       console.error("Error response:", error.response);
-      
+
       let errorMessage = "Đăng ký thất bại";
-      
+
       if (error.response) {
         // Server trả về response
         errorMessage = error.response.data?.message || `Lỗi server: ${error.response.status}`;
@@ -121,14 +121,14 @@ export default function RegisterForm({ onSwitchToLogin }) {
         // Lỗi khác
         errorMessage = error.message || "Có lỗi xảy ra";
       }
-      
+
       toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  
+
   return (
     <div className="w-full">
       {/* Header with Decoration */}
@@ -148,7 +148,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
       </div>
 
       {/* Form Card with Enhanced Styling */}
-      <Card 
+      <Card
         className="border-0 shadow-2xl rounded-2xl overflow-hidden relative"
         style={{
           background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
@@ -178,7 +178,11 @@ export default function RegisterForm({ onSwitchToLogin }) {
                 </span>}
                 rules={[
                   { required: true, message: "Vui lòng nhập họ!" },
-                  { min: 2, message: "Họ phải có ít nhất 2 ký tự!" }
+                  { min: 2, message: "Họ phải có ít nhất 2 ký tự!" },
+                  {
+                    pattern: /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/,
+                    message: "Họ không được chứa ký tự đặc biệt hoặc số!"
+                  }
                 ]}
               >
                 <Input
@@ -197,7 +201,11 @@ export default function RegisterForm({ onSwitchToLogin }) {
                 </span>}
                 rules={[
                   { required: true, message: "Vui lòng nhập tên!" },
-                  { min: 2, message: "Tên phải có ít nhất 2 ký tự!" }
+                  { min: 2, message: "Tên phải có ít nhất 2 ký tự!" },
+                  {
+                    pattern: /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/,
+                    message: "Tên không được chứa ký tự đặc biệt hoặc số!"
+                  }
                 ]}
               >
                 <Input
@@ -302,18 +310,17 @@ export default function RegisterForm({ onSwitchToLogin }) {
                 htmlType="submit"
                 loading={loading}
                 disabled={!isFormValid() || loading}
-                className={`w-full h-12 border-0 rounded-lg font-bold text-base shadow-lg transition-all duration-300 ${
-                  isFormValid() && !loading 
-                    ? 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 hover:shadow-xl transform hover:scale-[1.02]' 
-                    : 'bg-gray-300 cursor-not-allowed'
-                }`}
+                className={`w-full h-12 border-0 rounded-lg font-bold text-base shadow-lg transition-all duration-300 ${isFormValid() && !loading
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 hover:shadow-xl transform hover:scale-[1.02]'
+                  : 'bg-gray-300 cursor-not-allowed'
+                  }`}
                 style={{
-                  background: isFormValid() && !loading 
-                    ? 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)' 
+                  background: isFormValid() && !loading
+                    ? 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)'
                     : '#d1d5db',
                   border: 'none',
-                  boxShadow: isFormValid() && !loading 
-                    ? '0 8px 20px rgba(16, 185, 129, 0.3)' 
+                  boxShadow: isFormValid() && !loading
+                    ? '0 8px 20px rgba(16, 185, 129, 0.3)'
                     : '0 2px 4px rgba(0, 0, 0, 0.1)'
                 }}
               >
@@ -332,7 +339,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
           <Divider className="my-6">
             <Text className="text-gray-400 text-xs font-medium px-4 bg-white">Hoặc đăng ký với</Text>
           </Divider>
-              {/* Google Login */}
+          {/* Google Login */}
           <LoginGoogle />
 
           <div className="text-center mt-6">
@@ -343,7 +350,7 @@ export default function RegisterForm({ onSwitchToLogin }) {
                 onClick={onSwitchToLogin}
                 className="p-0 h-auto font-bold text-base text-green-500 hover:text-green-600 transition-colors"
               >
-                Đăng nhập 
+                Đăng nhập
               </Button>
             </Text>
           </div>

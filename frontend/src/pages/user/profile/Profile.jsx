@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, Form, Input, Button, Typography } from "antd";
 import { FaUser, FaEnvelope, FaPhone } from "react-icons/fa";
-import {  updateProfile } from "@/api/userProfile";
+import { updateProfile } from "@/api/userProfile";
 import { toast } from "@/lib/utils";
 
 const { Title, Text } = Typography;
@@ -24,25 +24,25 @@ export default function Profile({ user, setUser }) {
   const handleUpdateProfile = async (values) => {
     try {
       setLoading(true);
-      
+
       const updateData = {
         firstName: values.fullName.split(' ')[0] || values.fullName,
         lastName: values.fullName.split(' ').slice(1).join(' ') || '',
         phone: values.phone || "",
       };
-      
+
       console.log("Updating profile with data:", updateData);
-      
+
       const response = await updateProfile(updateData);
-      
+
       if (response.data.code === 200) {
         const updatedUser = response.data.data.user;
         setUser(updatedUser);
         localStorage.setItem("user", JSON.stringify(updatedUser));
-        
+
         // Dispatch custom event to notify other components
         window.dispatchEvent(new CustomEvent('userUpdated'));
-        
+
         toast.success(" Cập nhật thông tin thành công!");
       } else {
         toast.error(` ${response.data.message || "Cập nhật thất bại"}`);
@@ -82,7 +82,11 @@ export default function Profile({ user, setUser }) {
           }
           rules={[
             { required: true, message: "Vui lòng nhập họ và tên!" },
-            { min: 2, message: "Họ và tên phải có ít nhất 2 ký tự!" }
+            { min: 2, message: "Họ và tên phải có ít nhất 2 ký tự!" },
+            {
+              pattern: /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵýỷỹ\s]+$/,
+              message: "Họ và tên không được chứa ký tự đặc biệt hoặc số!"
+            }
           ]}
         >
           <Input
