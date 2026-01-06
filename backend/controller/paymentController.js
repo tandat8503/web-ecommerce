@@ -3,7 +3,9 @@ import vnpayService from '../services/payment/vnpayService.js';
 import logger from '../utils/logger.js';
 
 // Frontend URL
-const frontendUrl = "http://localhost:5173";
+//const frontendUrl = "http://localhost:5173";
+//link demo onl
+const frontendUrl = "https://web-ecommerce-git-lyly-lylys-projects-19de6e97.vercel.app";
 // Hàm phân tích ngày tháng giờ từ chuỗi VNPay
 const parseVNPayDate = (value) => {
   if (!value || String(value).length !== 14) return null;// Kiểm tra chuỗi có hợp lệ không
@@ -411,3 +413,4 @@ export const getPaymentStatus = async (req, res) => {
     });
   }
 };
+
