@@ -13,7 +13,7 @@ import { handleVNPayPayment } from './vnpayPayment';
 export default function PaymentResult() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   const [status, setStatus] = useState('loading'); // loading, success, failed
   const [paymentInfo, setPaymentInfo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +98,7 @@ export default function PaymentResult() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8 animate-fadeIn">
-        
+
         {/* Loading state */}
         {loading && (
           <div className="text-center py-12">
@@ -121,15 +121,15 @@ export default function PaymentResult() {
                 <div className="absolute inset-0 bg-green-200 rounded-full blur-xl opacity-50 animate-pulse"></div>
               </div>
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-800 mb-2">
               Thanh toán thành công!
             </h2>
             <p className="text-gray-600 mb-6">
-              {isVNPay ? 'Giao dịch VNPay đã được xử lý thành công' : 
-               'Đơn hàng của bạn đã được thanh toán'}
+              {isVNPay ? 'Giao dịch VNPay đã được xử lý thành công' :
+                'Đơn hàng của bạn đã được thanh toán'}
             </p>
-            
+
             {paymentInfo && (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 mb-6 text-left border border-gray-200">
                 <div className="space-y-3">
@@ -137,14 +137,14 @@ export default function PaymentResult() {
                     <span className="text-gray-600 font-medium">Mã đơn hàng:</span>
                     <span className="font-bold text-gray-800">#{orderId}</span>
                   </div>
-                  
+
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 font-medium">Số tiền:</span>
                     <span className="font-bold text-green-600 text-lg">
                       {paymentInfo.amount?.toLocaleString('vi-VN')}đ
                     </span>
                   </div>
-                  
+
                   {paymentInfo.transactionId && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600 font-medium">Mã giao dịch:</span>
@@ -153,7 +153,7 @@ export default function PaymentResult() {
                       </span>
                     </div>
                   )}
-                  
+
                   {isVNPay && paymentInfo.bankCode && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600 font-medium">Ngân hàng:</span>
@@ -162,7 +162,7 @@ export default function PaymentResult() {
                       </span>
                     </div>
                   )}
-                  
+
                   {isVNPay && paymentInfo.responseCode && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600 font-medium">Mã phản hồi:</span>
@@ -171,7 +171,7 @@ export default function PaymentResult() {
                       </span>
                     </div>
                   )}
-                  
+
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 font-medium">Thời gian:</span>
                     <span className="font-medium text-gray-700">
@@ -208,16 +208,16 @@ export default function PaymentResult() {
                 <div className="absolute inset-0 bg-red-200 rounded-full blur-xl opacity-50"></div>
               </div>
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-800 mb-2">
               Thanh toán thất bại
             </h2>
             <p className="text-gray-600 mb-6">
-              {messageParam || 
-               (isVNPay ? 'Giao dịch VNPay đã bị hủy hoặc không thành công' :
-                'Giao dịch đã bị hủy hoặc không thành công')}
+              {messageParam ||
+                (isVNPay ? 'Giao dịch VNPay đã bị hủy hoặc không thành công' :
+                  'Giao dịch đã bị hủy hoặc không thành công')}
             </p>
-            
+
             {errorParam && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700">
                 {errorParam === 'invalid_signature' && (
