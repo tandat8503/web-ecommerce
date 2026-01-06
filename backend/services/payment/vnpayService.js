@@ -3,12 +3,19 @@ import crypto from 'crypto'; // Thư viện xử lý mã hóa SHA512 (cần cho 
 import qs from 'qs'; // Thư viện giúp chuyển đổi JavaScript Object thành chuỗi Query String chuẩn
 
 // Cấu hình các thông tin cơ bản của Merchant (đối tác)
+// const VNPAY_CONFIG = {
+//   tmnCode: 'VJ57K4RO', // Mã Terminal (Mã Merchant) do VNPAY cấp
+//   hashSecret: 'NLVI2586C7FZMM9M59W26NEN1Z9PJU6S', // Secret Key dùng để mã hóa/xác thực giao dịch
+//   // URL mà VNPAY sẽ gọi lại (Callback) sau khi khách hàng thanh toán xong
+//   returnUrl: 'https://holley-ungaining-nonmischievously.ngrok-free.dev/api/payment/vnpay/return'
+// };
+
 const VNPAY_CONFIG = {
-  tmnCode: 'VJ57K4RO', // Mã Terminal (Mã Merchant) do VNPAY cấp
-  hashSecret: 'NLVI2586C7FZMM9M59W26NEN1Z9PJU6S', // Secret Key dùng để mã hóa/xác thực giao dịch
-  // URL mà VNPAY sẽ gọi lại (Callback) sau khi khách hàng thanh toán xong
-  returnUrl: 'https://holley-ungaining-nonmischievously.ngrok-free.dev/api/payment/vnpay/return'
+  tmnCode: process.env.VNP_TMN_CODE || 'VJ57K4RO', 
+  hashSecret: process.env.VNP_HASH_SECRET || 'NLVI2586C7FZMM9M59W26NEN1Z9PJU6S',
+  returnUrl: process.env.VNP_RETURN_URL // Phải dùng biến này
 };
+
 
 // Khởi tạo client VNPay
 const vnpayClient = new VNPay({
@@ -110,4 +117,5 @@ export const verifyCallback = (params = {}) => {
 export default {
   createPayment,//tạo URL thanh toán
   verifyCallback//xác thực callback từ VNPAY về hàm vnp_ReturnUrl của bạn đã khai báo trong config VNPAY_CONFIG
+
 };
