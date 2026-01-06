@@ -518,13 +518,7 @@ export function useCheckout() {
         toast.success("Đặt hàng thành công!");
         navigate(orderId ? `/order-success?orderId=${orderId}` : "/order-success");
       } else if (paymentMethod === 'VNPAY') {
-        // Hiển thị thông báo ngay lập tức để user biết đang xử lý
-        toast.loading("Đang chuyển đến trang thanh toán VNPay...", {
-          duration: 5000, // Hiển thị tối đa 5s (đủ thời gian redirect)
-        });
-        
         try {
-          // Redirect ngay đến VNPay (đã tối ưu)
           await handleVNPayPayment(
             orderId,
             createVNPayPayment,
@@ -535,7 +529,6 @@ export function useCheckout() {
           );
         } catch (paymentError) {
           console.error('VNPay payment error:', paymentError);
-          toast.error('Không thể kết nối đến VNPay. Vui lòng thử lại.');
         }
       }
     } catch (error) {
