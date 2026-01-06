@@ -14,14 +14,15 @@
  */
 export const handleVNPayPayment = async (orderId, createVNPayPayment, onError) => {
   try {
-    // Gọi API tạo payment URL
-    const response = await createVNPayPayment(orderId);//gọi api be
-    const paymentData = response.data;//lấy data từ response
+    // Gọi API tạo payment URL (đã được tối ưu ở backend)
+    const response = await createVNPayPayment(orderId);
+    const paymentData = response.data;
 
     // Kiểm tra response
     if (paymentData?.success && paymentData?.data?.paymentUrl) {
-      // Redirect đến VNPay để thanh toán
-      window.location.href = paymentData.data.paymentUrl;
+      // Redirect đến VNPay ngay lập tức (không delay)
+      // Sử dụng window.location.replace để tránh lưu vào history
+      window.location.replace(paymentData.data.paymentUrl);
     } else {
       throw new Error(paymentData?.message || 'Không tạo được payment URL');
     }
