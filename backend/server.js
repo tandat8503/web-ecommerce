@@ -43,6 +43,7 @@ app.use(helmet())
 // --- CORS CONFIGURATION ---
 const allowedOrigins = [
   'https://web-ecommerce-rosy.vercel.app', 
+  'https://web-ecommerce-git-lyly-lylys-projects-19de6e97.vercel.app'
   'http://localhost:5173'
 ]
 
