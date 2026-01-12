@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import UserHeader from "./UserHeader";
 import UserFooter from "./UserFooter";
 import ChatWidget from "@/pages/user/chatbox/ChatWidget";
+import ZaloButton from "@/components/user/ZaloButton";
 
 export default function UserLayout() {
   return (
@@ -13,7 +14,10 @@ export default function UserLayout() {
       <main className="flex-1 bg-gray-50">
         <Outlet />
       </main>
-      <ChatWidget />
+      <div className="fixed bottom-6 right-6 z-50">
+        <ZaloButton />
+      </div>
+      <ChatWidget />  
 
       {/* Footer */}
       <UserFooter />

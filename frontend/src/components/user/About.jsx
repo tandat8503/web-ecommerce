@@ -9,10 +9,10 @@ export default function About() {
       <div className="py-16 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <Title level={1} className="text-5xl md:text-6xl font-bold mb-4 text-gray-900">
-            OFFICE PRO
+            Nội Thất Văn Phòng
           </Title>
           <Paragraph className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Nền tảng thương mại điện tử chuyên về nội thất văn phòng
+            Nền tảng thương mại điện tử chuyên về nội thất bàn ghế văn phòng
           </Paragraph>
         </div>
       </div>
@@ -28,24 +28,24 @@ export default function About() {
                   Chúng tôi là ai?
                 </Title>
                 <Paragraph className="text-lg text-gray-700 leading-relaxed mb-4">
-                  <strong>OFFICE PRO</strong> là một nền tảng thương mại điện tử chuyên cung cấp các sản phẩm 
+                  <strong>Nội Thất Văn Phòng</strong> là một nền tảng thương mại điện tử chuyên cung cấp các sản phẩm 
                   nội thất văn phòng, đặc biệt là <strong>bàn ghế văn phòng</strong> chất lượng cao. Chúng tôi 
                   tập trung vào việc mang đến cho khách hàng những giải pháp hoàn chỉnh để tạo nên không gian 
                   làm việc chuyên nghiệp và hiện đại.
                 </Paragraph>
                 <Paragraph className="text-lg text-gray-700 leading-relaxed mb-4">
-                  Với sứ mệnh cung cấp những sản phẩm nội thất tốt nhất, <strong>OFFICE PRO</strong> luôn chú trọng 
+                  Với sứ mệnh cung cấp những sản phẩm nội thất tốt nhất, <strong>Nội Thất Văn Phòng</strong> luôn chú trọng 
                   đến việc chọn lọc kỹ lưỡng từng sản phẩm, đảm bảo chất lượng và phù hợp với mọi nhu cầu sử dụng 
                   từ văn phòng nhỏ đến các doanh nghiệp lớn. Chúng tôi hiểu rằng một không gian làm việc được 
                   thiết kế tốt có thể tạo nên sự khác biệt lớn trong năng suất và tinh thần làm việc.
                 </Paragraph>
                 <Paragraph className="text-lg text-gray-700 leading-relaxed mb-4">
-                  <strong>OFFICE PRO</strong> cam kết mang đến trải nghiệm mua sắm trực tuyến tiện lợi, an toàn 
+                  <strong>Nội Thất Văn Phòng</strong> cam kết mang đến trải nghiệm mua sắm trực tuyến tiện lợi, an toàn 
                   và đáng tin cậy. Chúng tôi không chỉ bán sản phẩm mà còn tư vấn và hỗ trợ khách hàng trong việc 
                   lựa chọn những sản phẩm phù hợp nhất cho không gian làm việc của họ.
                 </Paragraph>
                 <Paragraph className="text-lg text-gray-700 leading-relaxed">
-                  Với đội ngũ tư vấn chuyên nghiệp và dịch vụ chăm sóc khách hàng tận tâm, <strong>OFFICE PRO</strong> 
+                  Với đội ngũ tư vấn chuyên nghiệp và dịch vụ chăm sóc khách hàng tận tâm, <strong>Nội Thất Văn Phòng </strong> 
                   luôn sẵn sàng đồng hành cùng bạn trong suốt quá trình từ lựa chọn đến sau khi mua hàng, đảm bảo 
                   bạn có được trải nghiệm mua sắm tuyệt vời nhất.
                 </Paragraph>

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import logger from '../utils/logger.js';
+import { sendDiscountEmail } from '../services/Email/EmailServices.js';
 
 /**
  * Tạo mã giảm giá mới
@@ -485,24 +486,98 @@ export const shareCouponToUsers = async (req, res) => {
       });
     }
 
+    //  GỬI EMAIL THÔNG BÁO MÃ KHUYẾN MÃI
+    // Lấy thông tin đầy đủ của users để gửi email
+    const usersWithEmail = await prisma.user.findMany({
+      where: {
+        id: { in: targetUsers.map(u => u.id) }
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true
+      }
+    });
+
+    // Format dữ liệu cho email
+    //  Dùng coupon.endDate (ngày hết hạn thực tế trong DB) thay vì expiresAt (30 ngày từ hôm nay)
+    const startDateText = new Date(coupon.startDate).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+
+    const endDateText = new Date(coupon.endDate).toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+
+    // Gửi email không đồng bộ (không chờ kết quả để không làm chậm response)
+    logger.info('Starting to send coupon emails', { 
+      totalUsers: usersWithEmail.length,
+      couponCode: coupon.code
+    });
+
+    Promise.all(
+      usersWithEmail.map(async (user) => {
+        try {
+          await sendDiscountEmail({
+            email: user.email,
+            couponCode: coupon.code,
+            couponName: coupon.name,
+            discountType: coupon.discountType,
+            discountValue: Number(coupon.discountValue),
+            minimumAmount: Number(coupon.minimumAmount),
+            startDate: startDateText,
+            endDate: endDateText
+          });
+          logger.debug('Email sent successfully', { 
+            userId: user.id, 
+            email: user.email,
+            couponCode: coupon.code
+          });
+        } catch (emailError) {
+          // Log lỗi nhưng không fail toàn bộ request
+          logger.error('Failed to send email', {
+            userId: user.id,
+            email: user.email,
+            error: emailError.message
+          });
+        }
+      })
+    ).then(() => {
+      logger.success('All coupon emails sent', { 
+        totalSent: usersWithEmail.length,
+        couponCode: coupon.code
+      });
+    }).catch((err) => {
+      logger.error('Error in bulk email sending', { 
+        error: err.message 
+      });
+    });
+
     logger.success('Coupon shared to users', {
       couponId: coupon.id,
       couponCode: coupon.code,
       targetCount: targetUsers.length,
       successCount,
       failedCount,
-      shareToAll: shouldShareToAll
+      shareToAll: shouldShareToAll,
+      emailsQueued: usersWithEmail.length
     });
     logger.end(context.path, { couponId: coupon.id });
 
     return res.json({
       success: true,
-      message: `Đã chia sẻ mã giảm giá cho ${successCount} người dùng${failedCount > 0 ? ` (${failedCount} thất bại)` : ''}`,
+      message: `Đã chia sẻ mã giảm giá cho ${successCount} người dùng${failedCount > 0 ? ` (${failedCount} thất bại)` : ''}. Email thông báo đang được gửi.`,
       data: {
         couponCode: coupon.code,
         totalUsers: targetUsers.length,
         sharedCount: successCount,
-        failedCount
+        failedCount,
+        emailsQueued: usersWithEmail.length
       }
     });
   } catch (error) {

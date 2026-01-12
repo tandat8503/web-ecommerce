@@ -82,7 +82,7 @@ export function useCheckout() {
   const [shippingFeeLoading, setShippingFeeLoading] = useState(false);
   const [shippingFeeError, setShippingFeeError] = useState(null);
 
-  // 🎟️ STATE COUPON
+  //  STATE COUPON
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [validatingCoupon, setValidatingCoupon] = useState(false);
@@ -154,6 +154,8 @@ export function useCheckout() {
     };
   }, [checkoutItems, shippingFee, appliedCoupon]);
 
+ 
+
   const selectedAddress = useMemo(() => {
     const addr = addresses.find((a) => a.id === selectedAddressId) || null;
 
@@ -177,7 +179,7 @@ export function useCheckout() {
     Boolean(selectedAddress?.districtId && selectedAddress?.wardCode) &&
     checkoutItems.length > 0;
 
-  // 🎟️ FETCH USER COUPONS
+  //  FETCH USER COUPONS
   const fetchUserCoupons = async () => {
     try {
       setLoadingCoupons(true);
@@ -194,7 +196,7 @@ export function useCheckout() {
     }
   };
 
-  // 🎟️ APPLY SELECTED COUPON
+  //  APPLY SELECTED COUPON
   const handleApplyCoupon = async (selectedCouponCode) => {
     if (!selectedCouponCode) {
       handleRemoveCoupon();
@@ -227,7 +229,7 @@ export function useCheckout() {
     }
   };
 
-  // 🎟️ XÓA COUPON
+  //  XÓA COUPON
   const handleRemoveCoupon = () => {
     setCouponCode("");
     setAppliedCoupon(null);
@@ -350,6 +352,13 @@ export function useCheckout() {
     loadAddresses();
     fetchUserCoupons(); // Fetch user coupons khi component mount
   }, []);
+
+  // Tự động chuyển về COD nếu đơn hàng 0đ (do áp mã giảm giá)
+  useEffect(() => {
+    if (summary.total === 0 && paymentMethod !== "COD") {
+      setPaymentMethod("COD");
+    }
+  }, [summary.total, paymentMethod]);
 
   const handleAddressChange = (field, value) => {
     setAddressForm((prev) => ({ ...prev, [field]: value }));
@@ -513,6 +522,7 @@ export function useCheckout() {
 
       await fetchCart();
       const orderId = res.data?.order?.id;
+      const orderNumber = res.data?.order?.orderNumber;
 
       if (paymentMethod === 'COD') {
         toast.success("Đặt hàng thành công!");
@@ -530,6 +540,10 @@ export function useCheckout() {
         } catch (paymentError) {
           console.error('VNPay payment error:', paymentError);
         }
+      } else if (paymentMethod === 'TINGEE') {
+        // Redirect đến trang Tingee QR Payment
+        toast.success("Đơn hàng đã được tạo! Vui lòng quét mã QR để thanh toán.");
+        navigate(`/payment/tingee?orderId=${orderId}&amount=${summary.total}&orderNumber=${orderNumber}`);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Không thể đặt hàng");

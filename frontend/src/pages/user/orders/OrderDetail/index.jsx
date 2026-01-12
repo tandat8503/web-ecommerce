@@ -46,6 +46,12 @@ export default function OrderDetail() {
     }
   };
 
+  // thanh toán lại Tingee
+  const handleRetryTingee = () => {
+    if (!order) return;
+    navigate(`/payment/tingee?orderId=${order.id}&amount=${order.totalAmount}&orderNumber=${order.orderNumber}`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <BreadcrumbNav />
@@ -112,6 +118,18 @@ export default function OrderDetail() {
                             onClick={handleRetryVNPay}
                           >
                             Thanh toán lại VNPay
+                          </Button>
+                        )}
+
+                        {/* Nút thanh toán lại Tingee */}
+                        {order.paymentMethod === "TINGEE" && order.paymentStatus !== "PAID" && order.status !== "CANCELLED" && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            disabled={actionLoading}
+                            onClick={handleRetryTingee}
+                          >
+                            Thanh toán lại
                           </Button>
                         )}
                       </div>

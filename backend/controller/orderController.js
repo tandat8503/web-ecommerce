@@ -498,7 +498,7 @@ export const getUserOrders = async (req, res) => {
       // Chỉ lấy orders có paymentMethod hợp lệ (COD hoặc VNPAY)
       // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
       paymentMethod: {
-        in: ['COD', 'VNPAY']
+        in: ['COD', 'VNPAY', 'TINGEE']
       }
     };
     

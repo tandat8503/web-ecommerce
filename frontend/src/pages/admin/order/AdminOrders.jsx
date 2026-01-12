@@ -117,12 +117,24 @@ export default function AdminOrders() {
     {
       title: "Tổng tiền",
       dataIndex: "totalAmount",
-      width: 150,
+      width: 120,
       align: "right",
       render: (amount) => (
         <span className="font-semibold text-red-600">
           {formatPrice(Number(amount || 0))}
         </span>
+      ),
+    },
+    {
+      title: "P.Thức thanh toán",
+      dataIndex: "paymentMethod",
+      width: 150,
+      render: (method) => (
+        <Tag color={method === "COD" ? "default" : "blue"}>
+          {method === "COD" ? "Tiền mặt (COD)" :
+            method === "VNPAY" ? "VNPay" :
+              method === "TINGEE" ? "Chuyển khoản QR" : method}
+        </Tag>
       ),
     },
     {
@@ -164,12 +176,12 @@ export default function AdminOrders() {
           {record.availableStatuses?.length > 0 && (
             <Tooltip
               title={
-                record.paymentMethod === 'VNPAY' &&
+                (record.paymentMethod === 'VNPAY' || record.paymentMethod === 'TINGEE') &&
                   record.paymentStatus !== 'PAID' &&
                   record.availableStatuses.some(s => s.value === 'CONFIRMED')
                   ? record.paymentStatus === 'FAILED'
-                    ? `Không thể xác nhận: Thanh toán VNPay thất bại`
-                    : `Không thể xác nhận: Thanh toán VNPay chưa thành công`
+                    ? `Không thể xác nhận: Thanh toán ${record.paymentMethod} thất bại`
+                    : `Không thể xác nhận: Thanh toán ${record.paymentMethod} chưa thành công`
                   : null
               }
             >
@@ -186,16 +198,16 @@ export default function AdminOrders() {
                   // Disable option "Đã xác nhận" nếu đơn hàng online (VNPAY) chưa thanh toán thành công
                   const isDisabled =
                     s.value === 'CONFIRMED' &&
-                    record.paymentMethod === 'VNPAY' &&
+                    (record.paymentMethod === 'VNPAY' || record.paymentMethod === 'TINGEE') &&
                     record.paymentStatus !== 'PAID';
 
                   // Xác định thông báo tooltip dựa trên payment method
                   const getTooltipMessage = () => {
                     if (!isDisabled) return undefined;
                     if (record.paymentStatus === 'FAILED') {
-                      return `Thanh toán VNPay thất bại`;
+                      return `Thanh toán ${record.paymentMethod} thất bại`;
                     }
-                    return `Thanh toán VNPay chưa thành công`;
+                    return `Thanh toán ${record.paymentMethod} chưa thành công`;
                   };
 
                   return (
@@ -279,7 +291,15 @@ export default function AdminOrders() {
         label: "Tổng tiền",
         render: (v) => <span className="font-semibold text-red-600">{formatPrice(Number(v || 0))}</span>,
       },
-      { name: "paymentMethod", label: "Phương thức thanh toán" },
+      {
+        name: "paymentMethod",
+        label: "Phương thức thanh toán",
+        render: (v) => (
+          v === "COD" ? "Tiền mặt (COD)" :
+            v === "VNPAY" ? "VNPay" :
+              v === "TINGEE" ? "Chuyển khoản QR" : v
+        )
+      },
       {
         name: "paymentStatus",
         label: "Trạng thái thanh toán",

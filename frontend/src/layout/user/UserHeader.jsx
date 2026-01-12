@@ -472,7 +472,7 @@ export default function UserHeader() {
         <Row align="middle" gutter={[16, 16]}>
           {/* Logo */}
           <Col xs={24} md={6}>
-            <div className="flex items-center gap-3 justify-start">
+            <Link to="/" className="flex items-center gap-3 justify-start hover:opacity-80 transition-opacity">
               <div className="bg-white rounded-full p-2 shadow-lg">
                 <svg
                   className="w-8 h-8 text-blue-600"
@@ -483,14 +483,14 @@ export default function UserHeader() {
                 </svg>
               </div>
               <div>
-                <span className="font-bold text-xl text-white block leading-tight">
-                  NỘI THẤT VĂN PHÒNG
+                <span className="font-bold text-xl text-white block leading-tight uppercase">
+                  Nội thất văn phòng
                 </span>
                 <span className="text-xs text-blue-200 block">
                   Nội thất văn phòng chất lượng
                 </span>
               </div>
-            </div>
+            </Link>
           </Col>
 
           {/* Danh mục + tìm kiếm */}

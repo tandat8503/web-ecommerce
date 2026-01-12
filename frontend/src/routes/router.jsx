@@ -27,6 +27,7 @@ import OrderDetail from "@/pages/user/orders/OrderDetail";
 import OrderReview from "@/pages/user/orders/OrderReview";
 import ProfileManager from "@/pages/user/profile/ProfileManager";
 import MyCoupons from "@/pages/user/coupons/MyCoupons";
+import TingeePaymentPage from "@/components/payment/TingeePaymentPage";
 import AuthPage from "@/pages/auth/AuthPage";
 import NotFound from "@/pages/P404/NotFound";
 
@@ -49,6 +50,7 @@ const router = createBrowserRouter([
       { path: "checkout", element: <Checkout /> },
       { path: "order-success", element: <OrderSuccess /> },
       { path: "payment/result", element: <PaymentResult /> },
+      { path: "payment/tingee", element: <TingeePaymentPage /> },
       { path: "orders", element: <MyOrders /> },
       { path: "orders/:id/review", element: <OrderReview /> },
       { path: "orders/:id", element: <OrderDetail /> },

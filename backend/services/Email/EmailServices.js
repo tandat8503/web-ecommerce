@@ -35,23 +35,100 @@ export const sendForgotPasswordEmail = async ({ email, otpCode }) => {
 };
 
 /**
- * Gửi email mã giảm giá cho user (ví dụ khi sắp có chương trình mới)
+ * Gửi email mã giảm giá cho user
  */
-export const sendDiscountEmail = async ({ email, couponCode, percent, expiredAt }) => {
+export const sendDiscountEmail = async ({ 
+  email, 
+  couponCode, 
+  couponName,
+  discountType, 
+  discountValue,
+  minimumAmount,
+  startDate, 
+  endDate 
+}) => {
+  // Format giá trị giảm giá
+  const discountText = discountType === 'PERCENT' 
+    ? `${discountValue}%` 
+    : `${Number(discountValue).toLocaleString('vi-VN')}đ`;
+
+  // Format giá trị đơn hàng tối thiểu
+  const minOrderText = minimumAmount > 0
+    ? `${Number(minimumAmount).toLocaleString('vi-VN')}đ`
+    : 'Không yêu cầu';
+
   return emailTransporter.sendMail({
     from: FROM_EMAIL,
     to: email,
-    subject: 'Bạn có mã giảm giá mới!',
-    text: `Xin chào,\n\nBạn vừa nhận được mã ${couponCode} giảm ${percent}%.\nÁp dụng trước ngày ${expiredAt}.`,
+    subject: `Bạn nhận được mã giảm giá ${discountText}!`,
+    text: `Xin chào,\n\nBạn vừa nhận được mã ${couponCode} giảm ${discountText}.\nÁp dụng từ ${startDate} đến ${endDate}.\nĐơn hàng tối thiểu: ${minOrderText}`,
     html: `
-      <div style="font-family: Arial; line-height: 1.5;">
-        <h3>Xin chào,</h3>
-        <p>Chúng tôi tặng bạn mã giảm giá đặc biệt:</p>
-        <div style="padding: 12px; border: 2px dashed #ff6b35; display: inline-block; font-size: 24px; font-weight: bold; letter-spacing: 4px;">
-          ${couponCode}
+      <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif; padding: 20px;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2563eb; margin: 0;">Chúc mừng!</h1>
+          <p style="color: #666; margin: 10px 0;">Bạn nhận được mã giảm giá đặc biệt</p>
         </div>
-        <p>Giảm <b>${percent}%</b> cho đơn hàng tiếp theo. Mã có hiệu lực tới: <b>${expiredAt}</b>.</p>
-        <p>Mua sắm vui vẻ nhé!</p>
+
+        <!-- Coupon Box -->
+        <div style="background: #667eea; border-radius: 10px; padding: 30px; text-align: center; margin: 20px 0;">
+          <div style="color: white; font-size: 14px; margin-bottom: 10px;">MÃ KHUYẾN MÃI</div>
+          <div style="background: white; border: 2px dashed #667eea; border-radius: 8px; padding: 15px; margin: 15px 0;">
+            <div style="font-size: 28px; font-weight: bold; color: #667eea; letter-spacing: 3px;">${couponCode}</div>
+          </div>
+          <div style="color: white; font-size: 32px; font-weight: bold; margin: 10px 0;">${discountText}</div>
+        </div>
+
+        <!-- Coupon Name -->
+        <div style="text-align: center; margin: 20px 0;">
+          <h2 style="color: #333; margin: 0; font-size: 18px;">${couponName}</h2>
+        </div>
+
+        <!-- Details -->
+        <div style="background: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0; font-size: 16px;">Chi tiết mã giảm giá</h3>
+          <table style="width: 100%;">
+            <tr>
+              <td style="padding: 8px 0; color: #666;">Loại giảm giá:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">
+                ${discountType === 'PERCENT' ? 'Phần trăm' : 'Số tiền cố định'}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;">Đơn hàng tối thiểu:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${minOrderText}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;">Ngày bắt đầu:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${startDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;">Ngày hết hạn:</td>
+              <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #dc2626;">${endDate}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold;">
+            Mua Sắm Ngay
+          </a>
+        </div>
+
+        <!-- Note -->
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0; color: #856404; font-size: 14px;">
+            <strong>Lưu ý:</strong> Mã khuyến mãi này chỉ áp dụng một lần và sẽ hết hạn vào <strong>${endDate}</strong>. Hãy nhanh tay sử dụng!
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+          <p style="margin: 5px 0;">Cảm ơn bạn đã tin tưởng <strong>Nội thất văn phòng</strong>!</p>
+          <p style="margin: 5px 0;">Hotline: <strong>0906.060.606</strong></p>
+          <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">Email này được gửi tự động, vui lòng không trả lời.</p>
+        </div>
       </div>
     `,
   });
@@ -134,7 +211,11 @@ const getOrderEmailTemplate = ({ orderNumber, orderDate, orderItems, subtotal, s
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #666;">Phương thức thanh toán:</td>
-              <td style="padding: 8px 0; color: #1f2937;">${paymentMethod === 'VNPAY' ? 'VNPay' : 'Thanh toán khi nhận hàng (COD)'}</td>
+              <td style="padding: 8px 0; color: #1f2937;">
+                ${paymentMethod === 'VNPAY' ? 'VNPay' : 
+                  paymentMethod === 'TINGEE' ? 'Chuyển khoản QR (Tingee)' : 
+                  'Thanh toán khi nhận hàng (COD)'}
+              </td>
             </tr>
             ${trackingCode ? `
             <tr>

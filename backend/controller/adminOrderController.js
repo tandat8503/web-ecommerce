@@ -44,7 +44,7 @@ export const listOrders = async (req, res) => {
     // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
     whereConditions.push({
       paymentMethod: {
-        in: ['COD', 'VNPAY']
+        in: ['COD', 'VNPAY', 'TINGEE']
       }
     });
     
@@ -98,7 +98,7 @@ export const listOrders = async (req, res) => {
               // Chỉ lấy payments có paymentMethod hợp lệ (COD hoặc VNPAY)
               // Loại bỏ những bản ghi có paymentMethod rỗng hoặc null
               paymentMethod: {
-                in: ['COD', 'VNPAY']
+                in: ['COD', 'VNPAY', 'TINGEE']
               }
             },
             orderBy: { createdAt: 'desc' },

@@ -62,14 +62,15 @@ export default function Checkout() {
     <div className="min-h-screen bg-gray-50 p-4">
       <BreadcrumbNav />
 
-      {/* 🏠 KHỐI ĐỊA CHỈ GIAO HÀNG */}
+
+      {/*  KHỐI ĐỊA CHỈ GIAO HÀNG */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Địa chỉ nhận hàng</CardTitle>
         </CardHeader>
         <CardContent>
           {!showAddressForm && selectedAddress ? (
-            // ✅ ĐÃ CÓ ĐỊA CHỈ → Hiển thị thông tin + nút Thay đổi
+            // ĐÃ CÓ ĐỊA CHỈ → Hiển thị thông tin + nút Thay đổi
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <div className="font-semibold">
@@ -88,7 +89,7 @@ export default function Checkout() {
             // ❗ CHƯA CÓ ĐỊA CHỈ → Hiển thị form nhập (giống Shopee)
             <div className="space-y-4">
               <div className="text-sm text-orange-600 bg-orange-50 p-3 rounded">
-                ⚠️ Bạn chưa có địa chỉ giao hàng. Vui lòng nhập thông tin bên dưới.
+                Bạn chưa có địa chỉ giao hàng. Vui lòng nhập thông tin bên dưới.
               </div>
 
               {/* Họ tên + SĐT */}
@@ -282,27 +283,28 @@ export default function Checkout() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className="h-7 w-7 p-0 cursor-pointer"
                               onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                               disabled={updatingQuantity || item.quantity <= 1}
                             >
-                              <FaMinus className="h-3 w-3" />
+                              <FaMinus className="h-3 w-3 " />
                             </Button>
                             <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0"
+                              className="h-7 w-7 p-0 cursor-pointer"
                               onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                              disabled={updatingQuantity}
+                              disabled={updatingQuantity || item.quantity >= (variant?.stock_quantity || 0)}
+                              title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : ""}
                             >
-                              <FaPlus className="h-3 w-3" />
+                              <FaPlus className="h-3 w-3 " />
                             </Button>
                           </div>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="h-7 text-red-600 cursor-pointer hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleRemoveItem(item.id)}
                             disabled={isRemoving || updatingQuantity}
                           >
@@ -333,22 +335,39 @@ export default function Checkout() {
               <CardTitle>Phương thức thanh toán</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                {["COD", "VNPAY"].map((method) => (
-                  <label
-                    key={method}
-                    className={`border rounded p-3 cursor-pointer text-sm flex items-center gap-2 ${paymentMethod === method ? "border-blue-600 bg-blue-50" : ""
-                      }`}
-                  >
-                    <input
-                      type="radio"
-                      value={method}
-                      checked={paymentMethod === method}
-                      onChange={() => setPaymentMethod(method)}
-                    />
-                    {method === "COD" ? "COD" : "VNPay"}
-                  </label>
-                ))}
+              <div className="grid grid-cols-1 gap-3">
+                {["COD", "VNPAY", "TINGEE"].map((method) => {
+                  const isDisabled = summary.total === 0 && method !== "COD";
+                  return (
+                    <label
+                      key={method}
+                      className={`border rounded p-3 text-sm flex items-center gap-2 transition-all ${paymentMethod === method ? "border-blue-600 bg-blue-50 shadow-sm" : "hover:border-gray-300"
+                        } ${isDisabled ? "opacity-50 cursor-not-allowed bg-gray-50 border-gray-200" : "cursor-pointer"}`}
+                    >
+                      <input
+                        type="radio"
+                        value={method}
+                        checked={paymentMethod === method}
+                        onChange={() => !isDisabled && setPaymentMethod(method)}
+                        disabled={isDisabled}
+                        className={isDisabled ? "cursor-not-allowed" : "cursor-pointer"}
+                      />
+                      <div className="flex-1">
+                        <div className={`font-semibold ${isDisabled ? "text-gray-400" : "text-gray-900"}`}>
+                          {method === "COD" ? "Thanh toán khi nhận hàng (COD)" :
+                            method === "VNPAY" ? "VNPay" :
+                              "Chuyển khoản QR Code"}
+                          {isDisabled && <span className="text-[10px] ml-2 font-normal text-red-500">(Không khả dụng cho đơn 0đ)</span>}
+                        </div>
+                        {method === "TINGEE" && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Quét mã QR để thanh toán qua ngân hàng
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

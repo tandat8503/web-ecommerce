@@ -1,8 +1,9 @@
 import { Row, Col, Input, Button } from "antd";
-import { 
-  FaPhone, 
-  FaEnvelope, 
-  FaMapMarkerAlt, 
+import { Link } from "react-router-dom";
+import {
+  FaPhone,
+  FaEnvelope,
+  FaMapMarkerAlt,
   FaFacebook,
   FaInstagram,
   FaYoutube,
@@ -19,19 +20,19 @@ export default function UserFooter() {
           {/* Thông tin công ty */}
           <Col xs={24} md={6}>
             <div className="mb-6">
-              <div className="flex items-center gap-3 mb-4">
+              <Link to="/" className="flex items-center gap-3 mb-4 hover:opacity-80 transition-opacity">
                 <div className="bg-white rounded-full p-2 shadow-lg">
                   <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                    <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
                   </svg>
                 </div>
                 <div>
                   <h3 className="font-bold text-xl text-white">NỘI THẤT VĂN PHÒNG</h3>
                   <p className="text-blue-200 text-sm">Nội thất văn phòng chất lượng</p>
                 </div>
-              </div>
+              </Link>
               <p className="text-gray-300 text-sm leading-relaxed mb-4">
-                Chuyên cung cấp đồ dùng văn phòng cao cấp, thiết bị công nghệ và nội thất văn phòng. 
+                Chuyên cung cấp đồ dùng văn phòng cao cấp, thiết bị công nghệ và nội thất văn phòng.
                 Cam kết chất lượng Nhật Bản với giá cả hợp lý.
               </p>
               <div className="flex gap-3">
@@ -56,18 +57,18 @@ export default function UserFooter() {
             <h4 className="font-bold text-lg mb-4 text-white">Sản phẩm</h4>
             <ul className="space-y-3">
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                 Bàn làm việc
+                Bàn làm việc
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                 Ghế văn phòng
+                Ghế văn phòng
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
                 ARM màn hình
               </li>
               <li className="hover:text-blue-300 cursor-pointer transition-colors text-gray-300">
-                 Kệ bàn
+                Kệ bàn
               </li>
-             
+
             </ul>
           </Col>
 
@@ -100,10 +101,7 @@ export default function UserFooter() {
           <Col xs={24} md={6}>
             <h4 className="font-bold text-lg mb-4 text-white">Liên hệ</h4>
             <div className="space-y-3 mb-6">
-              <div className="flex items-center gap-3 text-gray-300">
-                <FaPhone className="text-blue-400" />
-                <span>1900 146398 (Miễn phí)</span>
-              </div>
+
               <div className="flex items-center gap-3 text-gray-300">
                 <FaEnvelope className="text-blue-400" />
                 <span>noithatvanphong@gmail.com</span>
@@ -114,7 +112,7 @@ export default function UserFooter() {
               </div>
             </div>
 
-           
+
           </Col>
         </Row>
       </div>
@@ -125,8 +123,8 @@ export default function UserFooter() {
           <Row align="middle" justify="space-between">
             <Col xs={24} md={12}>
               <p className="text-gray-400 text-sm">
-                © 2025 <span className="font-semibold text-blue-400">NỘI THẤT VĂN PHÒNG</span>. 
-                Tất cả quyền được bảo lưu. | 
+                © 2025 <span className="font-semibold text-blue-400">NỘI THẤT VĂN PHÒNG</span>.
+                Tất cả quyền được bảo lưu. |
                 <span className="ml-2">Số điện thoại: 0123456789</span>
               </p>
             </Col>

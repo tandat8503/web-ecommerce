@@ -13,10 +13,10 @@ export const createOrderSchema = Joi.object({
 
   // Phương thức thanh toán - bắt buộc, chỉ cho phép các giá trị trong enum
   paymentMethod: Joi.string()
-    .valid('COD', 'VNPAY')
+    .valid('COD', 'VNPAY', 'TINGEE')
     .required()
     .messages({
-      'any.only': 'Phương thức thanh toán phải là COD hoặc VNPAY',
+      'any.only': 'Phương thức thanh toán phải là COD, VNPAY hoặc TINGEE',
       'any.required': 'Phương thức thanh toán là bắt buộc'
     }),
 
