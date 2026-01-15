@@ -189,7 +189,7 @@ export const addToCart = async (req, res) => {
     // VD: Ghế màu đỏ có 10 cái → stock_quantity = 10
     if (stock_quantity < quantity) {
       return res.status(400).json({ 
-        message: `Chỉ còn ${stock_quantity} sản phẩm trong kho`,
+        message: `Chỉ còn ${stock_quantity} sản phẩm trong kho. Bạn đang muốn thêm ${quantity} sản phẩm.`,
         available_stock: stock_quantity 
       });
     }
@@ -216,8 +216,9 @@ export const addToCart = async (req, res) => {
       
       // Kiểm tra tổng số lượng không vượt quá tồn kho
       if (new_quantity > stock_quantity) {
+        const remaining = stock_quantity - existingCartItem.quantity;
         return res.status(400).json({ 
-          message: `Tổng số lượng không được vượt quá ${stock_quantity}`,
+          message: `Bạn đã có ${existingCartItem.quantity} sản phẩm trong giỏ hàng. Chỉ có thể thêm tối đa ${remaining} sản phẩm nữa vì tồn kho chỉ còn ${stock_quantity}.`,
           available_stock: stock_quantity,
           current_quantity: existingCartItem.quantity
         });
@@ -336,7 +337,7 @@ export const updateCartItem = async (req, res) => {
 
     if (quantity > stock_quantity) {
       return res.status(400).json({ 
-        message: `Chỉ còn ${stock_quantity} sản phẩm trong kho`,
+        message: `Không thể cập nhật số lượng thành ${quantity}. Tồn kho chỉ còn ${stock_quantity} sản phẩm.`,
         available_stock: stock_quantity 
       });
     }

@@ -5,7 +5,7 @@ import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { Button } from "@/components/ui/button";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
-import { useOrderDetail, getStatusLabel, getStatusTagColor, getPaymentStatusLabel, getPaymentStatusTagColor } from "./useOrderDetail";
+import { useOrderDetail, getStatusLabel, getStatusTagColor, getPaymentStatusLabel, getPaymentStatusTagColor, getPaymentMethodLabel } from "./useOrderDetail";
 import { handleVNPayPayment } from "@/features/payment";
 import { createVNPayPayment } from "@/api/payment";
 
@@ -99,7 +99,7 @@ export default function OrderDetail() {
                   <Tag color={getStatusTagColor(order.status)}>{getStatusLabel(order.status)}</Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="Phương thức thanh toán">
-                  <span className="font-semibold text-gray-900">{order.paymentMethod}</span>
+                  <span className="font-semibold text-gray-900">{getPaymentMethodLabel(order.paymentMethod)}</span>
                 </Descriptions.Item>
                 {/* Trạng thái thanh toán */}
                 {order.paymentSummary && (

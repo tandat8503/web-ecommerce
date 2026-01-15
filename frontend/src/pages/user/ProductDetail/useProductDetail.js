@@ -14,6 +14,7 @@ import {
   onVariantUpdated,
   onVariantDeleted
 } from '../../../utils/socket';
+import { toast } from '../../../lib/utils';
 
 /**
  * ========================================
@@ -145,7 +146,7 @@ export function useProductDetail(productId) {
     // Biến thể mới → Thêm vào danh sách nếu thuộc product hiện tại
     const unsubscribeVariantCreated = onVariantCreated((newVariant) => {
       if (newVariant.productId === product.id) {// nếu biến thể mới được tạo thuộc với product hiện tại thì cập nhật.
-        console.log('🆕 Socket: Variant created trong detail page', newVariant);
+        console.log(' Socket: Variant created trong detail page', newVariant);
         setVariants(prev => {
           const exists = prev.some(v => v.id === newVariant.id);
           if (exists) {
@@ -164,7 +165,7 @@ export function useProductDetail(productId) {
     // Biến thể cập nhật → Cập nhật trong danh sách
     const unsubscribeVariantUpdated = onVariantUpdated((updatedVariant) => {
       if (updatedVariant.productId === product.id) {// nếu biến thể mới được cập nhật thuộc với product hiện tại thì cập nhật.
-        console.log('🔄 Socket: Variant updated trong detail page', updatedVariant);
+        console.log(' Socket: Variant updated trong detail page', updatedVariant);
         setVariants(prev => {
           const exists = prev.some(v => v.id === updatedVariant.id);
           if (exists) {
@@ -397,14 +398,14 @@ export function useProductDetail(productId) {
     }
 
     // Giới hạn trên theo tồn kho & giới hạn BE
-    const maxAllowed = Math.min(displayStock || MAX_PER_ACTION, MAX_PER_ACTION);//lấy số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10
-//nếu số lượng sản phẩm muốn thêm vào giỏ hàng lớn hơn số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10 thì set số lượng sản phẩm muốn thêm vào giỏ hàng là số lượng sản phẩm tồn kho hoặc số lượng sản phẩm mỗi lần thêm vào giỏ hàng là 10
+    const maxAllowed = Math.min(displayStock || MAX_PER_ACTION, MAX_PER_ACTION);
+    
     if (newQuantity > maxAllowed) {
       setQuantity(maxAllowed);
       if (maxAllowed < (displayStock || MAX_PER_ACTION)) {
-        alert(`Chỉ được chọn tối đa ${MAX_PER_ACTION} sản phẩm mỗi lần thêm vào giỏ hàng`);
+        toast.warning(`Chỉ được chọn tối đa ${MAX_PER_ACTION} sản phẩm mỗi lần thêm vào giỏ hàng`);
       } else {
-        alert(`Chỉ còn ${displayStock} sản phẩm trong kho`);
+        toast.info(`Chỉ còn ${displayStock} sản phẩm trong kho`);
       }
       return;
     }
@@ -429,11 +430,11 @@ export function useProductDetail(productId) {
     
     // Validation cơ bản trước khi mua ngay
     if (!isInStock) {
-      alert('Sản phẩm đã hết hàng');
+      toast.error('Sản phẩm đã hết hàng');
       return;
     }
     if (variants.length > 0 && !selectedVariant) {
-      alert('Vui lòng chọn màu sắc và kích thước sản phẩm');
+      toast.warning('Vui lòng chọn màu sắc và kích thước sản phẩm');
       return;
     }
     
@@ -465,7 +466,7 @@ export function useProductDetail(productId) {
       
     } catch (error) {
       console.error('Lỗi khi mua ngay:', error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
+      toast.error(error.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại');
     }
   };
 

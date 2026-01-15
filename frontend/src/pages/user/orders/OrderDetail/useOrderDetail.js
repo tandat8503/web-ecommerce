@@ -46,10 +46,25 @@ export const getPaymentStatusLabel = (summary) => {
     return 'Chưa thanh toán VNPay';
   }
 
+  if (summary.method === 'TINGEE') {
+    if (summary.status === 'PAID') return 'Đã thanh toán QR';
+    if (summary.status === 'FAILED') return 'Thanh toán QR thất bại';
+    return 'Chưa thanh toán QR';
+  }
+
   // Fallback cho các phương thức khác
   if (summary.status === 'PAID') return 'Đã thanh toán';
   if (summary.status === 'FAILED') return 'Thanh toán thất bại';
   return 'Chưa thanh toán';
+};
+
+export const getPaymentMethodLabel = (method) => {
+  switch (method) {
+    case 'COD': return 'Tiền mặt (COD)';
+    case 'VNPAY': return 'VNPay';
+    case 'TINGEE': return 'Chuyển khoản QR';
+    default: return method || 'COD';
+  }
 };
 
 export const useOrderDetail = (id) => {

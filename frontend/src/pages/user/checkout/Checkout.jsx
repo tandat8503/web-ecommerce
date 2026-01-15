@@ -356,7 +356,7 @@ export default function Checkout() {
                         <div className={`font-semibold ${isDisabled ? "text-gray-400" : "text-gray-900"}`}>
                           {method === "COD" ? "Thanh toán khi nhận hàng (COD)" :
                             method === "VNPAY" ? "VNPay" :
-                              "Chuyển khoản QR Code"}
+                              "Chuyển khoản QR"}
                           {isDisabled && <span className="text-[10px] ml-2 font-normal text-red-500">(Không khả dụng cho đơn 0đ)</span>}
                         </div>
                         {method === "TINGEE" && (

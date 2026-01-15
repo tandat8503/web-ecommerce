@@ -4,7 +4,7 @@ import { Tabs, Table, Tag, Empty, Button } from "antd";
 import { ClockCircleOutlined, CheckCircleOutlined, DollarOutlined } from "@ant-design/icons";
 import BreadcrumbNav from "@/components/user/BreadcrumbNav";
 import { formatPrice } from "@/lib/utils";
-import { useMyOrders, STATUS_TABS, getStatusLabel, getStatusTagColor } from "./useMyOrders";
+import { useMyOrders, STATUS_TABS, getStatusLabel, getStatusTagColor, getPaymentMethodLabel } from "./useMyOrders";
 
 export default function MyOrders() {
   const navigate = useNavigate();
@@ -73,8 +73,9 @@ export default function MyOrders() {
       width: 120,
       render: (method) => (
         <div className="flex items-center gap-1">
-          <DollarOutlined className="text-gray-400" />
-          <span>{method || "COD"}</span>
+          <Tag color={method === "COD" ? "default" : "blue"}>
+            {getPaymentMethodLabel(method)}
+          </Tag>
         </div>
       ),
     },

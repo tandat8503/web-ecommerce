@@ -27,6 +27,15 @@ export const getStatusTagColor = (s) => {
   }
 };
 
+export const getPaymentMethodLabel = (method) => {
+  switch (method) {
+    case 'COD': return 'Tiền mặt (COD)';
+    case 'VNPAY': return 'VNPay';
+    case 'TINGEE': return 'Chuyển khoản QR';
+    default: return method || 'COD';
+  }
+};
+
 export const useMyOrders = () => {
   const [orders, setOrders] = useState([]);
   const [page, setPage] = useState(1);

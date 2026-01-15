@@ -179,7 +179,7 @@ export default function Cart() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-7 w-7 cursor-pointer"
                               onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
                               disabled={isUpdating || item.quantity <= 1}
                             >
@@ -189,9 +189,10 @@ export default function Cart() {
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-7 w-7 cursor-pointer"
                               onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                              disabled={isUpdating}
+                              disabled={isUpdating || item.quantity >= (variant?.stock_quantity || 0)}
+                              title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : "Tăng số lượng"}
                             >
                               <FaPlus className="h-3 w-3" />
                             </Button>

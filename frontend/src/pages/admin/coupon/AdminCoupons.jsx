@@ -78,12 +78,14 @@ export default function AdminCoupons() {
 
   // Fetch users for sharing
   const fetchUsers = async (page = 1, search = "") => {
+    if (!sharingCoupon) return;
     try {
       setLoadingUsers(true);
       const response = await getUsersForSharing({
         page,
         limit: usersPagination.pageSize,
-        search
+        search,
+        couponId: sharingCoupon.id
       });
 
       if (response.data.success) {
@@ -152,7 +154,7 @@ export default function AdminCoupons() {
       title: 'Email',
       dataIndex: 'email',
       key: 'email',
-      width: '30%'
+      width: '25%'
     },
     {
       title: 'Họ tên',
@@ -164,14 +166,26 @@ export default function AdminCoupons() {
       title: 'Số điện thoại',
       dataIndex: 'phone',
       key: 'phone',
-      width: '20%',
+      width: '15%',
       render: (phone) => phone || '-'
+    },
+    {
+      title: 'Sở hữu mã',
+      key: 'couponStatus',
+      width: '15%',
+      render: (_, record) => (
+        record.couponStatus === 'used'
+          ? <Tag color="red">Đã dùng</Tag>
+          : record.couponStatus === 'received'
+            ? <Tag color="blue">Chưa dùng</Tag>
+            : <Tag color="default">Chưa có</Tag>
+      )
     },
     {
       title: 'Ngày đăng ký',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: '25%',
+      width: '20%',
       render: (date) => new Date(date).toLocaleDateString('vi-VN')
     }
   ];
@@ -234,7 +248,7 @@ export default function AdminCoupons() {
       render: (limit, record) => {
         const usedCount = record.usedCount || 0;//số lần sử dụng của coupon
         const remaining = limit ? limit - usedCount : null;//số lần sử dụng còn lại của coupon
-        
+
         return (
           <div style={{ fontSize: "12px" }}>
             {limit ? (
@@ -311,11 +325,26 @@ export default function AdminCoupons() {
               )}
             </Button>
           </Tooltip>
-          <Tooltip title="Chia sẻ mã">
+          <Tooltip title={
+            !record.isActive ? "Mã đang tạm dừng" :
+              dayjs().isAfter(dayjs(record.endDate)) ? "Mã đã hết hạn" :
+                record.usageLimit && (record.usedCount || 0) >= record.usageLimit ? "Mã đã hết lượt dùng" :
+                  "Chia sẻ mã"
+          }>
             <Button
-              className="bg-green-500 hover:bg-green-600 text-white"
+              className={`${!record.isActive ||
+                dayjs().isAfter(dayjs(record.endDate)) ||
+                (record.usageLimit && (record.usedCount || 0) >= record.usageLimit)
+                ? "bg-gray-300 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
+                } text-white`}
               size="sm"
               onClick={() => openShareModal(record)}
+              disabled={
+                !record.isActive ||
+                dayjs().isAfter(dayjs(record.endDate)) ||
+                (record.usageLimit && (record.usedCount || 0) >= record.usageLimit)
+              }
             >
               <Share2 size={14} />
             </Button>
@@ -769,7 +798,10 @@ export default function AdminCoupons() {
           <Table
             rowSelection={shareToAll ? undefined : {
               selectedRowKeys: selectedUserIds,
-              onChange: (selectedKeys) => setSelectedUserIds(selectedKeys)
+              onChange: (selectedKeys) => setSelectedUserIds(selectedKeys),
+              getCheckboxProps: (record) => ({
+                disabled: record.couponStatus === 'used', // Khóa nếu đã dùng
+              }),
             }}
             columns={userColumns}
             dataSource={users}

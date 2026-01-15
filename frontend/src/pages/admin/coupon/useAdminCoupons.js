@@ -249,10 +249,27 @@ export function useAdminCoupons() {
    * @returns {Object} Object chứa status, color, text
    */
   const getCouponStatus = (coupon) => {
-    // Chỉ theo backend: isActive = true/false
-    return coupon.isActive
-      ? { status: "active", color: "green", text: "Hoạt động" }
-      : { status: "inactive", color: "red", text: "Tạm dừng" };
+    const now = dayjs();
+    const startDate = dayjs(coupon.startDate);
+    const endDate = dayjs(coupon.endDate);
+    
+    if (!coupon.isActive) {
+      return { status: "inactive", color: "red", text: "Tạm dừng" };
+    }
+    
+    if (now.isBefore(startDate)) {
+      return { status: "upcoming", color: "blue", text: "Sắp diễn ra" };
+    }
+    
+    if (now.isAfter(endDate)) {
+      return { status: "expired", color: "default", text: "Hết hạn" };
+    }
+    
+    if (coupon.usageLimit && (coupon.usedCount || 0) >= coupon.usageLimit) {
+      return { status: "out_of_stock", color: "volcano", text: "Hết lượt dùng" };
+    }
+    
+    return { status: "active", color: "green", text: "Hoạt động" };
   };
 
   /**
@@ -263,7 +280,7 @@ export function useAdminCoupons() {
   const processEditingRecord = (record) => {
     if (!record) return null;
 
-    // ✅ Xử lý dữ liệu để hiển thị trong form
+    //  Xử lý dữ liệu để hiển thị trong form
     const processedRecord = {
       ...record,
       // Xử lý dateRange

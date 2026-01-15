@@ -11,31 +11,41 @@ export const getUserCoupons = async (req, res) => {
     try {
         const userId = req.user.id;
         const { status } = req.query; // available, used, expired
-
-        const where = { userId };
         const now = new Date();
 
-        if (status === 'available') {
-            where.isUsed = false;
-            where.expiresAt = { gte: now };
-        } else if (status === 'used') {
-            where.isUsed = true;
-        } else if (status === 'expired') {
-            where.isUsed = false;
-            where.expiresAt = { lt: now };
-        }
-
         const userCoupons = await prisma.userCoupon.findMany({
-            where,
+            where: { userId },
             include: {
                 coupon: true
             },
             orderBy: { createdAt: 'desc' }
         });
 
+        //mã giảm giá có thể sử dụng theo logic sau:
+        //1. mã giảm giá có thể sử dụng khi chưa hết hạn
+        //2. mã giảm giá có thể sử dụng khi chưa đạt đến số lượng sử dụng
+        //3. mã giảm giá có thể sử dụng khi chưa hết hạn
+        const filteredCoupons = userCoupons.filter(uc => {
+            const coupon = uc.coupon;
+            const isGloballyExpired = now > coupon.endDate;
+            const isReachedLimit = coupon.usageLimit && coupon.usedCount >= coupon.usageLimit;
+            const isInactive = !coupon.isActive;
+            const isUserExpired = now > uc.expiresAt;
+            
+            if (status === 'available') {
+                return !uc.isUsed && !isUserExpired && !isGloballyExpired && !isReachedLimit && !isInactive;
+            } else if (status === 'used') {
+                return uc.isUsed;
+            } else if (status === 'expired') {
+                // Return coupons that are NOT used but are either user-expired or globally invalid
+                return !uc.isUsed && (isUserExpired || isGloballyExpired || isReachedLimit || isInactive);
+            }
+            return true;
+        });
+
         return res.json({
             success: true,
-            data: userCoupons
+            data: filteredCoupons
         });
     } catch (error) {
         logger.error('Get user coupons error', { error: error.message });

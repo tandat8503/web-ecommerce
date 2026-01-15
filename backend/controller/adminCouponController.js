@@ -341,7 +341,7 @@ export const shareCouponToUsers = async (req, res) => {
     const { id } = req.params;
     const { userIds, shareToAll } = req.body;
 
-    // ✅ Xử lý shareToAll linh hoạt (có thể là string "true" hoặc boolean)
+    //  Xử lý shareToAll linh hoạt (có thể là string "true" hoặc boolean)
     const shouldShareToAll = shareToAll === true || shareToAll === "true" || shareToAll === "1";
 
     // Validate input
@@ -361,6 +361,30 @@ export const shareCouponToUsers = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy mã giảm giá'
+      });
+    }
+
+    //  Kiểm tra tính hợp lệ của mã trước khi chia sẻ
+    const now = new Date();
+    
+    if (!coupon.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã giảm giá đang bị tạm dừng, không thể chia sẻ'
+      });
+    }
+
+    if (now > coupon.endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã giảm giá đã hết hạn, không thể chia sẻ'
+      });
+    }
+
+    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã giảm giá đã hết lượt sử dụng, không thể chia sẻ'
       });
     }
 
@@ -406,7 +430,7 @@ export const shareCouponToUsers = async (req, res) => {
       });
     }
 
-    // ✅ Kiểm tra xem prisma.userCoupon có tồn tại không
+    //  Kiểm tra xem prisma.userCoupon có tồn tại không
     if (!prisma.userCoupon) {
       logger.error('prisma.userCoupon is undefined - Prisma client may need regeneration');
       return res.status(500).json({
@@ -433,7 +457,16 @@ export const shareCouponToUsers = async (req, res) => {
         });
 
         if (existingUserCoupon) {
-          // Update expiry date if already exists
+          //  Nếu đã dùng rồi thì không cho sở hữu lại (đúng logic 1 lần dùng)
+          if (existingUserCoupon.isUsed) {
+            logger.debug('User already used this coupon, skip sharing', { 
+              userId: user.id, 
+              couponId: coupon.id 
+            });
+            return null;
+          }
+
+          // Cập nhật ngày hết hạn nếu đã sở hữu nhưng chưa dùng
           const updated = await prisma.userCoupon.update({
             where: {
               id: existingUserCoupon.id
@@ -442,7 +475,7 @@ export const shareCouponToUsers = async (req, res) => {
               expiresAt
             }
           });
-          logger.debug('Updated existing UserCoupon', { 
+          logger.debug('Updated existing UserCoupon expiry', { 
             userId: user.id, 
             couponId: coupon.id 
           });
@@ -602,7 +635,7 @@ export const getUsersForSharing = async (req, res) => {
   try {
     logger.start(context.path, req.query);
 
-    const { search, page = 1, limit = 50 } = req.query;
+    const { search, page = 1, limit = 50, couponId } = req.query;
 
     const where = {
       isActive: true,
@@ -628,7 +661,11 @@ export const getUsersForSharing = async (req, res) => {
           lastName: true,
           phone: true,
           avatar: true,
-          createdAt: true
+          createdAt: true,
+          userCoupons: couponId ? {
+            where: { couponId: Number(couponId) },
+            select: { isUsed: true }
+          } : false
         },
         orderBy: { createdAt: 'desc' },
         skip: (Number(page) - 1) * Number(limit),
@@ -637,13 +674,27 @@ export const getUsersForSharing = async (req, res) => {
       prisma.user.count({ where })
     ]);
 
+    // Map label status
+    const usersWithStatus = users.map(user => {
+      let couponStatus = 'none'; // none, received, used
+      if (user.userCoupons && user.userCoupons.length > 0) {
+        couponStatus = user.userCoupons[0].isUsed ? 'used' : 'received';
+      }
+      
+      const { userCoupons, ...userWithoutCoupons } = user;
+      return {
+        ...userWithoutCoupons,
+        couponStatus
+      };
+    });
+
     logger.success('Users fetched for sharing', { total, count: users.length });
     logger.end(context.path, { total });
 
     return res.json({
       success: true,
       data: {
-        users,
+        users: usersWithStatus,
         pagination: {
           total,
           page: Number(page),
