@@ -7,22 +7,31 @@ import axios from "axios";
 
 // API Configuration
 const AI_API_URL = "http://localhost:8000";
+const AI_V2_URL = "http://localhost:8000"; // AI v2 Service
 const AI_WS_URL = "ws://localhost:8000/ws"; // (chưa dùng, backend hiện không có ws)
 
-// Create axios instance with default config
+// Create axios instance with default config (Legacy)
 const aiAxiosClient = axios.create({
   baseURL: AI_API_URL,
-  timeout: 60000, // 60 seconds - increased for complex vector search + LLM queries
+  timeout: 60000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Create axios instance for AI v2 (Product Chatbot)
+const aiV2Client = axios.create({
+  baseURL: AI_V2_URL,
+  timeout: 60000,
   headers: {
     "Content-Type": "application/json",
   },
 });
 
 // Create axios instance for legal queries with longer timeout
-// Legal queries may take longer due to RAG search (20 documents) and LLM generation (5000 tokens)
 const legalAxiosClient = axios.create({
   baseURL: AI_API_URL,
-  timeout: 120000, // 120 seconds (2 minutes) for legal queries
+  timeout: 120000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -103,7 +112,7 @@ export const aiChatbotAPI = {
    * @param {string} userType - User type: "user" or "admin" (default: "user")
    * @returns {Promise<Object>} Bot response
    */
-  sendMessage: async (message, sessionId = null, userType = "user", userId = null) => {
+  sendMessage: async (message, sessionId = null, userType = "user", userId = null, imageData = null) => {
     try {
       // Try to get user_id from localStorage if not provided
       if (!userId && typeof window !== 'undefined') {
@@ -120,36 +129,49 @@ export const aiChatbotAPI = {
 
       const payload = {
         message: message.trim(),
-        user_type: userType,
         session_id: sessionId,
-        context: {},
-        ...(userId && { user_id: userId })
+        history: "", // Will be managed by backend/AI service
+        role: userType === "admin" ? "admin" : "user"
       };
-      const startTime = Date.now();
-      const response = await aiAxiosClient.post("/chat", payload);
-      const responseTime = (Date.now() - startTime) / 1000; // in seconds
 
-      // Transform response to match expected format
-      const data = response.data;
-
-      // Update session_id if returned from backend
-      if (data.session_id && data.session_id !== sessionId) {
-        // Session ID was generated/updated by backend
+      // Add image_data if provided (for image-based search)
+      if (imageData) {
+        payload.image_data = imageData;
       }
 
+      const startTime = Date.now();
+
+      // Use backend proxy for unified routing
+      const response = await axios.post('/api/chatbot/chat', payload);
+
+      const responseTime = (Date.now() - startTime) / 1000; // in seconds
+
+      // New standardized schema: { type, answer, products, citations, action, data }
+      const data = response.data;
+
       return {
-        response: data.response || data.message || "Xin lỗi, không thể xử lý yêu cầu.",
+        // New schema fields
+        type: data.type || "chitchat", // product | legal | chitchat
+        answer: data.answer || data.response || "Xin lỗi, không thể xử lý yêu cầu.",
+        products: data.products || [],
+        citations: data.citations || [],
+
+        // Legacy compatibility
+        response: data.answer || data.response || "",
+        action: data.action || data.type || "",
+        data: data.data || {},
+
+        // Metadata
         timestamp: data.timestamp || new Date().toISOString(),
         response_time: responseTime,
+        session_id: data.session_id || sessionId,
+        success: data.success !== false,
         metadata: {
-          model: data.agent_type || "professional_ai_chatbot",
+          model: userType === "admin" ? "ai_v2_legal" : "ai_v2_product",
           session_id: data.session_id || sessionId,
           success: data.success !== false,
-          agent_type: data.agent_type
-        },
-        data: data.data,
-        session_id: data.session_id || sessionId,
-        success: data.success !== false
+          agent_type: data.action || data.type
+        }
       };
     } catch (error) {
       console.error("Send message failed:", error);
@@ -158,18 +180,22 @@ export const aiChatbotAPI = {
       if (error.response?.data) {
         const errorData = error.response.data;
         return {
-          response: errorData.response || errorData.error || "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn.",
+          type: "error",
+          answer: errorData.error || "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn.",
+          products: [],
+          citations: [],
+          response: errorData.error || "",
           timestamp: new Date().toISOString(),
           response_time: 0,
+          success: false,
+          session_id: sessionId,
           metadata: {
             model: "error",
             session_id: sessionId,
             success: false,
             error: true,
             error_message: errorData.error || error.message
-          },
-          success: false,
-          session_id: sessionId
+          }
         };
       }
 

@@ -3,11 +3,13 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Row, Col, Spin, Empty, Pagination, Card, Tag, Select } from "antd";
 import { ShoppingCartOutlined, HeartOutlined } from "@ant-design/icons";
 import { getPublicProducts } from "@/api/adminProducts";
-import { 
-  onProductCreated, 
-  onProductUpdated, 
-  onProductDeleted 
+import { handleImageError, getImageSrc } from '../../utils/imagePlaceholder';
+import {
+  onProductCreated,
+  onProductUpdated,
+  onProductDeleted
 } from "@/utils/socket";
+
 
 const { Meta } = Card;
 const { Option } = Select;
@@ -15,11 +17,11 @@ const { Option } = Select;
 export default function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   //LẤY SEARCH QUERY TỪ URL
   const searchQuery = searchParams.get("q") || "";
   const pageParam = parseInt(searchParams.get("page")) || 1;
-  
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(pageParam);
@@ -27,32 +29,32 @@ export default function ProductsPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [fallbackProducts, setFallbackProducts] = useState([]);
-  
+
   const limit = 12;
 
   // ✅ FETCH PRODUCTS (với hoặc không có search)
   useEffect(() => {
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-        
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+
         const params = {
           page,
           limit,
           sortBy,
           sortOrder
         };
-        
+
         // ✅ NẾU CÓ SEARCH QUERY, THÊM VÀO PARAMS
         if (searchQuery.trim()) {
           params.q = searchQuery;
         }
-      
+
         const response = await getPublicProducts(params);
         const items = response.data?.items || [];
         setProducts(items);
         setTotal(response.data?.total || 0);
-        
+
         // ✅ Nếu không có kết quả và có search query, fetch fallback products
         if (items.length === 0 && searchQuery.trim()) {
           try {
@@ -66,13 +68,13 @@ export default function ProductsPage() {
             console.error("Lỗi tải fallback products:", err);
           }
         }
-        
-    } catch (error) {
-      console.error("Lỗi tải sản phẩm:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      } catch (error) {
+        console.error("Lỗi tải sản phẩm:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchProducts();
   }, [searchQuery, page, sortBy, sortOrder]);
@@ -104,7 +106,7 @@ export default function ProductsPage() {
       console.log('🔄 Socket: Product updated', updatedProduct);
       // Chỉ hiển thị nếu status = 'ACTIVE' (INACTIVE và OUT_OF_STOCK đều ẩn)
       const shouldShow = updatedProduct.status === 'ACTIVE';
-      
+
       setProducts(prev => {
         const exists = prev.some(p => p.id === updatedProduct.id);
         if (exists) {
@@ -188,12 +190,12 @@ export default function ProductsPage() {
   // ✅ FEATURE #3: Calculate Search Stats
   const searchStats = useMemo(() => {
     if (products.length === 0 || !searchQuery) return null;
-    
+
     const prices = products.map(p => Number(p.price)).filter(p => !isNaN(p));
     const categories = [...new Set(products.map(p => p.category?.name).filter(Boolean))];
     const brands = [...new Set(products.map(p => p.brand?.name).filter(Boolean))];
     const onSale = products.filter(p => p.salePrice && Number(p.salePrice) < Number(p.price)).length;
-    
+
     return {
       minPrice: prices.length > 0 ? Math.min(...prices) : 0,
       maxPrice: prices.length > 0 ? Math.max(...prices) : 0,
@@ -240,7 +242,7 @@ export default function ProductsPage() {
                   </p>
                 </div>
               </div>
-              
+
               {searchStats.totalCategories > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🏷️</span>
@@ -252,7 +254,7 @@ export default function ProductsPage() {
                   </div>
                 </div>
               )}
-              
+
               {searchStats.totalBrands > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🏭</span>
@@ -264,7 +266,7 @@ export default function ProductsPage() {
                   </div>
                 </div>
               )}
-              
+
               {searchStats.onSaleCount > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">🔥</span>
@@ -319,11 +321,9 @@ export default function ProductsPage() {
                         <div className="relative overflow-hidden h-64 bg-gray-100">
                           <img
                             alt={product.name}
-                            src={product.imageUrl || product.image_url || 'https://via.placeholder.com/300x300?text=No+Image'}
+                            src={getImageSrc(product.imageUrl || product.image_url)}
                             className="w-full h-full object-cover transition-transform duration-300 hover:scale-110"
-                            onError={(e) => {
-                              e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
-                            }}
+                            onError={(e) => handleImageError(e, 'default')}
                           />
                           {product.salePrice && product.salePrice < product.price && (
                             <Tag color="red" className="absolute top-2 right-2">
@@ -414,7 +414,7 @@ export default function ProductsPage() {
                       ? `Không tìm thấy sản phẩm nào với từ khóa "${searchQuery}"`
                       : "Chưa có sản phẩm nào"}
                   </p>
-                  
+
                   {searchQuery && (
                     <>
                       {/* Suggested Keywords */}
@@ -451,20 +451,18 @@ export default function ProductsPage() {
                                       <div className="relative h-48 bg-gray-100">
                                         <img
                                           alt={product.name}
-                                          src={product.imageUrl || product.image_url || 'https://via.placeholder.com/200'}
+                                          src={getImageSrc(product.imageUrl || product.image_url, 'small')}
                                           className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            e.target.src = 'https://via.placeholder.com/200';
-                                          }}
+                                          onError={(e) => handleImageError(e, 'small')}
                                         />
                                         {product.isFeatured && (
                                           <Tag color="gold" className="absolute top-2 left-2">
                                             HOT
                                           </Tag>
                                         )}
-                </div>
-              }
-            >
+                                      </div>
+                                    }
+                                  >
                                     <Meta
                                       title={
                                         <div className="line-clamp-2 text-sm" title={product.name}>
@@ -500,14 +498,14 @@ export default function ProductsPage() {
                       )}
                     </>
                   )}
-                  
+
                   {/* Back to Home Button */}
                   <div className="mt-6">
-              <Link to="/">
-                <button className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                  Về trang chủ
-                </button>
-              </Link>
+                    <Link to="/">
+                      <button className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                        Về trang chủ
+                      </button>
+                    </Link>
                   </div>
                 </div>
               }

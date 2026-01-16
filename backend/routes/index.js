@@ -30,6 +30,7 @@ import productReviewRoutes from "./productReviewRoutes.js"; // Routes đánh gi�
 import ghnRoutes from "./ghnRoutes.js"; // Routes GHN API (lấy địa chỉ & tính phí vận chuyển)
 import adminCouponManagementRoutes from "./adminCouponManagementRoutes.js"; // Routes quản lý khuyến mãi (admin)
 import couponRoutes from "./couponRoutes.js"; // Routes quản lý mã giảm giá người dùng
+import chatbotRoutes from "./chatbotRoutes.js"; // Routes AI Chatbot (v2)
 
 /**
  * Function cấu hình tất cả routes cho ứng dụng
@@ -75,6 +76,9 @@ const routes = (app) => {
 
   // ==================== USER COUPON ROUTES ====================
   app.use("/api/coupons", couponRoutes); // User coupon endpoints
+
+  // ==================== AI CHATBOT ROUTES ====================
+  app.use("/api/chatbot", chatbotRoutes); // AI Chatbot v2 endpoints
 };
 
 export default routes;
