@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tổng Quan Chức Năng - Web E-commerce</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #fff;
+            min-height: 100vh;
+            padding: 40px;
+            color: #1a1a1a;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: #1a1a1a;
+            padding: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 50px;
+            color: #fff;
+        }
+
+        /* Legend */
+        .legend {
+            position: absolute;
+            top: 100px;
+            left: 50px;
+            border: 1px solid #666;
+            padding: 15px 20px;
+            background: #1a1a1a;
+        }
+
+        .legend h4 {
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+
+        .legend-line {
+            width: 80px;
+            height: 0;
+            border-bottom: 2px solid;
+            position: relative;
+        }
+
+        .legend-line.solid {
+            border-color: #333;
+        }
+
+        .legend-line.dashed {
+            border-style: dashed;
+            border-color: #333;
+        }
+
+        .legend-line.solid-red {
+            border-color: #cc0000;
+        }
+
+        .legend-line.dashed-red {
+            border-style: dashed;
+            border-color: #cc0000;
+        }
+
+        .legend-line::after {
+            content: '▶';
+            position: absolute;
+            right: -8px;
+            top: -8px;
+            font-size: 10px;
+        }
+
+        .legend-line.solid::after,
+        .legend-line.dashed::after {
+            color: #333;
+        }
+
+        .legend-line.solid-red::after,
+        .legend-line.dashed-red::after {
+            color: #cc0000;
+        }
+
+        /* Third Party Box */
+        .third-party {
+            border: 1px solid #666;
+            margin-bottom: 30px;
+            background: #1a1a1a;
+        }
+
+        .third-party-header {
+            text-align: center;
+            padding: 8px;
+            font-weight: 600;
+            border-bottom: 1px solid #666;
+            color: #fff;
+        }
+
+        .third-party-content {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .third-party-col {
+            padding: 15px;
+            border-right: 1px solid #666;
+        }
+
+        .third-party-col:last-child {
+            border-right: none;
+        }
+
+        .third-party-col h5 {
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+
+        .third-party-col p {
+            font-size: 0.85rem;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        /* AI Service Box */
+        .ai-service {
+            border: 1px solid #666;
+            margin-bottom: 30px;
+            background: #1a1a1a;
+        }
+
+        .ai-service-header {
+            text-align: center;
+            padding: 8px;
+            font-weight: 600;
+            border-bottom: 1px solid #666;
+            color: #fff;
+        }
+
+        .ai-service-content {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .ai-service-col {
+            padding: 15px;
+            border-right: 1px solid #666;
+        }
+
+        .ai-service-col:last-child {
+            border-right: none;
+        }
+
+        .ai-service-col h5 {
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+
+        .ai-service-col p {
+            font-size: 0.85rem;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .ai-port {
+            text-align: center;
+            padding: 5px;
+            font-size: 0.8rem;
+            color: #999;
+            border-top: 1px solid #666;
+        }
+
+        /* AI Service Simple Box */
+        .ai-service-simple {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .ai-box {
+            border: 1px solid #666;
+            padding: 25px 60px;
+            text-align: center;
+            background: #1a1a1a;
+        }
+
+        .ai-box h4 {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .ai-box p {
+            font-size: 0.85rem;
+            color: #999;
+        }
+
+        /* Arrow connector */
+        .arrow-connector {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 40px;
+            position: relative;
+        }
+
+        .arrow-connector::before {
+            content: '';
+            width: 2px;
+            height: 40px;
+            background: #666;
+        }
+
+        .arrow-connector::after {
+            content: '▼';
+            position: absolute;
+            bottom: 0;
+            color: #666;
+            font-size: 12px;
+        }
+
+        /* Main System Box */
+        .main-system {
+            border: 1px solid #666;
+            padding: 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: #1a1a1a;
+        }
+
+        /* Web Application Box */
+        .web-app {
+            border: 1px solid #666;
+            padding: 20px 25px;
+            text-align: center;
+            min-width: 150px;
+            background: #1a1a1a;
+        }
+
+        .web-app h4 {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+            color: #fff;
+        }
+
+        .web-app p {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        /* Bidirectional Arrow */
+        .bidirectional-arrow {
+            display: flex;
+            align-items: center;
+            color: #333;
+        }
+
+        .bidirectional-arrow::before {
+            content: '◀';
+            font-size: 10px;
+        }
+
+        .bidirectional-arrow span {
+            width: 50px;
+            height: 2px;
+            background: #333;
+            display: block;
+        }
+
+        .bidirectional-arrow::after {
+            content: '▶';
+            font-size: 10px;
+        }
+
+        /* Backend Box */
+        .backend-box {
+            border: 1px solid #666;
+            flex: 1;
+            background: #1a1a1a;
+        }
+
+        .backend-layers {
+            display: flex;
+        }
+
+        .backend-layer {
+            flex: 1;
+            text-align: center;
+            padding: 25px 20px;
+            border-right: 1px solid #666;
+        }
+
+        .backend-layer:last-child {
+            border-right: none;
+        }
+
+        .backend-layer h4 {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #fff;
+        }
+
+        .backend-layer p {
+            font-size: 0.75rem;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .backend-title {
+            text-align: center;
+            padding: 10px;
+            font-weight: 600;
+            border-top: 1px solid #666;
+            font-size: 0.9rem;
+            color: #fff;
+        }
+
+        /* Database */
+        .database-arrow {
+            display: flex;
+            align-items: center;
+            color: #cc0000;
+        }
+
+        .database-arrow::before {
+            content: '◀';
+            font-size: 10px;
+        }
+
+        .database-arrow span {
+            width: 30px;
+            height: 0;
+            border-bottom: 2px dashed #cc0000;
+            display: block;
+        }
+
+        .database-arrow::after {
+            content: '▶';
+            font-size: 10px;
+        }
+
+        .database {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .database-cylinder {
+            width: 70px;
+            height: 80px;
+            border: 2px solid #666;
+            border-radius: 50% / 20%;
+            position: relative;
+            background: #1a1a1a;
+        }
+
+        .database-cylinder::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -2px;
+            right: -2px;
+            height: 20px;
+            border: 2px solid #666;
+            border-radius: 50%;
+            background: #1a1a1a;
+        }
+
+        .database p {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #fff;
+        }
+
+        /* Port info */
+        .port-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>TỔNG QUAN CHỨC NĂNG</h1>
+
+        <!-- Legend -->
+        <div class="legend">
+            <h4>Chú thích</h4>
+            <div class="legend-item">
+                <span>HTTPS Request</span>
+                <div class="legend-line solid"></div>
+            </div>
+            <div class="legend-item">
+                <span>HTTPS Response</span>
+                <div class="legend-line dashed"></div>
+            </div>
+            <div class="legend-item">
+                <span>TCP Request</span>
+                <div class="legend-line solid-red"></div>
+            </div>
+            <div class="legend-item">
+                <span>TCP Response</span>
+                <div class="legend-line dashed-red"></div>
+            </div>
+        </div>
+
+        <!-- Third Party Services -->
+        <div class="third-party">
+            <div class="third-party-header">Third-party</div>
+            <div class="third-party-content">
+                <div class="third-party-col">
+                    <h5>Authentication</h5>
+                    <p>JWT Auth</p>
+                </div>
+                <div class="third-party-col">
+                    <h5>Email Service</h5>
+                    <p>SMTP/Mail Service<br>Reset password</p>
+                </div>
+                <div class="third-party-col">
+                    <h5>Payment & Delivery</h5>
+                    <p>VNPay Payment<br>GHN Delivery Service<br>GHN Shipping Fee API</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-connector"></div>
+
+        <!-- AI Service (Simple Box) -->
+        <div class="ai-service-simple">
+            <div class="ai-box">
+                <h4>AI Service</h4>
+                <p>(FastAPI - Port 8000)</p>
+            </div>
+        </div>
+
+        <div class="arrow-connector"></div>
+
+        <!-- Main System -->
+        <div class="main-system">
+            <!-- Web Application -->
+            <div class="web-app">
+                <h4>WEB APPLICATION</h4>
+                <p>(React + Vite)</p>
+            </div>
+
+            <!-- Bidirectional Arrow -->
+            <div class="bidirectional-arrow">
+                <span></span>
+            </div>
+
+            <!-- Backend -->
+            <div class="backend-box">
+                <div class="backend-layers">
+                    <div class="backend-layer">
+                        <h4>Routes</h4>
+                        <p>(API)</p>
+                    </div>
+                    <div class="backend-layer">
+                        <h4>Controllers</h4>
+                        <p>(BLL)</p>
+                    </div>
+                    <div class="backend-layer">
+                        <h4>Services</h4>
+                        <p>(DAL)</p>
+                    </div>
+                </div>
+                <div class="backend-title">Backend (Node.js + Express)</div>
+            </div>
+
+            <!-- Database Arrow -->
+            <div class="database-arrow">
+                <span></span>
+            </div>
+
+            <!-- Database -->
+            <div class="database">
+                <div class="database-cylinder"></div>
+                <p>Database<br>MySQL/Prisma</p>
+            </div>
+        </div>
+
+        <!-- Port Info -->
+        <div class="port-info">
+            <span>Port: 5173</span>
+            <span>Port: 5000</span>
+        </div>
+
+        <div class="footer">
+            <p>Web E-commerce System - Architecture Overview</p>
+        </div>
+    </div>
+</body>
+
+</html>

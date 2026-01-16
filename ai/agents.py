@@ -55,15 +55,50 @@ class UserChatbotService:
             Dict with success, response (structured), and metadata
         """
         try:
+            import asyncio
             from core.utils import clean_product_query
             from mcps.helpers import search_products_helper, get_product_details_helper
             
-            # --- 0. PRE-CHECK: Xử lý chào hỏi & Câu hỏi ngoài lề ---
             msg_lower = user_message.lower().strip()
-            greetings = ["xin chào", "chào", "hello", "hi", "hey", "alo", "shop ơi", "shop oi"]
-            
-            # Nếu câu chat ngắn và chứa từ chào
             word_count = len(msg_lower.split())
+            
+            # --- 0a. EDGE CASE: Empty or garbage input ---
+            if len(msg_lower) < 2 or all(c in '?!.,;:' for c in msg_lower):
+                return {
+                    "success": True,
+                    "response": {
+                        "text": "Dạ anh/chị muốn tìm hiểu về sản phẩm gì ạ? Em có thể tư vấn bàn làm việc, ghế văn phòng và các phụ kiện setup văn phòng. 😊",
+                        "type": "text"
+                    },
+                    "agent_type": "user_chatbot_fast"
+                }
+            
+            # --- 0b. OUT OF SCOPE: Detect non-furniture queries ---
+            out_of_scope_keywords = [
+                "iphone", "samsung", "điện thoại", "laptop", "máy tính",
+                "quần áo", "áo quần", "giày dép", "túi xách", "mỹ phẩm",
+                "đồ ăn", "thức ăn", "món ăn", "menu", "nhà hàng", "cà phê",
+                "khách sạn", "vé máy bay", "du lịch", "tour",
+                "xe máy", "ô tô", "xe hơi", "xe đạp",
+                "nhà đất", "căn hộ", "chung cư", "bất động sản"
+            ]
+            furniture_keywords = ["bàn", "ghế", "nội thất", "văn phòng", "desk", "chair", "tủ", "kệ", "làm việc"]
+            
+            has_out_of_scope = any(kw in msg_lower for kw in out_of_scope_keywords)
+            has_furniture = any(kw in msg_lower for kw in furniture_keywords)
+            
+            if has_out_of_scope and not has_furniture:
+                return {
+                    "success": True,
+                    "response": {
+                        "text": "Dạ em là trợ lý chuyên về nội thất văn phòng (bàn, ghế, tủ, kệ). Câu hỏi của anh/chị không thuộc phạm vi tư vấn của em. Anh/chị có cần tư vấn về sản phẩm nội thất văn phòng không ạ? 😊",
+                        "type": "text"
+                    },
+                    "agent_type": "user_chatbot_fast"
+                }
+            
+            # --- 0c. GREETING: Quick response for greetings ---
+            greetings = ["xin chào", "chào", "hello", "hi", "hey", "alo", "shop ơi", "shop oi"]
             if word_count <= 4 and any(g in msg_lower for g in greetings):
                 return {
                     "success": True,
@@ -190,13 +225,25 @@ YÊU CẦU TRẢ LỜI:
 5. Sử dụng Markdown để format đẹp (bold cho tên sản phẩm, bullet points cho danh sách).
 """
             
-            ai_response = await self.llm_client.generate_simple(
-                prompt=prompt,
-                system_instruction=system_instruction,
-                temperature=0.7
-            )
-            
-            answer_text = ai_response.get("content", "Dạ đây là các sản phẩm mình tìm thấy ạ.")
+            # Add timeout to prevent hanging (15 seconds max)
+            try:
+                ai_response = await asyncio.wait_for(
+                    self.llm_client.generate_simple(
+                        prompt=prompt,
+                        system_instruction=system_instruction,
+                        temperature=0.7,
+                        max_tokens=2048  # Limit tokens for faster response
+                    ),
+                    timeout=15.0
+                )
+                answer_text = ai_response.get("content", "Dạ đây là các sản phẩm mình tìm thấy ạ.")
+            except asyncio.TimeoutError:
+                logger.warning("LLM response timeout, using fallback")
+                if is_detail_mode:
+                    p = products_found[0]
+                    answer_text = f"Dạ đây là thông tin sản phẩm **{p.get('name')}** ạ. 😊"
+                else:
+                    answer_text = f"Dạ bên em có {len(products_found)} mẫu phù hợp với yêu cầu của anh/chị nè! 😊"
             
             # 5. Trả về cấu trúc cho Frontend render
             # Format products for frontend
@@ -242,7 +289,7 @@ user_chatbot_service = UserChatbotService()
 
 
 class MCPToolClient:
-    """Simple MCP tool client"""
+    """Simple MCP tool client for product chatbot"""
     
     def __init__(self):
         self.tools = {}
@@ -251,29 +298,19 @@ class MCPToolClient:
     def _load_tools(self):
         """Load MCP tool helpers dynamically"""
         try:
-            # ✅ Import helper functions (without MCP decorators) to avoid FastMCP parsing issues
+            # Import only available helper functions from cleaned helpers.py
             from mcps.helpers import (
                 search_products_helper,
-                analyze_sentiment_helper,
-                summarize_sentiment_by_product_helper,
-                get_revenue_analytics_helper,
+                get_product_details_helper,
                 get_sales_performance_helper,
-                get_product_metrics_helper,
-                generate_report_helper,
-                generate_html_report_helper,
-                moderate_content_helper
+                get_product_metrics_helper
             )
             
             self.tools = {
                 "search_products": search_products_helper,
-                "analyze_sentiment": analyze_sentiment_helper,
-                "summarize_sentiment_by_product": summarize_sentiment_by_product_helper,
-                "get_revenue_analytics": get_revenue_analytics_helper,
+                "get_product_details": get_product_details_helper,
                 "get_sales_performance": get_sales_performance_helper,
-                "get_product_metrics": get_product_metrics_helper,
-                "generate_report": generate_report_helper,
-                "generate_html_report": generate_html_report_helper,
-                "moderate_content": moderate_content_helper
+                "get_product_metrics": get_product_metrics_helper
             }
             logger.info(f"Successfully loaded {len(self.tools)} MCP tool helpers")
         except ImportError as e:
@@ -856,7 +893,7 @@ class BaseAgent:
                 if result.get("truncated", False):
                     logger.info("LLM response was truncated but still usable")
             
-            # ✅ Return structured response with product cards
+            #Return structured response with product cards
             if has_products:
                 # Filter products based on LLM response (if LLM mentioned specific products)
                 mentioned_product_names = []
@@ -923,7 +960,7 @@ class BaseAgent:
     
     def _format_simple_response(self, tool_result: Dict[str, Any], intent: str) -> str:
         """Format simple response without LLM - tạo response có ý nghĩa từ tool results"""
-        # ✅ Xử lý các trường hợp đặc biệt TRƯỚC
+        # Xử lý các trường hợp đặc biệt TRƯỚC
         out_of_scope = tool_result.get("out_of_scope", False)
         greeting = tool_result.get("greeting", False)
         no_results = tool_result.get("no_results", False)
@@ -937,7 +974,7 @@ class BaseAgent:
         if not tool_result.get("success"):
             return f"Xin lỗi, tôi không thể xử lý yêu cầu của bạn. Lỗi: {tool_result.get('error', 'Lỗi không xác định')}"
         
-        # ✅ Nếu có products từ search, format response ngắn gọn
+        # Nếu có products từ search, format response ngắn gọn
         products = tool_result.get("products", [])
         if products and len(products) > 0:
             # Tạo response ngắn gọn chỉ giới thiệu 1-2 sản phẩm phù hợp nhất
@@ -949,7 +986,7 @@ class BaseAgent:
             else:
                 return f"Chào bạn! Mình tìm thấy {len(products)} sản phẩm phù hợp, gợi ý bạn {product_names[0]} và {product_names[1]}. Bạn muốn xem chi tiết sản phẩm nào không?"
         
-        # ✅ Nếu không có products (no_results = True)
+        # Nếu không có products (no_results = True)
         if no_results or intent in ["product_search", "price_inquiry", "product_comparison", "product_detail"]:
             query = tool_result.get("query", "")
             # Note: This is a fallback - the main _generate_response should handle this
@@ -962,7 +999,7 @@ class BaseAgent:
             else:
                 return "Xin chào bạn! Mình đã tìm kiếm nhưng hiện tại cửa hàng chưa có sản phẩm phù hợp với yêu cầu của bạn. Bạn có thể thử tìm kiếm với từ khóa khác hoặc liên hệ trực tiếp với chúng tôi để được tư vấn chi tiết hơn ạ."
         
-        # ✅ Default fallback
+        # Default fallback
         return "Tôi có thể giúp bạn tìm kiếm sản phẩm, tư vấn, hoặc so sánh giá. Bạn muốn tôi giúp gì ạ?"
 
 

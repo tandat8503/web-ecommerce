@@ -37,6 +37,7 @@ class LegalAssistant:
         This method uses LLM Router to intelligently determine if the query is:
         1. A tax calculation request (e.g., "Lương 50 triệu đóng thuế bao nhiêu?")
         2. A legal document query (e.g., "Điều kiện thành lập công ty là gì?")
+        3. Needs more info (asking about tax but no numbers)
         
         Args:
             query: User query in Vietnamese
@@ -50,7 +51,9 @@ class LegalAssistant:
             intent = await self._classify_intent(query)
             
             # Step 2: Route to appropriate handler
-            if intent == "CALCULATION":
+            if intent == "NEED_MORE_INFO":
+                return "Dạ để tính thuế cho anh/chị, em cần biết **mức doanh thu/thu nhập cụ thể** (ví dụ: 50 triệu/tháng). Anh/chị vui lòng cung cấp số tiền để em tính chính xác nhé! 📊"
+            elif intent == "CALCULATION":
                 return await self._handle_tax_query(query, region)
             else:
                 return await self._handle_legal_query(query)
@@ -62,13 +65,16 @@ class LegalAssistant:
                 query_lower = query.lower()
                 tax_keywords = [
                     "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
-                    "lương gross", "lương net", "lương bao nhiêu",
+                    "lương gross", "lương net", "lương bao nhiêu", "doanh thu",
                     "đóng bảo hiểm", "bhxh", "bảo hiểm", "thu nhập"
                 ]
                 is_tax_query = any(keyword in query_lower for keyword in tax_keywords)
                 has_numbers = bool(re.search(r'\d+', query))
                 
-                if is_tax_query or (has_numbers and any(word in query_lower for word in ["triệu", "tr", "nghìn", "k", "triệu đồng"])):
+                # If tax query but no numbers, ask for more info
+                if is_tax_query and not has_numbers:
+                    return "Dạ để tính thuế cho anh/chị, em cần biết **mức doanh thu/thu nhập cụ thể** (ví dụ: 50 triệu/tháng). Anh/chị vui lòng cung cấp số tiền để em tính chính xác nhé! 📊"
+                elif is_tax_query or (has_numbers and any(word in query_lower for word in ["triệu", "tr", "nghìn", "k", "triệu đồng"])):
                     return await self._handle_tax_query(query, region)
                 else:
                     return await self._handle_legal_query(query)
@@ -78,21 +84,33 @@ class LegalAssistant:
     
     async def _classify_intent(self, query: str) -> str:
         """
-        Use LLM to classify query intent (CALCULATION vs LEGAL_SEARCH)
+        Use LLM to classify query intent (CALCULATION vs LEGAL_SEARCH vs NEED_MORE_INFO)
         
         Args:
             query: User query
         
         Returns:
-            "CALCULATION" or "LEGAL_SEARCH"
+            "CALCULATION", "LEGAL_SEARCH", or "NEED_MORE_INFO"
         """
+        query_lower = query.lower()
+        
+        # Tax-related keywords
+        tax_keywords = [
+            "tính thuế", "đóng thuế", "thuế tncn", "thuế thu nhập",
+            "lương gross", "lương net", "doanh thu", "thu nhập",
+            "đóng bảo hiểm", "bhxh", "bảo hiểm", "tiền thuế"
+        ]
+        
+        has_numbers = bool(re.search(r'\d+', query))
+        has_tax_keyword = any(keyword in query_lower for keyword in tax_keywords)
+        
+        # Check if asking about tax but no numbers provided
+        if has_tax_keyword and not has_numbers:
+            return "NEED_MORE_INFO"
+        
         if not self.llm_client:
             # Fallback to keyword-based if LLM not available
-            query_lower = query.lower()
-            tax_keywords = ["tính thuế", "đóng thuế", "thuế", "lương", "bảo hiểm", "thu nhập"]
-            has_numbers = bool(re.search(r'\d+', query))
-            
-            if any(keyword in query_lower for keyword in tax_keywords) and has_numbers:
+            if has_tax_keyword and has_numbers:
                 return "CALCULATION"
             return "LEGAL_SEARCH"
         
@@ -130,11 +148,7 @@ Chỉ trả về đúng 1 từ: CALCULATION hoặc LEGAL_SEARCH
         except Exception as e:
             logger.warning(f"LLM intent classification failed: {e}, using fallback")
             # Fallback to keyword-based
-            query_lower = query.lower()
-            tax_keywords = ["tính thuế", "đóng thuế", "thuế", "lương", "bảo hiểm", "thu nhập", "tiền"]
-            has_numbers = bool(re.search(r'\d+', query))
-            
-            if any(keyword in query_lower for keyword in tax_keywords) and has_numbers:
+            if has_tax_keyword and has_numbers:
                 return "CALCULATION"
             return "LEGAL_SEARCH"
     
@@ -190,13 +204,13 @@ Chỉ trả về đúng 1 từ: CALCULATION hoặc LEGAL_SEARCH
             logger.error(f"Error handling tax query: {e}", exc_info=True)
             return f"Xin lỗi, đã xảy ra lỗi khi tính thuế: {str(e)}"
     
-    async def _handle_legal_query(self, query: str, top_k: int = 20) -> str:
+    async def _handle_legal_query(self, query: str, top_k: int = 30) -> str:
         """
         Handle legal document queries using RAG
         
         Args:
             query: User query about legal regulations
-            top_k: Number of documents to retrieve (increased to 20 for comprehensive results)
+            top_k: Number of documents to retrieve (increased to 30 for better accuracy)
         
         Returns:
             Legal consultation answer
@@ -302,7 +316,7 @@ Chỉ trả về đúng 1 từ: CALCULATION hoặc LEGAL_SEARCH
     async def consult_legal_documents(
         self,
         query: str,
-        top_k: int = 20,
+        top_k: int = 30,
         doc_type: Optional[str] = None,
         status: str = "active"
     ) -> str:
@@ -311,7 +325,7 @@ Chỉ trả về đúng 1 từ: CALCULATION hoặc LEGAL_SEARCH
         
         Args:
             query: Legal question
-            top_k: Number of documents to retrieve (default: 20 for comprehensive results)
+            top_k: Number of documents to retrieve (default: 30 for better accuracy)
             doc_type: Filter by document type
             status: Filter by status
         

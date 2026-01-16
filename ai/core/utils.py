@@ -152,7 +152,8 @@ def extract_price_filter(user_message: str) -> Tuple[Optional[float], Optional[f
         "dưới 5tr" -> (None, 5000000)
         "trên 2 triệu" -> (2000000, None)
         "từ 1tr đến 3tr" -> (1000000, 3000000)
-        "khoảng 5 triệu" -> (None, None)  # No exact filter
+        "từ 2tr đến 5tr" -> (2000000, 5000000)  
+        "500k đến 2tr" -> (500000, 2000000)
     """
     if not user_message:
         return None, None
@@ -161,20 +162,14 @@ def extract_price_filter(user_message: str) -> Tuple[Optional[float], Optional[f
     min_price = None
     max_price = None
     
-    # Pattern for Vietnamese price expressions
-    # "dưới", "dưới", "ít hơn", "nhỏ hơn" -> max_price
-    # "trên", "lớn hơn", "nhiều hơn" -> min_price
-    # "từ X đến Y", "X - Y", "X đến Y" -> both
-    
-    # Extract numbers with units (tr, triệu, triệu đồng, vnd, etc.)
-    # Note: "5tr" (no space) and "5 tr" (with space) should both match
+    # Extract numbers with units
     price_patterns = [
-        (r'(\d+(?:\.\d+)?)\s*(?:tr|triệu|triệu đồng|vnd|đ)', 1000000),  # triệu - matches "5tr" and "5 tr"
-        (r'(\d+(?:\.\d+)?)\s*(?:nghìn|k|ngàn)', 1000),  # nghìn
-        (r'(\d+(?:\.\d+)?)\s*(?:tỷ|ty)', 1000000000),  # tỷ
+        (r'(\d+(?:\.\d+)?)\s*(?:tr|triệu|triệu đồng|vnd|đ)', 1000000),
+        (r'(\d+(?:\.\d+)?)\s*(?:nghìn|k|ngàn)', 1000),
+        (r'(\d+(?:\.\d+)?)\s*(?:tỷ|ty)', 1000000000),
     ]
     
-    # Find all price mentions
+    # Find all price mentions with positions
     prices = []
     for pattern, multiplier in price_patterns:
         matches = re.finditer(pattern, text)
@@ -186,47 +181,42 @@ def extract_price_filter(user_message: str) -> Tuple[Optional[float], Optional[f
     if not prices:
         return None, None
     
-    # Sort by position in text
     prices.sort(key=lambda x: x[1])
     
-    # Check for "dưới", "ít hơn", "nhỏ hơn" -> max_price
-    # Also check for "giá dưới", "giá ít hơn" etc.
-    if any(word in text for word in ["dưới", "duoi", "ít hơn", "it hon", "nhỏ hơn", "nho hon", "tối đa", "toi da"]):
-        # Find the price after these words
+    # PRIORITY 1: Check for range pattern FIRST - "từ X đến Y", "X đến Y", "X - Y"
+    range_keywords = ["từ", "đến", "tới", "-", "tới", "đến"]
+    has_range = any(kw in text for kw in range_keywords)
+    
+    if has_range and len(prices) >= 2:
+        # Two prices found with range keywords = min and max
+        min_price = prices[0][0]
+        max_price = prices[1][0]
+        return min_price, max_price
+    
+    # PRIORITY 2: Check for "dưới" -> max_price only
+    if any(word in text for word in ["dưới", "duoi", "ít hơn", "nhỏ hơn", "tối đa"]):
         for price, start, end in prices:
-            # Check if there's a "dưới" etc. before this price (extend window to 30 chars to catch "giá dưới")
             text_before = text[max(0, start-30):start]
-            if any(word in text_before for word in ["dưới", "duoi", "ít hơn", "it hon", "nhỏ hơn", "nho hon", "tối đa", "toi da", "giá dưới", "gia duoi"]):
+            if any(word in text_before for word in ["dưới", "duoi", "ít hơn", "nhỏ hơn", "tối đa", "giá dưới"]):
                 max_price = price
                 break
         if max_price is None and prices:
-            # If no specific match, use first price as max
             max_price = prices[0][0]
+        return min_price, max_price
     
-    # Check for "trên", "lớn hơn", "nhiều hơn" -> min_price
-    # Also check for "giá trên", "giá lớn hơn" etc.
-    elif any(word in text for word in ["trên", "tren", "lớn hơn", "lon hon", "nhiều hơn", "nhieu hon", "tối thiểu", "toi thieu"]):
+    # PRIORITY 3: Check for "trên" -> min_price only
+    if any(word in text for word in ["trên", "tren", "lớn hơn", "nhiều hơn", "tối thiểu"]):
         for price, start, end in prices:
-            text_before = text[max(0, start-30):start]  # Extend window to catch "giá trên"
-            if any(word in text_before for word in ["trên", "tren", "lớn hơn", "lon hon", "nhiều hơn", "nhieu hon", "tối thiểu", "toi thieu", "giá trên", "gia tren"]):
+            text_before = text[max(0, start-30):start]
+            if any(word in text_before for word in ["trên", "tren", "lớn hơn", "nhiều hơn", "tối thiểu", "giá trên"]):
                 min_price = price
                 break
         if min_price is None and prices:
             min_price = prices[0][0]
+        return min_price, max_price
     
-    # Check for range: "từ X đến Y", "X - Y", "X đến Y"
-    elif any(word in text for word in ["từ", "tu", "đến", "den", "tới", "toi", "-"]):
-        if len(prices) >= 2:
-            min_price = prices[0][0]
-            max_price = prices[1][0]
-        elif len(prices) == 1:
-            # Single price with "từ" or "đến" - ambiguous, don't set filter
-            pass
-    
-    # If no specific pattern, check if it's a simple price mention
-    # "5tr", "5 triệu" without "dưới" or "trên" - don't set filter (too ambiguous)
-    
-    return min_price, max_price
+    # Single price without context - don't set filter (too ambiguous)
+    return None, None
 
 
 def normalize_dimension_to_mm(size_str: str) -> Optional[str]:

@@ -41,7 +41,7 @@ class GeminiProClient:
         tools: List[Any],
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
-        max_tokens: int = 800,
+        max_tokens: int = 4096,  # Gemini 2.5 Flash supports up to 8192
         model: str = None
     ) -> Dict[str, Any]:
         """Generate content with function calling tools"""
@@ -166,7 +166,7 @@ class GeminiProClient:
         sources: List[str],
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
-        max_tokens: int = 800,
+        max_tokens: int = 4096,  # Gemini 2.5 Flash supports up to 8192
         model: str = None
     ) -> Dict[str, Any]:
         """Generate content with grounding from sources"""
@@ -216,7 +216,7 @@ class GeminiProClient:
         prompt: str,
         system_instruction: Optional[str] = None,
         temperature: float = 0.6,
-        max_tokens: int = 800,
+        max_tokens: int = 4096,  # Gemini 2.5 Flash supports up to 8192
         model: str = None
     ) -> Dict[str, Any]:
         """Simple content generation without tools or grounding"""

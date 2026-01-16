@@ -16,7 +16,7 @@ export default function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  // ✅ LẤY SEARCH QUERY TỪ URL
+  //LẤY SEARCH QUERY TỪ URL
   const searchQuery = searchParams.get("q") || "";
   const pageParam = parseInt(searchParams.get("page")) || 1;
   

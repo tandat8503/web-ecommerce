@@ -58,7 +58,7 @@ class LegalDocumentChunker:
             # Try to extract source_id for Thông tư
             match = self.doc_type_patterns["Thông tư"].search(text[:500])
             if match:
-                doc_info["source_id"] = match.group(1)
+                    doc_info["source_id"] = match.group(1)
         
         # Try to extract year and date
         year_match = re.search(r'(\d{4})', text[:200])

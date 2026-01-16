@@ -212,16 +212,24 @@ class LegalDocumentParser:
         Ví dụ:
         - "LUẬT\nDOANH NGHIỆP\n2020" -> "Luật Doanh nghiệp 2020"
         - "Luật\nĐầu tư\n2020" -> "Luật Đầu tư 2020"
+        - "LUẬT \nT" -> "Luật Thuế..." (cần normalize trước)
         """
-        # Lấy 1000 ký tự đầu để tìm tên luật
-        header = text[:1000]
-        lines = header.split('\n')
+        # CRITICAL FIX: Normalize text trước khi parse
+        # Loại bỏ xuống dòng thừa trong phần header (1000 ký tự đầu)
+        header = text[:1500]  # Tăng lên 1500 để đảm bảo đủ
+        
+        # Replace multiple newlines with single space trong header
+        # Nhưng giữ lại structure nếu có dòng trống rõ ràng
+        header_normalized = re.sub(r'\n\s*\n', '\n\n', header)  # Giữ paragraph breaks
+        header_normalized = re.sub(r'(?<=[A-ZÀÁẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬĐÈÉẺẼẸÊẾỀỂỄỆÌÍỈĨỊÒÓỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢÙÚỦŨỤƯỨỪỬỮỰỲÝỶỸỴ])\n(?=[A-ZÀÁẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬĐÈÉẺẼẸÊẾỀỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỚỜỞỠỢÙÚỦŨỤƯỨỪỬỮỰỲÝỶỸỴ])', ' ', header_normalized)
+        
+        lines = header_normalized.split('\n')
         
         # Tìm dòng bắt đầu bằng "LUẬT" hoặc "Luật"
         law_start_idx = None
         for i, line in enumerate(lines):
             line_clean = line.strip().upper()
-            if line_clean.startswith('LUẬT'):
+            if line_clean.startswith('LUẬT') or line_clean.startswith('BỘ LUẬT'):
                 law_start_idx = i
                 break
         
@@ -233,9 +241,9 @@ class LegalDocumentParser:
         # - Ngày tháng (VD: 17/06/2020)
         # - CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
         # - Quốc hội, Chính phủ, etc.
-        # - Hoặc đã đủ 5 dòng
+        # - Hoặc đã đủ 8 dòng (tăng từ 5 lên 8 để đảm bảo đủ)
         doc_name_parts = []
-        max_lines = min(law_start_idx + 5, len(lines))
+        max_lines = min(law_start_idx + 8, len(lines))
         
         for i in range(law_start_idx, max_lines):
             line = lines[i].strip()
@@ -243,11 +251,15 @@ class LegalDocumentParser:
                 continue
             
             # Dừng nếu gặp số hiệu văn bản
-            if re.search(r'\d{1,3}/\d{4}/QH\d+|CỘNG HÒA|QUỐC HỘI|CHÍNH PHỦ', line, re.IGNORECASE):
+            if re.search(r'\d{1,3}/\d{4}/(QH|NĐ|TT)|CỘNG HÒA|QUỐC HỘI|CHÍNH PHỦ|ỦY BAN|CHỦ TỊCH', line, re.IGNORECASE):
                 break
             
             # Dừng nếu gặp ngày tháng năm (VD: 17/06/2020)
             if re.search(r'\d{1,2}/\d{1,2}/\d{4}', line):
+                break
+            
+            # Dừng nếu gặp "Số:" hoặc "Number:"
+            if re.search(r'^(Số|Number):', line, re.IGNORECASE):
                 break
             
             # Thêm dòng vào doc_name
@@ -271,11 +283,27 @@ class LegalDocumentParser:
         doc_name = ' '.join(doc_name_parts)
         doc_name = re.sub(r'\s+', ' ', doc_name).strip()
         
+        # CRITICAL FIX: Loại bỏ các ký tự đặc biệt, số thứ tự không cần thiết
+        # VD: "LUẬT 1. DOANH NGHIỆP" -> "LUẬT DOANH NGHIỆP"
+        doc_name = re.sub(r'\s+\d+\.\s+', ' ', doc_name)
+        
         # Chuẩn hóa: Chữ cái đầu viết hoa cho mỗi từ
         # Ví dụ: "LUẬT DOANH NGHIỆP 2020" -> "Luật Doanh Nghiệp 2020"
         words = doc_name.split()
-        normalized_words = [word.capitalize() for word in words]
+        normalized_words = []
+        for word in words:
+            # Giữ nguyên số năm
+            if re.match(r'^\d{4}$', word):
+                normalized_words.append(word)
+            else:
+                normalized_words.append(word.capitalize())
         doc_name = ' '.join(normalized_words)
+        
+        # CRITICAL FIX: Validate kết quả
+        # Nếu tên quá ngắn (< 10 ký tự) hoặc chỉ có "Luật", có thể là lỗi
+        if len(doc_name) < 10 or doc_name.strip().upper() == 'LUẬT':
+            logger.warning(f"⚠️ Extracted doc_name quá ngắn hoặc không hợp lệ: '{doc_name}'")
+            return None
         
         return doc_name
     
@@ -290,52 +318,76 @@ class LegalDocumentParser:
         # Chuẩn hóa filename
         name_clean = filename.lower().replace(".pdf", "").replace(".docx", "").replace(".doc", "")
         
-        # Mapping đầy đủ - giống với VietnamLegalParser._guess_law_name()
+        # CRITICAL FIX: Mapping đầy đủ cho TẤT CẢ các file trong luat_VN
+        # Dựa trên danh sách file thực tế:
+        # - 103-vbhn-vpqh.pdf
+        # - 123.signed_01.pdf
+        # - 125-vbhn-vpqh.pdf
+        # - 134-vbhn-vpqh.pdf
+        # - 2023_575 + 576_22-VBHN-VPQH.pdf
+        # - 67-VBHN-VPQH.docx
+        # - 93-vbhn-vpqh1.pdf
+        
         mapping = {
-            # Luật Doanh Nghiệp
+            # File: 67-VBHN-VPQH.docx
+            "67-vbhn": "Luật Doanh Nghiệp 2020",
             "67": "Luật Doanh Nghiệp 2020",
+            
+            # File: 93-vbhn-vpqh1.pdf (scan - skip)
+            "93-vbhn": "Luật Thuế Giá Trị Gia Tăng 2008",
+            "93": "Luật Thuế Giá Trị Gia Tăng 2008",
+            
+            # File: thue_gtgt.pdf (NEW - Luật Thuế GTGT 2024)
+            "thue_gtgt": "Luật Thuế Giá Trị Gia Tăng 2024",
+            "thue gtgt": "Luật Thuế Giá Trị Gia Tăng 2024",
+            
+            # File: 103-vbhn-vpqh.pdf
+            "103-vbhn": "Luật Thuế Thu Nhập Cá Nhân 2007",
+            "103": "Luật Thuế Thu Nhập Cá Nhân 2007",
+            
+            # File: 123.signed_01.pdf
+            "123.signed": "Nghị Định 123/2020/NĐ-CP",
+            "123": "Nghị Định 123/2020/NĐ-CP",
+            
+            # File: 125-vbhn-vpqh.pdf
+            "125-vbhn": "Bộ Luật Lao Động 2019",
+            "125": "Bộ Luật Lao Động 2019",
+            
+            # File: 134-vbhn-vpqh.pdf
+            "134-vbhn": "Luật Đầu Tư 2020",
+            "134": "Luật Đầu Tư 2020",
+            
+            # File: 2023_575 + 576_22-VBHN-VPQH.pdf
+            "575": "Luật Thuế Thu Nhập Doanh Nghiệp 2008",
+            "576": "Luật Thuế Thu Nhập Doanh Nghiệp 2008",
+            "22-vbhn": "Luật Thuế Thu Nhập Doanh Nghiệp 2008",
+            
+            # Additional common patterns
             "doanh nghiep": "Luật Doanh Nghiệp 2020",
-            
-            # Luật Thuế Giá trị gia tăng (GTGT)
-            "93": "Luật Thuế Giá trị gia tăng",
-            "gia tri gia tang": "Luật Thuế Giá trị gia tăng",
-            "gtgt": "Luật Thuế Giá trị gia tăng",
-            
-            # Luật Thuế Thu nhập cá nhân (TNCN)
-            "103": "Luật Thuế Thu nhập cá nhân",
-            "thu nhap ca nhan": "Luật Thuế Thu nhập cá nhân",
-            "tncn": "Luật Thuế Thu nhập cá nhân",
-            
-            # Bộ luật Lao động
-            "125": "Bộ luật Lao động",
-            "lao dong": "Bộ luật Lao động",
-            
-            # Luật Đầu tư
-            "134": "Luật Đầu tư",
-            "dau tu": "Luật Đầu tư",
-            
-            # Luật Thuế Thu nhập doanh nghiệp (TNDN)
-            "575": "Luật Thuế Thu nhập doanh nghiệp",
-            "576": "Luật Thuế Thu nhập doanh nghiệp",
-            "thu nhap doanh nghiep": "Luật Thuế Thu nhập doanh nghiệp",
-            "tndn": "Luật Thuế Thu nhập doanh nghiệp",
-            
-            # Nghị định 123
-            "123": "Nghị định 123/2020/NĐ-CP về Hóa đơn, chứng từ",
+            "gia tri gia tang": "Luật Thuế Giá Trị Gia Tăng 2024",
+            "gtgt": "Luật Thuế Giá Trị Gia Tăng 2024",
+            "thu nhap ca nhan": "Luật Thuế Thu Nhập Cá Nhân 2007",
+            "tncn": "Luật Thuế Thu Nhập Cá Nhân 2007",
+            "lao dong": "Bộ Luật Lao Động 2019",
+            "dau tu": "Luật Đầu Tư 2020",
+            "thu nhap doanh nghiep": "Luật Thuế Thu Nhập Doanh Nghiệp 2008",
+            "tndn": "Luật Thuế Thu Nhập Doanh Nghiệp 2008",
         }
         
-        # Check mapping
-        for key, value in mapping.items():
+        # Check mapping với priority cao nhất cho exact match
+        # Ưu tiên match dài hơn trước (VD: "67-vbhn" trước "67")
+        sorted_keys = sorted(mapping.keys(), key=len, reverse=True)
+        for key in sorted_keys:
             if key in name_clean:
-                logger.debug(f"Matched '{key}' -> '{value}' for file '{filename}'")
-                return value
+                logger.debug(f"Matched '{key}' -> '{mapping[key]}' for file '{filename}'")
+                return mapping[key]
         
         # Nếu không map được, log warning và return tên generic
         logger.warning(
-            f"⚠️  Không tìm thấy mapping cho file '{filename}'. "
+            f"⚠️ Không tìm thấy mapping cho file '{filename}'. "
             f"Đang dùng tên generic - CẦN THÊM MAPPING CHO FILE NÀY!"
         )
-        return "Văn bản pháp luật"
+        return "Văn Bản Pháp Luật"
     
     def extract_metadata_from_filename(self, file_path: Path) -> Dict[str, Any]:
         """

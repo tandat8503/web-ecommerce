@@ -21,8 +21,9 @@ from ddtrace.trace import tracer
 from core.db import get_conn, release_conn
 from core.exceptions import handle_agent_error, DatabaseError
 from services.chatbot.search import ProductSearchService
-from services.sentiment.service import SentimentService
-from services.analyst.service import AnalystService
+# REMOVED after cleanup - these services no longer exist:
+# from services.sentiment.service import SentimentService
+# from services.analyst.service import AnalystService
 from core.utils import extract_time_period, format_currency, safe_json_parse
 
 # Setup logging
@@ -32,20 +33,20 @@ logger.setLevel(logging.INFO)
 # Initialize FastMCP
 mcp = FastMCP("ecommerce")
 
-# Initialize services
+# Initialize services (only what we still have)
 product_search_service = ProductSearchService()
-sentiment_service = SentimentService()
-analyst_service = AnalystService()
+# sentiment_service = SentimentService()  # REMOVED
+# analyst_service = AnalystService()  # REMOVED
 
-# Import ModerationService (will be used by moderate_content tool)
-from services.moderation.service import ModerationService
-moderation_service = ModerationService()
+# REMOVED after cleanup:
+# from services.moderation.service import ModerationService
+# moderation_service = ModerationService()
 
-# Import ReportGeneratorService
-from services.report.service import ReportGeneratorService
-report_generator_service = ReportGeneratorService()
+# REMOVED after cleanup:
+# from services.report.service import ReportGeneratorService
+# report_generator_service = ReportGeneratorService()
 
-# Import LegalVectorService
+# Import LegalVectorService (still needed)
 from services.legal.vector_service import LegalVectorService
 legal_vector_service = LegalVectorService()
 

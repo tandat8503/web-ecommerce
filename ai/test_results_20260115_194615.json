@@ -1,0 +1,315 @@
+{
+  "timestamp": "2026-01-15T19:46:15.189546",
+  "summary": {
+    "total_tests": 20,
+    "passed": 9,
+    "failed": 11,
+    "pass_rate": 45.0,
+    "average_score": 40.75,
+    "average_response_time_ms": 19812.212371826172,
+    "categories": {
+      "greeting": {
+        "total": 2,
+        "passed": 2,
+        "failed": 0
+      },
+      "search": {
+        "total": 5,
+        "passed": 4,
+        "failed": 1
+      },
+      "price": {
+        "total": 4,
+        "passed": 2,
+        "failed": 2
+      },
+      "detail": {
+        "total": 3,
+        "passed": 1,
+        "failed": 2
+      },
+      "edge_case": {
+        "total": 4,
+        "passed": 0,
+        "failed": 4
+      },
+      "out_of_scope": {
+        "total": 2,
+        "passed": 0,
+        "failed": 2
+      }
+    },
+    "special_chars_handling": {
+      "total": 10,
+      "passed": 3,
+      "rate": 30.0
+    },
+    "product_accuracy": {
+      "expected_with_products": 15,
+      "actually_has_products": 6,
+      "rate": 40.0
+    }
+  },
+  "results": [
+    {
+      "id": 1,
+      "name": "Simple Greeting",
+      "message": "Xin chào",
+      "category": "greeting",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 29273.661851882935,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "Dạ xin chào ạ! 👋 Em là trợ lý ảo của G-Tech. Em có thể giúp anh/chị tìm bàn, ghế hay tư vấn setup văn phòng không ạ?",
+      "error": ""
+    },
+    {
+      "id": 2,
+      "name": "Greeting with Shop",
+      "message": "Shop ơi",
+      "category": "greeting",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 4.23121452331543,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "Dạ xin chào ạ! 👋 Em là trợ lý ảo của G-Tech. Em có thể giúp anh/chị tìm bàn, ghế hay tư vấn setup văn phòng không ạ?",
+      "error": ""
+    },
+    {
+      "id": 3,
+      "name": "Search Desk Basic",
+      "message": "Tôi cần mua bàn làm việc",
+      "category": "search",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 5718.46604347229,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ chào anh/chị! Em đã tìm thấy một số mẫu bàn làm việc rất ưng ý và phù hợp với nhu cầu của mình rồi đây ạ! 😊 Anh/chị tham khảo ngay nhé 🚀",
+      "error": ""
+    },
+    {
+      "id": 4,
+      "name": "Search Chair Basic",
+      "message": "Có ghế xoay nào không?",
+      "category": "search",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 5642.168045043945,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ, bên em có mẫu **Ghế Xoay Văn Phòng Hòa Phát HF-702** rất ưng ý dành cho anh/chị đây ạ! 😊 Mẫu này đến từ thương hiệu Hòa Phát uy tín với mức giá rất phải chăng. Mời anh/chị tham khảo chi tiết sản p",
+      "error": ""
+    },
+    {
+      "id": 5,
+      "name": "Search with Intent",
+      "message": "Tư vấn giúp em bàn cho lập trình viên",
+      "category": "search",
+      "passed": true,
+      "score": 85.0,
+      "response_time_ms": 5417.449235916138,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ bên em có một vài mẫu bàn rất phù hợp với các anh/chị lập trình viên đây ạ! Anh/chị tham khảo nhé: 😊🚀",
+      "error": ""
+    },
+    {
+      "id": 6,
+      "name": "Search L-shaped Desk",
+      "message": "Bàn chữ L có mẫu nào?",
+      "category": "search",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 8539.703845977783,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ bên em có mẫu **Bàn Làm Việc Chữ L Govi Furniture FM-866** rất phù hợp với anh/chị nè: 😊",
+      "error": ""
+    },
+    {
+      "id": 7,
+      "name": "Price Under 5 Million",
+      "message": "Bàn giá dưới 5tr",
+      "category": "price",
+      "passed": true,
+      "score": 70.0,
+      "response_time_ms": 7459.365129470825,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ bên em có mấy mẫu này rất phù hợp với yêu cầu của anh/chị nè: 😊",
+      "error": ""
+    },
+    {
+      "id": 8,
+      "name": "Price Under 3 Triệu",
+      "message": "Ghế giá dưới 3 triệu",
+      "category": "price",
+      "passed": true,
+      "score": 100.0,
+      "response_time_ms": 4137.8819942474365,
+      "has_products": true,
+      "product_count": 5,
+      "response_preview": "Dạ vâng, bên em có một vài mẫu ghế rất ưng ý với mức giá dưới 3 triệu đây ạ! Anh/chị tham khảo nhé 😊",
+      "error": ""
+    },
+    {
+      "id": 9,
+      "name": "Price Range",
+      "message": "Có bàn từ 2tr đến 5tr không?",
+      "category": "price",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30001.94501876831,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 10,
+      "name": "Price with K notation",
+      "message": "Ghế giá khoảng 500k đến 2tr",
+      "category": "price",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30004.40001487732,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 11,
+      "name": "Detail by Model Code",
+      "message": "Chi tiết bàn F42",
+      "category": "detail",
+      "passed": true,
+      "score": 60.0,
+      "response_time_ms": 5.375146865844727,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "Dạ xin chào ạ! 👋 Em là trợ lý ảo của G-Tech. Em có thể giúp anh/chị tìm bàn, ghế hay tư vấn setup văn phòng không ạ?",
+      "error": ""
+    },
+    {
+      "id": 12,
+      "name": "Detail by Name",
+      "message": "Thông tin về Bàn Nâng Hạ",
+      "category": "detail",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30002.676010131836,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 13,
+      "name": "Detail with Specs Request",
+      "message": "Kích thước bàn EU01 là bao nhiêu?",
+      "category": "detail",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30005.022048950195,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 14,
+      "name": "Dimension 1m2",
+      "message": "Có bàn kích thước 1m2 không?",
+      "category": "edge_case",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30004.40287590027,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 15,
+      "name": "Dimension 120cm",
+      "message": "Bàn rộng 120cm",
+      "category": "edge_case",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30004.145860671997,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 16,
+      "name": "Complex Query with Numbers",
+      "message": "Bàn làm việc 1m4 giá dưới 5 triệu màu trắng",
+      "category": "edge_case",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30004.164218902588,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 17,
+      "name": "Out of Scope - Phone",
+      "message": "iPhone 15 giá bao nhiêu?",
+      "category": "out_of_scope",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30005.29193878174,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 18,
+      "name": "Out of Scope - Food",
+      "message": "Cho tôi xem menu đồ ăn",
+      "category": "out_of_scope",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30006.277084350586,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 19,
+      "name": "Empty-like Message",
+      "message": "???",
+      "category": "edge_case",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30004.45818901062,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    },
+    {
+      "id": 20,
+      "name": "Unicode Vietnamese",
+      "message": "Bàn làm việc đẹp cho văn phòng",
+      "category": "search",
+      "passed": false,
+      "score": 0.0,
+      "response_time_ms": 30003.161668777466,
+      "has_products": false,
+      "product_count": 0,
+      "response_preview": "",
+      "error": ""
+    }
+  ]
+}

@@ -12,7 +12,7 @@ const AI_WS_URL = "ws://localhost:8000/ws"; // (chưa dùng, backend hiện khô
 // Create axios instance with default config
 const aiAxiosClient = axios.create({
   baseURL: AI_API_URL,
-  timeout: 30000, // 30 seconds for regular queries
+  timeout: 60000, // 60 seconds - increased for complex vector search + LLM queries
   headers: {
     "Content-Type": "application/json",
   },
@@ -55,12 +55,12 @@ aiAxiosClient.interceptors.response.use(
   (error) => {
     // Completely suppress connection errors for health checks
     // These are expected when AI service is not running
-    if ((error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') && 
-        error.config?.url === '/health') {
+    if ((error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') &&
+      error.config?.url === '/health') {
       // Silent - service not running is acceptable, don't log anything
       return Promise.reject(error);
     }
-    
+
     // Only log actual errors (not expected connection failures)
     if (error.response?.status >= 400 && error.response?.status !== 404) {
       console.error("❌ API Response Error:", error.response?.status, error.config?.url);
@@ -68,7 +68,7 @@ aiAxiosClient.interceptors.response.use(
       // Only log non-connection errors
       console.error("❌ API Error:", error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -117,7 +117,7 @@ export const aiChatbotAPI = {
           // Ignore localStorage errors
         }
       }
-      
+
       const payload = {
         message: message.trim(),
         user_type: userType,
@@ -128,15 +128,15 @@ export const aiChatbotAPI = {
       const startTime = Date.now();
       const response = await aiAxiosClient.post("/chat", payload);
       const responseTime = (Date.now() - startTime) / 1000; // in seconds
-      
+
       // Transform response to match expected format
       const data = response.data;
-      
+
       // Update session_id if returned from backend
       if (data.session_id && data.session_id !== sessionId) {
         // Session ID was generated/updated by backend
       }
-      
+
       return {
         response: data.response || data.message || "Xin lỗi, không thể xử lý yêu cầu.",
         timestamp: data.timestamp || new Date().toISOString(),
@@ -153,7 +153,7 @@ export const aiChatbotAPI = {
       };
     } catch (error) {
       console.error("Send message failed:", error);
-      
+
       // Return error response in expected format
       if (error.response?.data) {
         const errorData = error.response.data;
@@ -172,7 +172,7 @@ export const aiChatbotAPI = {
           session_id: sessionId
         };
       }
-      
+
       throw error;
     }
   },
@@ -363,7 +363,7 @@ export const aiChatbotAPI = {
       const response = await aiAxiosClient.get(`/api/ai/reports/${reportId}/download`, {
         responseType: "blob",
       });
-      
+
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
@@ -373,7 +373,7 @@ export const aiChatbotAPI = {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       return { success: true };
     } catch (error) {
       console.error("Download report failed:", error);
@@ -388,7 +388,7 @@ export const aiChatbotAPI = {
     try {
       const params = { limit };
       if (reportType) params.report_type = reportType;
-      
+
       const response = await aiAxiosClient.get("/api/ai/reports", { params });
       return response.data;
     } catch (error) {
@@ -410,7 +410,7 @@ export const aiChatbotAPI = {
         query: query.trim(),
         region: region
       });
-      
+
       return {
         success: response.data.success !== false,
         response: response.data.response || "Xin lỗi, không thể xử lý yêu cầu.",
@@ -423,7 +423,7 @@ export const aiChatbotAPI = {
       };
     } catch (error) {
       console.error("Ask legal advisor failed:", error);
-      
+
       if (error.response?.data) {
         return {
           success: false,
@@ -436,7 +436,7 @@ export const aiChatbotAPI = {
           }
         };
       }
-      
+
       throw error;
     }
   },
@@ -454,7 +454,7 @@ export const aiChatbotAPI = {
         query: `Lương ${grossSalary / 1000000} triệu, ${dependents} con`,
         region: region
       });
-      
+
       return {
         success: response.data.success !== false,
         result: response.data.result || null,
@@ -469,7 +469,7 @@ export const aiChatbotAPI = {
       };
     } catch (error) {
       console.error("Calculate tax failed:", error);
-      
+
       if (error.response?.data) {
         return {
           success: false,
@@ -481,7 +481,7 @@ export const aiChatbotAPI = {
           }
         };
       }
-      
+
       throw error;
     }
   },
@@ -502,9 +502,9 @@ export const aiChatbotAPI = {
       if (year) params.year = year;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
-      
+
       const response = await aiAxiosClient.get("/api/analyst/report", { params });
-      
+
       return {
         success: response.data.success !== false,
         report_type: reportType,
@@ -533,9 +533,9 @@ export const aiChatbotAPI = {
       if (year) params.year = year;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
-      
+
       const response = await aiAxiosClient.get("/api/analyst/revenue", { params });
-      
+
       return {
         success: response.data.success !== false,
         data: response.data.data || {},
@@ -670,13 +670,13 @@ export class AIWebSocketClient {
     if (process.env.REACT_APP_ENABLE_WEBSOCKET !== 'true') {
       return; // Skip reconnection - WebSocket not supported
     }
-    
+
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       if (process.env.NODE_ENV === 'development') {
         console.log(`Reconnecting... attempt ${this.reconnectAttempts}`);
       }
-      
+
       setTimeout(() => {
         this.connect(sessionId).catch(() => {
           // Suppress error - WebSocket not supported

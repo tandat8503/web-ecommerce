@@ -32,13 +32,13 @@ export const listOrders = async (req, res) => {
   const context = { path: 'admin.orders.list' };
   try {
     logger.start(context.path, { query: req.query });
-    
+
     // Lấy tham số từ query string
     const { page = 1, limit = 10, status, q } = req.query;
-    
+
     // Xây dựng điều kiện lọc
     const whereConditions = [];
-    
+
     // Luôn filter để chỉ lấy orders có paymentMethod hợp lệ (COD hoặc VNPAY)
     // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
     whereConditions.push({
@@ -46,7 +46,7 @@ export const listOrders = async (req, res) => {
         in: ['COD', 'VNPAY']
       }
     });
-    
+
     // Lọc theo trạng thái (nếu có)
     if (status && status.trim() !== '') {
       const statusValue = status.trim().toUpperCase();
@@ -56,7 +56,7 @@ export const listOrders = async (req, res) => {
         whereConditions.push({ status: statusValue });
       }
     }
-    
+
     // Tìm kiếm theo số đơn hàng hoặc tên khách hàng (nếu có)
     if (q && q.trim() !== '') {
       const searchTerm = q.trim();
@@ -68,18 +68,18 @@ export const listOrders = async (req, res) => {
         ]
       });
     }
-    
+
     // Kết hợp tất cả điều kiện với AND
-    const finalWhere = whereConditions.length > 0 
+    const finalWhere = whereConditions.length > 0
       ? (whereConditions.length === 1 ? whereConditions[0] : { AND: whereConditions })
       : undefined;
-    
+
     // Log để debug (chỉ trong development)
     if (process.env.NODE_ENV !== 'production') {
-      logger.info('Order filter query', { 
-        status, 
-        q, 
-        finalWhere: JSON.stringify(finalWhere, null, 2) 
+      logger.info('Order filter query', {
+        status,
+        q,
+        finalWhere: JSON.stringify(finalWhere, null, 2)
       });
     }
 
@@ -152,9 +152,9 @@ export const listOrders = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -167,9 +167,9 @@ export const getOrder = async (req, res) => {
   const context = { path: 'admin.orders.get' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const id = Number(req.params.id);
-    
+
     // Lấy order và orderItems riêng để xử lý trường hợp product/variant bị xóa
     const order = await prisma.order.findUnique({
       where: { id },
@@ -180,7 +180,7 @@ export const getOrder = async (req, res) => {
         statusHistory: { orderBy: { createdAt: 'asc' } }
       }
     });
-    
+
     if (!order) {
       logger.warn('Order not found', { id });
       return res.status(404).json({ message: 'Not found' });
@@ -241,7 +241,7 @@ export const getOrder = async (req, res) => {
       shippingAddress: parsedShippingAddress, // Parse shippingAddress
       orderItems: orderItemsWithProducts
     };
-    
+
     logger.success('Order fetched', { id });
     logger.end(context.path, { id });
     return res.json(orderWithSafeItems);
@@ -251,9 +251,9 @@ export const getOrder = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -268,7 +268,7 @@ export const updateOrder = async (req, res) => {
   const context = { path: 'admin.orders.update' };
   try {
     logger.start(context.path, { id: req.params.id, status: req.body.status });
-    
+
     const id = Number(req.params.id);
     const { status } = req.body;
 
@@ -286,7 +286,7 @@ export const updateOrder = async (req, res) => {
     // Lấy thông tin đơn hàng hiện tại
     const currentOrder = await prisma.order.findUnique({
       where: { id },
-      select: { 
+      select: {
         status: true,
         userId: true, // Cần để gửi WebSocket
         paymentMethod: true, // Cần để tự động cập nhật paymentStatus cho COD
@@ -308,15 +308,15 @@ export const updateOrder = async (req, res) => {
 
     // Không cho phép cập nhật đơn đã giao hoặc đã hủy
     if (currentOrder.status === 'DELIVERED' || currentOrder.status === 'CANCELLED') {
-      return res.status(400).json({ 
-        message: `Không thể cập nhật đơn hàng với trạng thái: ${currentOrder.status}` 
+      return res.status(400).json({
+        message: `Không thể cập nhật đơn hàng với trạng thái: ${currentOrder.status}`
       });
     }
 
     // Không cho phép chọn trạng thái hiện tại
     if (status === currentOrder.status) {
-      return res.status(400).json({ 
-        message: `Đơn hàng đã có trạng thái: ${status}` 
+      return res.status(400).json({
+        message: `Đơn hàng đã có trạng thái: ${status}`
       });
     }
 
@@ -327,11 +327,11 @@ export const updateOrder = async (req, res) => {
       CONFIRMED: ['PROCESSING'],     // Đã xác nhận → Đang giao
       PROCESSING: ['DELIVERED']      // Đang giao → Đã giao
     };
-//Admin không được nhảy các trạng thái không hợp lệ
+    //Admin không được nhảy các trạng thái không hợp lệ
     const allowedStatuses = statusTransitions[currentOrder.status] || [];
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ 
-        message: `Không thể chuyển trạng thái từ ${currentOrder.status} sang ${status}` 
+      return res.status(400).json({
+        message: `Không thể chuyển trạng thái từ ${currentOrder.status} sang ${status}`
       });
     }
 
@@ -360,8 +360,8 @@ export const updateOrder = async (req, res) => {
               where: { id: item.variantId },
               data: { stockQuantity: { decrement: item.quantity } }
             });
-            logger.info('Trừ tồn kho khi xác nhận đơn', { 
-              variantId: item.variantId, 
+            logger.info('Trừ tồn kho khi xác nhận đơn', {
+              variantId: item.variantId,
               quantity: item.quantity,
               oldStock: currentStock,
               newStock: currentStock - item.quantity
@@ -377,7 +377,7 @@ export const updateOrder = async (req, res) => {
         updateData.paymentStatus = 'PAID';
         logger.info('Tự động cập nhật paymentStatus = PAID cho đơn COD đã giao', { orderId: id });
       }
-      
+
       const order = await tx.order.update({
         where: { id },
         data: updateData
@@ -434,7 +434,7 @@ export const updateOrder = async (req, res) => {
         }
 
         // Format shippingAddress thành string cho email
-        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+        const shippingAddressString = typeof shippingAddressParsed === 'object'
           ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
           : orderForEmail.shippingAddress;
 
@@ -496,9 +496,9 @@ export const updateOrder = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -514,13 +514,13 @@ export const cancelOrder = async (req, res) => {
   const context = { path: 'admin.orders.cancel' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const id = Number(req.params.id);
 
     // Lấy thông tin đơn hàng hiện tại
     const currentOrder = await prisma.order.findUnique({
       where: { id },
-      select: { 
+      select: {
         status: true,
         paymentStatus: true,
         userId: true,
@@ -541,8 +541,8 @@ export const cancelOrder = async (req, res) => {
 
     // Chỉ cho phép hủy đơn ở trạng thái PENDING hoặc CONFIRMED
     if (currentOrder.status !== 'PENDING' && currentOrder.status !== 'CONFIRMED') {
-      return res.status(400).json({ 
-        message: `Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED. Trạng thái hiện tại: ${currentOrder.status}` 
+      return res.status(400).json({
+        message: `Chỉ có thể hủy đơn hàng ở trạng thái PENDING hoặc CONFIRMED. Trạng thái hiện tại: ${currentOrder.status}`
       });
     }
 
@@ -551,7 +551,7 @@ export const cancelOrder = async (req, res) => {
       // 1. Cập nhật trạng thái đơn hàng thành CANCELLED
       const order = await tx.order.update({
         where: { id },
-        data: { 
+        data: {
           status: 'CANCELLED',
           paymentStatus: currentOrder.paymentStatus === 'PAID' ? 'PAID' : 'FAILED' // Giữ PAID nếu đã thanh toán thành công
         }
@@ -580,9 +580,9 @@ export const cancelOrder = async (req, res) => {
               where: { id: item.variantId },
               data: { stockQuantity: { increment: item.quantity } }
             });
-            logger.info('Hoàn trả tồn kho khi hủy đơn', { 
-              variantId: item.variantId, 
-              quantity: item.quantity 
+            logger.info('Hoàn trả tồn kho khi hủy đơn', {
+              variantId: item.variantId,
+              quantity: item.quantity
             });
           }
         }
@@ -634,7 +634,7 @@ export const cancelOrder = async (req, res) => {
         }
 
         // Format shippingAddress thành string cho email
-        const shippingAddressString = typeof shippingAddressParsed === 'object' 
+        const shippingAddressString = typeof shippingAddressParsed === 'object'
           ? `${shippingAddressParsed.fullName || ''}\n${shippingAddressParsed.phone || ''}\n${shippingAddressParsed.streetAddress || ''}\n${shippingAddressParsed.ward || ''}, ${shippingAddressParsed.district || ''}, ${shippingAddressParsed.city || ''}`
           : orderForEmail.shippingAddress;
 
@@ -673,9 +673,9 @@ export const cancelOrder = async (req, res) => {
 
     logger.success('Order cancelled', { id, oldStatus: currentOrder.status });
     logger.end(context.path, { id });
-    return res.json({ 
+    return res.json({
       message: 'Hủy đơn hàng thành công',
-      order: updated 
+      order: updated
     });
   } catch (error) {
     logger.error('Failed to cancel order', {
@@ -683,9 +683,9 @@ export const cancelOrder = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Lỗi server', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Lỗi server',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -698,7 +698,7 @@ export const updateOrderNotes = async (req, res) => {
   const context = { path: 'admin.orders.updateNotes' };
   try {
     logger.start(context.path, { id: req.params.id });
-    
+
     const id = Number(req.params.id);
     const { notes } = req.body;
 
@@ -724,9 +724,9 @@ export const updateOrderNotes = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -739,28 +739,45 @@ export const updateOrderNotes = async (req, res) => {
 export const getOrderStats = async (req, res) => {
   const context = { path: 'admin.orders.stats' };
   try {
-    logger.start(context.path, { period: req.query.period });
-    
-    const { period = '30d' } = req.query;
-    
-    // Tính ngày bắt đầu dựa trên period
+    logger.start(context.path, { period: req.query.period, startDate: req.query.startDate, endDate: req.query.endDate });
+
+    const { period = '7d', startDate: customStartDate, endDate: customEndDate } = req.query;
+
+    // Tính ngày bắt đầu và kết thúc
     const now = new Date();
-    let startDate;
-    switch (period) {
-      case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
-      case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
-      case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
-      case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
-      case 'all': startDate = null; break; // Lấy toàn bộ đơn hàng
-      default: startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    let startDate, endDate;
+
+    // Ưu tiên custom date range nếu được truyền
+    if (customStartDate && customEndDate) {
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+      // Set endDate to end of day
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Fallback to period preset
+      endDate = now;
+      switch (period) {
+        case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+        case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+        case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
+        case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+        case 'all': startDate = null; endDate = null; break;
+        default: startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
     }
 
     // Query đồng thời: tổng số đơn, doanh thu
-    const whereCondition = startDate ? { createdAt: { gte: startDate } } : {};
-    const whereConditionPaid = startDate 
-      ? { createdAt: { gte: startDate }, paymentStatus: 'PAID' }
-      : { paymentStatus: 'PAID' };
-    
+    let whereCondition = {};
+    let whereConditionPaid = { paymentStatus: 'PAID' };
+
+    if (startDate && endDate) {
+      whereCondition = { createdAt: { gte: startDate, lte: endDate } };
+      whereConditionPaid = { createdAt: { gte: startDate, lte: endDate }, paymentStatus: 'PAID' };
+    } else if (startDate) {
+      whereCondition = { createdAt: { gte: startDate } };
+      whereConditionPaid = { createdAt: { gte: startDate }, paymentStatus: 'PAID' };
+    }
+
     const [totalOrders, totalRevenue] = await Promise.all([
       // Đếm tổng số đơn trong khoảng thời gian (hoặc toàn bộ nếu period = 'all')
       prisma.order.count({ where: whereCondition }),
@@ -787,9 +804,9 @@ export const getOrderStats = async (req, res) => {
       error: error.message,
       stack: error.stack
     });
-    return res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV !== 'production' ? error.message : undefined 
+    return res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     });
   }
 };
@@ -815,36 +832,36 @@ export const getRevenueByCategory = async (req, res) => {
   try {
     logger.start(context.path, { period: req.query.period });
 
-    const { period = '30d' } = req.query; // Mặc định lấy 30 ngày gần nhất
+    const { period = '7d', startDate: customStartDate, endDate: customEndDate } = req.query;
 
-    // BƯỚC 1: Tính ngày bắt đầu dựa theo period
+    // BƯỚC 1: Tính ngày bắt đầu và kết thúc
     const now = new Date();
-    let startDate;
-    
-    switch (period) {
-      case '7d':  // 7 ngày gần nhất (tuần này)
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); 
-        break;
-      case '30d': // 30 ngày gần nhất (tháng này) - KHUYẾN NGHỊ
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); 
-        break;
-      case '90d': // 90 ngày gần nhất (quý này)
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); 
-        break;
-      case '1y':  // 1 năm gần nhất
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); 
-        break;
-      case 'all': // Toàn bộ lịch sử (từ khi shop hoạt động)
-        startDate = null; 
-        break;
-      default:    // Nếu không truyền gì, mặc định 30 ngày
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    let startDate, endDate;
+
+    // Ưu tiên custom date range nếu được truyền
+    if (customStartDate && customEndDate) {
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      endDate = now;
+      switch (period) {
+        case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+        case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+        case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
+        case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+        case 'all': startDate = null; endDate = null; break;
+        default: startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
     }
 
     // BƯỚC 2: Tạo điều kiện where cho query
-    const whereCondition = startDate 
-      ? { createdAt: { gte: startDate }, paymentStatus: 'PAID' } // Lấy đơn từ startDate đến hiện tại
-      : { paymentStatus: 'PAID' };                               // Lấy toàn bộ (nếu period = 'all')
+    let whereCondition = { paymentStatus: 'PAID' };
+    if (startDate && endDate) {
+      whereCondition = { createdAt: { gte: startDate, lte: endDate }, paymentStatus: 'PAID' };
+    } else if (startDate) {
+      whereCondition = { createdAt: { gte: startDate }, paymentStatus: 'PAID' };
+    }
 
     // BƯỚC 3: Lấy tất cả đơn hàng đã thanh toán trong khoảng thời gian
     // Chỉ lấy thông tin cần thiết: orderItems -> product -> category.name
@@ -873,7 +890,7 @@ export const getRevenueByCategory = async (req, res) => {
         if (item.product?.category) {//nếu sản phẩm có danh mục
           const categoryName = item.product.category.name;//lấy tên danh mục
           const itemRevenue = Number(item.totalPrice) || 0; //lấy tổng số tiền của sản phẩm trong bảng orderItem
-          
+
           // Cộng dồn vào tổng doanh thu của danh mục
           const currentRevenue = revenueMap.get(categoryName) || 0;
           //đơn đầu tiên thì currentRevenue = 0, itemRevenue là tổng số tiền của sản phẩm trong bảng orderItem
@@ -883,9 +900,9 @@ export const getRevenueByCategory = async (req, res) => {
     }
 
     // BƯỚC 5: Chuyển Map thành mảng và sắp xếp ,
-// entries là phương thức của Map trả về một mảng các mảng con, mỗi mảng con là một cặp key-value
+    // entries là phương thức của Map trả về một mảng các mảng con, mỗi mảng con là một cặp key-value
     const data = Array.from(revenueMap.entries())
-      .map(([category, revenue]) => ({ 
+      .map(([category, revenue]) => ({
         category,  // Tên danh mục (dùng cho xField trong Rose chart)
         revenue    // Doanh thu (dùng cho yField trong Rose chart)
       }))
@@ -925,42 +942,45 @@ export const getTopProducts = async (req, res) => {
   try {
     logger.start(context.path, { period: req.query.period, limit: req.query.limit });
 
-    const { period = '30d', limit = 10 } = req.query;
+    const { period = '7d', limit = 10, startDate: customStartDate, endDate: customEndDate } = req.query;
 
-    // BƯỚC 1: Tính ngày bắt đầu dựa theo period
+    // BƯỚC 1: Tính ngày bắt đầu và kết thúc
     const now = new Date();
-    let startDate;
-    
-    switch (period) {
-      case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        break;
-      case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case '90d':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-        break;
-      case '1y':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-        break;
-      case 'all':
-        startDate = null;
-        break;
-      default:
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    let startDate, endDate;
+
+    // Ưu tiên custom date range nếu được truyền
+    if (customStartDate && customEndDate) {
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      endDate = now;
+      switch (period) {
+        case '7d': startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+        case '30d': startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+        case '90d': startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); break;
+        case '1y': startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000); break;
+        case 'all': startDate = null; endDate = null; break;
+        default: startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
     }
 
     // BƯỚC 2: Tạo điều kiện where cho query
-    const baseCondition = startDate ? { createdAt: { gte: startDate } } : {};
-    const whereCondition = {//điều kiện lấy đơn hàng
-      ...baseCondition,//điều kiện thời gian
+    let dateCondition = {};
+    if (startDate && endDate) {
+      dateCondition = { createdAt: { gte: startDate, lte: endDate } };
+    } else if (startDate) {
+      dateCondition = { createdAt: { gte: startDate } };
+    }
+
+    const whereCondition = {
+      ...dateCondition,
       OR: [
-        { paymentStatus: 'PAID' },//đơn hàng đã thanh toán thành công bằng VNPay
-        { 
+        { paymentStatus: 'PAID' },
+        {
           AND: [
-            { status: 'DELIVERED' },//đơn hàng đã giao thành công
-            { paymentMethod: 'COD' }//đơn hàng đã thanh toán thành công bằng COD
+            { status: 'DELIVERED' },
+            { paymentMethod: 'COD' }
           ]
         }
       ]
@@ -995,7 +1015,7 @@ export const getTopProducts = async (req, res) => {
     // BƯỚC 6: Lấy tên sản phẩm (chỉ lấy sản phẩm đang ACTIVE)
     const productIds = topProducts.map(p => p.productId);//lấy id sản phẩm
     const products = await prisma.product.findMany({
-      where: { 
+      where: {
         id: { in: productIds },
         status: 'ACTIVE' // Chỉ lấy sản phẩm đang hoạt động
       },

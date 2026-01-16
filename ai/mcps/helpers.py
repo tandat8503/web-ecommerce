@@ -1,30 +1,23 @@
 #!/usr/bin/env python3
 """
-Helper functions for MCP tools (without decorators)
-These can be imported without triggering FastMCP parsing
+Helper functions for MCP tools
+Cleaned up version - only keeping actively used helpers
 """
 
 import asyncio
 import json
 import logging
+import re
 from typing import List, Dict, Any, Optional
 
 from core.db import get_conn, release_conn
 from services.chatbot.search import ProductSearchService
-from services.sentiment.service import SentimentService
-from services.analyst.service import AnalystService
-from services.moderation.service import ModerationService
-from services.report.service import ReportGeneratorService
-from core.utils import safe_json_parse
+from core.utils import safe_json_parse, normalize_dimension_to_mm
 
 logger = logging.getLogger(__name__)
 
 # Initialize services
 product_search_service = ProductSearchService()
-sentiment_service = SentimentService()
-analyst_service = AnalystService()
-moderation_service = ModerationService()
-report_generator_service = ReportGeneratorService()
 
 
 async def search_products_helper(
@@ -35,178 +28,225 @@ async def search_products_helper(
     category: Optional[str] = None,
     attributes: Optional[Dict[str, Any]] = None
 ) -> str:
-    """Helper function for product search (without MCP decorator)"""
+    """
+    Search products using SQL with optimized query matching.
+    
+    Args:
+        query: Search query string
+        limit: Maximum number of results
+        min_price: Minimum price filter
+        max_price: Maximum price filter
+        category: Category filter
+        attributes: Additional attributes (size, color, material)
+    
+    Returns:
+        JSON string with search results
+    """
     conn = None
     try:
         conn = await get_conn()
         
-        # For product searches, prefer SQL search for better accuracy with specific queries
-        # Vector search is better for semantic similarity, but SQL is better for exact matches
-        # Use SQL search by default, vector search only for very semantic queries
-        use_vector_search = False  # Disable vector search for now - SQL is more reliable for specific product queries
+        logger.info(f"[SEARCH] Query: '{query}', Price: {min_price}-{max_price}, Category: {category}")
         
-        products = []
-        if use_vector_search:
-            try:
-                await product_search_service.build_from_db(conn)
-                products = product_search_service.search(query, top_k=limit * 2)  # Get more results for filtering
-                logger.info(f"Vector search returned {len(products)} products for query: '{query}'")
-            except Exception as e:
-                logger.warning(f"Vector search failed, falling back to SQL: {e}")
-                products = []
+        products = await _sql_product_search(
+            conn, query, limit, min_price, max_price, category, attributes
+        )
         
-        # Always use SQL search for better accuracy with specific product queries
-        if not products or not use_vector_search:
-            logger.info(f"Using SQL search for query: '{query}' (min_price={min_price}, max_price={max_price}, category={category})")
-            products = await _sql_product_search_fallback(conn, query, limit, min_price, max_price, category, attributes)
-            logger.info(f"SQL search returned {len(products)} products for query: '{query}'")
-            if products:
-                logger.info(f"Top products: {[p.get('name', 'N/A') for p in products[:3]]}")
+        logger.info(f"[SEARCH] Found {len(products)} products")
         
-        result = {
+        return json.dumps({
             "success": True,
             "products": products,
             "total_count": len(products),
             "query": query
-        }
-        
-        return json.dumps(result)
+        }, ensure_ascii=False)
         
     except Exception as e:
-        logger.error(f"Error in product search: {e}")
+        logger.error(f"[SEARCH] Error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
             "products": [],
             "total_count": 0,
             "query": query
-        })
+        }, ensure_ascii=False)
     finally:
         if conn:
             await release_conn(conn)
 
 
-async def analyze_sentiment_helper(
-    texts: List[str],
-    product_id: Optional[int] = None
-) -> str:
-    """Helper function for sentiment analysis"""
+async def get_product_details_helper(product_name_or_id: str) -> str:
+    """
+    Get detailed product information by name or ID.
+    
+    Args:
+        product_name_or_id: Product name (partial match) or product ID
+    
+    Returns:
+        JSON string with product details including specs
+    """
     conn = None
     try:
         conn = await get_conn()
-        results = await sentiment_service.analyze_texts(conn, texts)
-        
-        total_texts = len(texts)
-        positive_count = sum(1 for r in results if r.get('sentiment') == 'positive')
-        negative_count = sum(1 for r in results if r.get('sentiment') == 'negative')
-        neutral_count = total_texts - positive_count - negative_count
-        
-        summary = {
-            "total_texts": total_texts,
-            "positive": positive_count,
-            "negative": negative_count,
-            "neutral": neutral_count,
-            "positive_rate": (positive_count / total_texts * 100) if total_texts > 0 else 0,
-            "negative_rate": (negative_count / total_texts * 100) if total_texts > 0 else 0
-        }
-        
-        result = {
-            "success": True,
-            "results": results,
-            "summary": summary
-        }
-        
-        return json.dumps(result)
-        
+        async with conn.cursor() as cur:
+            is_id = product_name_or_id.isdigit()
+            
+            if is_id:
+                # Search by ID
+                await cur.execute("""
+                    SELECT 
+                        p.id, p.name, p.description, p.price, p.sale_price,
+                        p.slug, p.image_url, p.view_count,
+                        c.name as category_name, c.slug as category_slug,
+                        b.name as brand_name,
+                        GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                        GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
+                    FROM products p
+                    LEFT JOIN categories c ON p.category_id = c.id
+                    LEFT JOIN brands b ON p.brand_id = b.id
+                    LEFT JOIN product_variants pv ON p.id = pv.product_id
+                    WHERE p.id = %s AND p.status = 'ACTIVE'
+                    GROUP BY p.id
+                    LIMIT 1
+                """, (int(product_name_or_id),))
+            else:
+                # Check if input is a model code (F42, EU01, etc.)
+                model_code_match = re.match(r'^([A-Z]{1,3}\d{1,3})$', product_name_or_id.upper())
+                
+                if model_code_match:
+                    model_code = model_code_match.group(1)
+                    logger.info(f"[PRODUCT_DETAIL] Searching by model code: {model_code}")
+                    
+                    await cur.execute("""
+                        SELECT 
+                            p.id, p.name, p.description, p.price, p.sale_price,
+                            p.slug, p.image_url, p.view_count,
+                            c.name as category_name, c.slug as category_slug,
+                            b.name as brand_name,
+                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        LEFT JOIN brands b ON p.brand_id = b.id
+                        LEFT JOIN product_variants pv ON p.id = pv.product_id
+                        WHERE p.status = 'ACTIVE' AND (
+                            p.name LIKE %s OR p.name LIKE %s OR p.name LIKE %s
+                        )
+                        GROUP BY p.id
+                        ORDER BY 
+                            CASE WHEN p.name LIKE %s THEN 1 
+                                 WHEN p.name LIKE %s THEN 2
+                                 ELSE 3 END,
+                            p.view_count DESC
+                        LIMIT 1
+                    """, (
+                        f"% {model_code}%", f"%{model_code} %", f"%{model_code}%",
+                        f"% {model_code}%", f"%{model_code} %"
+                    ))
+                else:
+                    # Search by name with keyword matching
+                    keywords = [kw.strip() for kw in product_name_or_id.split() if kw.strip()]
+                    if not keywords:
+                        keywords = [product_name_or_id]
+                    
+                    # Build dynamic WHERE clause
+                    like_clauses = []
+                    params = []
+                    for kw in keywords:
+                        like_clauses.append("(p.name LIKE %s OR p.description LIKE %s OR p.slug LIKE %s)")
+                        kw_param = f"%{kw}%"
+                        params.extend([kw_param, kw_param, kw_param])
+                    
+                    where_sql = " AND ".join(like_clauses)
+                    order_param = f"%{keywords[0] if keywords else product_name_or_id}%"
+                    
+                    sql = f"""
+                        SELECT 
+                            p.id, p.name, p.description, p.price, p.sale_price,
+                            p.slug, p.image_url, p.view_count,
+                            c.name as category_name, c.slug as category_slug,
+                            b.name as brand_name,
+                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
+                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
+                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
+                        FROM products p
+                        LEFT JOIN categories c ON p.category_id = c.id
+                        LEFT JOIN brands b ON p.brand_id = b.id
+                        LEFT JOIN product_variants pv ON p.id = pv.product_id
+                        WHERE p.status = 'ACTIVE' AND ({where_sql})
+                        GROUP BY p.id
+                        ORDER BY 
+                            CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
+                            p.view_count DESC
+                        LIMIT 1
+                    """
+                    params.append(order_param)
+                    await cur.execute(sql, params)
+            
+            row = await cur.fetchone()
+            
+            if not row:
+                return json.dumps({
+                    "success": False,
+                    "error": "Không tìm thấy sản phẩm",
+                    "product_name_or_id": product_name_or_id
+                }, ensure_ascii=False)
+            
+            # Calculate final price
+            price = float(row[3]) if row[3] else 0.0
+            sale_price = float(row[4]) if row[4] else None
+            final_price = sale_price if sale_price else price
+            
+            product_detail = {
+                "success": True,
+                "product": {
+                    "id": row[0],
+                    "name": row[1],
+                    "description": row[2] or "",
+                    "price": price,
+                    "sale_price": sale_price,
+                    "final_price": final_price,
+                    "slug": row[5] or "",
+                    "image_url": row[6] or "",
+                    "view_count": row[7] or 0,
+                    "category": row[8] or "",
+                    "category_slug": row[9] or "",
+                    "brand": row[10] or "",
+                    "specs": {
+                        "materials": row[11] or "",
+                        "dimensions": row[12] or "",
+                        "colors": row[13] or ""
+                    }
+                }
+            }
+            
+            logger.info(f"[PRODUCT_DETAIL] Found: {product_detail['product']['name']}")
+            return json.dumps(product_detail, ensure_ascii=False)
+            
     except Exception as e:
-        logger.error(f"Error in sentiment analysis: {e}")
+        logger.error(f"[PRODUCT_DETAIL] Error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
-            "results": [],
-            "summary": {}
-        })
+            "product_name_or_id": product_name_or_id
+        }, ensure_ascii=False)
     finally:
         if conn:
             await release_conn(conn)
 
 
-async def summarize_sentiment_by_product_helper(
-    product_id: Optional[int] = None
-) -> str:
-    """Helper function for sentiment summary"""
-    conn = None
-    try:
-        conn = await get_conn()
-        summary_data = await sentiment_service.summarize_by_product(conn, product_id)
-        
-        result = {
-            "success": True,
-            "products": summary_data.get("products", []),
-            "overall": summary_data.get("overall", {})
-        }
-        
-        return json.dumps(result)
-        
-    except Exception as e:
-        logger.error(f"Error in sentiment summary: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "products": [],
-            "overall": {}
-        })
-    finally:
-        if conn:
-            await release_conn(conn)
-
-
-async def get_revenue_analytics_helper(
-    month: Optional[int] = None,
-    year: Optional[int] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-) -> str:
-    """Helper function for revenue analytics"""
-    conn = None
-    try:
-        conn = await get_conn()
-        revenue_data = await analyst_service.get_revenue(conn, month=month, year=year)
-        
-        period = {
-            "month": month,
-            "year": year,
-            "start_date": start_date,
-            "end_date": end_date
-        }
-        
-        result = {
-            "success": True,
-            "revenue_data": revenue_data,
-            "summary": revenue_data.get("summary", {}),
-            "period": period
-        }
-        
-        return json.dumps(result)
-        
-    except Exception as e:
-        logger.error(f"Error in revenue analysis: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "revenue_data": {},
-            "summary": {},
-            "period": {}
-        })
-    finally:
-        if conn:
-            await release_conn(conn)
-
-
-async def get_sales_performance_helper(
-    days: int = 30
-) -> str:
-    """Helper function for sales performance"""
+async def get_sales_performance_helper(days: int = 30) -> str:
+    """
+    Get sales performance metrics for the specified period.
+    
+    Args:
+        days: Number of days to analyze
+    
+    Returns:
+        JSON string with sales performance data
+    """
     conn = None
     try:
         conn = await get_conn()
@@ -214,14 +254,14 @@ async def get_sales_performance_helper(
         async with conn.cursor() as cur:
             await cur.execute("""
                 SELECT 
-                    DATE_FORMAT(o.created_at, '%Y-%m-%d') as date,
+                    DATE_FORMAT(o.created_at, '%%Y-%%m-%%d') as date,
                     COUNT(DISTINCT o.id) as total_orders,
                     COUNT(DISTINCT o.user_id) as unique_customers,
                     SUM(o.total_amount) as total_revenue,
                     AVG(o.total_amount) as avg_order_value
                 FROM orders o
                 WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-                GROUP BY DATE_FORMAT(o.created_at, '%Y-%m-%d')
+                GROUP BY DATE_FORMAT(o.created_at, '%%Y-%%m-%%d')
                 ORDER BY date DESC
             """, (days,))
             
@@ -253,31 +293,35 @@ async def get_sales_performance_helper(
             "daily_avg_orders": total_orders / days if days > 0 else 0
         }
         
-        result = {
+        return json.dumps({
             "success": True,
             "performance_data": performance_data,
             "summary": summary
-        }
-        
-        return json.dumps(result)
+        }, ensure_ascii=False)
         
     except Exception as e:
-        logger.error(f"Error in sales performance: {e}")
+        logger.error(f"[SALES_PERF] Error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
             "performance_data": [],
             "summary": {}
-        })
+        }, ensure_ascii=False)
     finally:
         if conn:
             await release_conn(conn)
 
 
-async def get_product_metrics_helper(
-    limit: int = 20
-) -> str:
-    """Helper function for product metrics"""
+async def get_product_metrics_helper(limit: int = 20) -> str:
+    """
+    Get product performance metrics.
+    
+    Args:
+        limit: Maximum number of products to return
+    
+    Returns:
+        JSON string with product metrics
+    """
     conn = None
     try:
         conn = await get_conn()
@@ -309,7 +353,7 @@ async def get_product_metrics_helper(
                     "id": row[0],
                     "name": row[1],
                     "price": float(row[2]),
-                    "view_count": row[3],
+                    "view_count": row[3] or 0,
                     "order_count": row[4] or 0,
                     "total_quantity": row[5] or 0,
                     "total_revenue": float(row[6] or 0),
@@ -318,153 +362,30 @@ async def get_product_metrics_helper(
                 for row in rows
             ]
         
-        result = {
+        return json.dumps({
             "success": True,
             "product_metrics": product_metrics,
             "total_products": len(product_metrics)
-        }
-        
-        return json.dumps(result)
+        }, ensure_ascii=False)
         
     except Exception as e:
-        logger.error(f"Error in product metrics: {e}")
+        logger.error(f"[PRODUCT_METRICS] Error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
             "product_metrics": [],
             "total_products": 0
-        })
+        }, ensure_ascii=False)
     finally:
         if conn:
             await release_conn(conn)
 
 
-async def generate_report_helper(
-    report_type: str = "summary",
-    month: Optional[int] = None,
-    year: Optional[int] = None,
-    include_sentiment: bool = True,
-    include_revenue: bool = True
-) -> str:
-    """Helper function for report generation"""
-    conn = None
-    try:
-        conn = await get_conn()
-        
-        report_data = {
-            "report_type": report_type,
-            "generated_at": asyncio.get_event_loop().time(),
-            "period": {
-                "month": month,
-                "year": year
-            }
-        }
-        
-        if include_revenue:
-            revenue_data = await analyst_service.get_revenue(conn, month=month, year=year)
-            report_data["revenue"] = revenue_data
-        
-        if include_sentiment:
-            sentiment_data = await sentiment_service.summarize_by_product(conn)
-            report_data["sentiment"] = sentiment_data
-        
-        report_url = f"/reports/{report_type}?month={month}&year={year}"
-        
-        result = {
-            "success": True,
-            "report_url": report_url,
-            "report_data": report_data
-        }
-        
-        return json.dumps(result)
-        
-    except Exception as e:
-        logger.error(f"Error in report generation: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "report_url": None,
-            "report_data": {}
-        })
-    finally:
-        if conn:
-            await release_conn(conn)
+# =============================================================================
+# PRIVATE SQL SEARCH HELPER
+# =============================================================================
 
-
-async def generate_html_report_helper(
-    report_type: str,
-    data: str,
-    title: Optional[str] = None,
-    period: Optional[str] = None
-) -> str:
-    """Helper function for HTML report generation"""
-    try:
-        logger.info(f"Generating {report_type} HTML report for period: {period}")
-        
-        data_dict = safe_json_parse(data) if isinstance(data, str) else data
-        
-        result = await report_generator_service.generate_html_report(
-            report_type=report_type,
-            data=data_dict,
-            title=title,
-            period=period
-        )
-        
-        logger.info(f"HTML report generated successfully, insights: {len(result.get('insights', []))}")
-        
-        return json.dumps(result, ensure_ascii=False)
-        
-    except Exception as e:
-        logger.error(f"Error in generate_html_report tool: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "html": f"<html><body><h1>Lỗi: {str(e)}</h1></body></html>",
-            "summary": f"Lỗi tạo báo cáo: {str(e)}",
-            "insights": [],
-            "recommendations": [],
-            "charts_data": {},
-            "generated_at": ""
-        }, ensure_ascii=False)
-
-
-async def moderate_content_helper(
-    content: str,
-    content_type: str = "comment",
-    product_id: Optional[int] = None,
-    user_id: Optional[int] = None
-) -> str:
-    """Helper function for content moderation"""
-    try:
-        logger.info(f"Moderating {content_type} content, length: {len(content)}")
-        
-        result = await moderation_service.moderate_content(
-            content=content,
-            content_type=content_type,
-            product_id=product_id,
-            user_id=user_id
-        )
-        
-        logger.info(f"Moderation result: {result.get('suggested_action')}, violations: {result.get('violations')}")
-        
-        return json.dumps(result, ensure_ascii=False)
-        
-    except Exception as e:
-        logger.error(f"Error in moderate_content tool: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "is_appropriate": True,
-            "violations": [],
-            "severity": "low",
-            "confidence": 0.0,
-            "suggested_action": "review",
-            "explanation": f"Lỗi kiểm duyệt: {str(e)}",
-            "moderated_content": content
-        }, ensure_ascii=False)
-
-
-async def _sql_product_search_fallback(
+async def _sql_product_search(
     conn, 
     query: str, 
     limit: int, 
@@ -474,8 +395,7 @@ async def _sql_product_search_fallback(
     attributes: Optional[Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Optimized SQL search without dangerous exclusions
-    Let search engine rank products, don't manually exclude categories
+    Optimized SQL product search with fuzzy matching.
     """
     try:
         async with conn.cursor() as cur:
@@ -483,105 +403,76 @@ async def _sql_product_search_fallback(
             params = []
             query_lower = query.lower().strip()
             
-            # --- PHẦN 1: TÌM KIẾM TEXT (FULLTEXT + LIKE) ---
-            # Cải thiện: Tách query thành các từ và tìm từng từ riêng lẻ để xử lý typo
-            # Ví dụ: "bàn smark desk" -> tìm "bàn" OR "smark" OR "smart" OR "desk"
-            # Sẽ tìm được "Smart Desk" vì có "desk" và "smart" (sau khi normalize)
-            
+            # --- TEXT SEARCH ---
             if len(query_lower) > 0:
-                # Normalize một số typo phổ biến
+                # Common typo corrections
                 typo_corrections = {
                     "smark": "smart",
                     "smrt": "smart",
-                    "desk": "desk",  # giữ nguyên
-                    "ban": "bàn",  # nếu có thể
+                    "dek": "desk",
+                    "ban": "bàn",
                 }
                 
-                # Tách query thành các từ (loại bỏ khoảng trắng thừa)
+                # Split query into words
                 query_words_raw = [w.strip() for w in query_lower.split() if len(w.strip()) > 1]
                 
-                # Thêm các từ đã được normalize
+                # Add corrected words
                 query_words = []
                 for word in query_words_raw:
-                    query_words.append(word)  # Thêm từ gốc
-                    # Thêm từ đã được normalize nếu có
+                    query_words.append(word)
                     if word in typo_corrections:
                         corrected = typo_corrections[word]
                         if corrected not in query_words:
                             query_words.append(corrected)
                 
-                # Nếu query có nhiều từ, tìm từng từ riêng lẻ (OR logic)
-                # Điều này giúp tìm được sản phẩm ngay cả khi có typo
                 if len(query_words) > 1:
-                    # Tạo điều kiện cho mỗi từ: sản phẩm phải chứa ÍT NHẤT 1 từ
+                    # Multi-word search: OR logic for flexibility
                     word_clauses = []
                     for word in query_words:
                         word_param = f"%{word}%"
-                        word_clauses.append(f"(p.name LIKE %s OR p.description LIKE %s)")
+                        word_clauses.append("(p.name LIKE %s OR p.description LIKE %s)")
                         params.extend([word_param, word_param])
                     
-                    # Thêm tìm trong variants
-                    variant_word_clauses = []
-                    for word in query_words:
-                        word_param = f"%{word}%"
-                        variant_word_clauses.append(f"(pv_text.material LIKE %s OR pv_text.color LIKE %s)")
-                        params.extend([word_param, word_param])
-                    
-                    # Kết hợp: Tìm trong name/description HOẶC trong variants
-                    text_search_clauses = [
-                        f"({' OR '.join(word_clauses)})",
-                        f"EXISTS (SELECT 1 FROM product_variants pv_text WHERE pv_text.product_id = p.id AND pv_text.is_active = 1 AND ({' OR '.join(variant_word_clauses)}))"
-                    ]
-                    where_conditions.append(f"({' OR '.join(text_search_clauses)})")
+                    where_conditions.append(f"({' OR '.join(word_clauses)})")
                 else:
-                    # Query chỉ có 1 từ, tìm như cũ
-                    text_search_clauses = [
-                        "p.name LIKE %s",
-                        "p.description LIKE %s", 
-                        "EXISTS (SELECT 1 FROM product_variants pv_text WHERE pv_text.product_id = p.id AND pv_text.is_active = 1 AND (pv_text.material LIKE %s OR pv_text.color LIKE %s))"
-                    ]
+                    # Single word search
                     search_param = f"%{query_lower}%"
-                    where_conditions.append(f"({' OR '.join(text_search_clauses)})")
-                    params.extend([search_param, search_param, search_param, search_param])
-
-            # --- PHẦN 2: TÌM KIẾM THEO THUỘC TÍNH (ATTRIBUTES) ---
+                    where_conditions.append(
+                        "(p.name LIKE %s OR p.description LIKE %s)"
+                    )
+                    params.extend([search_param, search_param])
+            
+            # --- ATTRIBUTE FILTERS ---
             if attributes:
-                variant_conditions = []
-                
-                # Xử lý Size (Quan trọng)
                 if attributes.get("size"):
-                    size_raw = attributes["size"]
-                    from core.utils import normalize_dimension_to_mm
-                    size_mm = normalize_dimension_to_mm(size_raw)
-                    
+                    size_mm = normalize_dimension_to_mm(attributes["size"])
                     if size_mm:
-                        # Tìm chính xác hoặc LIKE prefix (VD: 1200 matches 1200)
-                        # Tìm cả ở chiều rộng (Width) và chiều sâu (Depth)
-                        variant_conditions.append("(pv.width = %s OR pv.depth = %s OR pv.width LIKE %s)")
-                        params.extend([size_mm, size_mm, f"{size_mm}%"])
-                        logger.info(f"Searching for size: {size_raw} -> normalized to {size_mm}mm")
+                        where_conditions.append(
+                            "EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1 AND (pv.width = %s OR pv.depth = %s))"
+                        )
+                        params.extend([size_mm, size_mm])
                 
                 if attributes.get("color"):
-                    color = attributes["color"].lower()
-                    variant_conditions.append("pv.color LIKE %s")
-                    params.append(f"%{color}%")
+                    where_conditions.append(
+                        "EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1 AND pv.color LIKE %s)"
+                    )
+                    params.append(f"%{attributes['color'].lower()}%")
                 
                 if attributes.get("material"):
-                    material = attributes["material"].lower()
-                    variant_conditions.append("pv.material LIKE %s")
-                    params.append(f"%{material}%")
-                
-                if variant_conditions:
-                    # Gắn điều kiện variant vào query chính
-                    where_conditions.append(f"EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1 AND ({' AND '.join(variant_conditions)}))")
-
-            # --- PHẦN 3: CÁC FILTER CỐ ĐỊNH ---
+                    where_conditions.append(
+                        "EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id AND pv.is_active = 1 AND pv.material LIKE %s)"
+                    )
+                    params.append(f"%{attributes['material'].lower()}%")
+            
+            # --- CATEGORY FILTER ---
             if category:
                 where_conditions.append("c.name LIKE %s")
                 params.append(f"%{category}%")
             
+            # --- STATUS FILTER ---
             where_conditions.append("p.status = 'ACTIVE'")
             
+            # --- PRICE FILTERS ---
             if min_price is not None:
                 where_conditions.append("COALESCE(p.sale_price, p.price) >= %s")
                 params.append(min_price)
@@ -592,20 +483,6 @@ async def _sql_product_search_fallback(
             
             # --- BUILD QUERY ---
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
-            
-            # Order by: Ưu tiên sản phẩm có nhiều từ khóa khớp hơn -> Tên khớp chính xác -> Giá trị view cao
-            # Tính điểm relevance: sản phẩm có nhiều từ trong query khớp sẽ được ưu tiên
-            query_words = [w.strip() for w in query_lower.split() if len(w.strip()) > 1]
-            
-            # Tính điểm relevance dựa trên số từ khớp
-            relevance_score = "0"
-            if len(query_words) > 0:
-                # Đếm số từ trong query xuất hiện trong tên sản phẩm
-                relevance_parts = []
-                for word in query_words:
-                    relevance_parts.append(f"CASE WHEN p.name LIKE %s THEN 1 ELSE 0 END")
-                    params.append(f"%{word}%")
-                relevance_score = f"({' + '.join(relevance_parts)})"
             
             query_sql = f"""
                 SELECT DISTINCT
@@ -619,24 +496,18 @@ async def _sql_product_search_fallback(
                     p.sale_price,
                     c.name as category_name,
                     c.slug as category_slug,
-                    b.name as brand_name,
-                    (SELECT GROUP_CONCAT(CONCAT(pv2.width, 'x', pv2.depth) SEPARATOR '; ') 
-                     FROM product_variants pv2 
-                     WHERE pv2.product_id = p.id AND pv2.is_active = 1
-                     LIMIT 3) as dimensions
+                    b.name as brand_name
                 FROM products p
                 LEFT JOIN categories c ON p.category_id = c.id
                 LEFT JOIN brands b ON p.brand_id = b.id
                 WHERE {where_clause}
                 ORDER BY 
-                    {relevance_score} DESC,
                     CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
                     p.view_count DESC
                 LIMIT %s
             """
             
-            # Params cho Order by và Limit
-            params.append(f"%{query_lower}%") 
+            params.append(f"%{query_lower}%")
             params.append(limit)
             
             await cur.execute(query_sql, params)
@@ -647,208 +518,18 @@ async def _sql_product_search_fallback(
                     "id": row[0],
                     "name": row[1],
                     "price": float(row[2]),
-                    "description": row[3] or "",
+                    "description": (row[3] or "")[:200],  # Truncate for performance
                     "slug": row[4] or "",
                     "image_url": row[5],
                     "final_price": float(row[6]) if row[6] else float(row[2]),
                     "sale_price": float(row[7]) if row[7] else None,
                     "category": row[8] or "",
                     "category_slug": row[9] or "",
-                    "brand": row[10] or "",
-                    "variant_info": row[11] or ""  # Trả về kích thước để hiển thị cho user biết tại sao tìm thấy
+                    "brand": row[10] or ""
                 }
                 for row in rows
             ]
             
     except Exception as e:
-        logger.error(f"Error in SQL search: {e}", exc_info=True)
+        logger.error(f"[SQL_SEARCH] Error: {e}", exc_info=True)
         return []
-
-
-async def get_product_details_helper(product_name_or_id: str) -> str:
-    """
-    Lấy thông tin chi tiết đầy đủ của sản phẩm để trả lời về cấu hình/thông số
-    
-    Args:
-        product_name_or_id: Tên sản phẩm (có thể là một phần) hoặc ID sản phẩm
-    
-    Returns:
-        JSON string với thông tin chi tiết sản phẩm
-    """
-    conn = None
-    try:
-        conn = await get_conn()
-        async with conn.cursor() as cur:
-            # Tìm sản phẩm khớp tên nhất hoặc theo ID
-            # Thử tìm theo ID trước (nếu là số)
-            is_id = product_name_or_id.isdigit()
-            
-            if is_id:
-                await cur.execute("""
-                    SELECT 
-                        p.id, p.name, p.description, p.price, p.sale_price,
-                        p.slug, p.image_url, p.view_count,
-                        c.name as category_name, c.slug as category_slug,
-                        b.name as brand_name,
-                        GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
-                        GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
-                        GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
-                    FROM products p
-                    LEFT JOIN categories c ON p.category_id = c.id
-                    LEFT JOIN brands b ON p.brand_id = b.id
-                    LEFT JOIN product_variants pv ON p.id = pv.product_id
-                    WHERE p.id = %s AND p.status = 'ACTIVE'
-                    GROUP BY p.id
-                    LIMIT 1
-                """, (int(product_name_or_id),))
-            else:
-                # Tìm theo tên (LIKE search) hoặc model code
-                # Strategy: 
-                # 1. Tìm exact match trong tên (ưu tiên cao nhất)
-                # 2. Tìm model code trong tên (như "F42" trong "Smart Desk Gtech F42")
-                # 3. Tìm partial match trong tên hoặc description
-                
-                import re
-                # Check if input looks like a model code (F42, EU01, CL14, etc.)
-                model_code_match = re.match(r'^([A-Z]{1,3}\d{1,3})$', product_name_or_id.upper())
-                is_model_code = bool(model_code_match)
-                
-                if is_model_code:
-                    model_code = model_code_match.group(1)
-                    logger.info(f"Searching for model code: {model_code}")
-                    # Tìm sản phẩm có model code trong tên (ví dụ: "F42" trong "Smart Desk Gtech F42")
-                    # Ưu tiên: space before model code > space after > anywhere
-                    await cur.execute("""
-                        SELECT 
-                            p.id, p.name, p.description, p.price, p.sale_price,
-                            p.slug, p.image_url, p.view_count,
-                            c.name as category_name, c.slug as category_slug,
-                            b.name as brand_name,
-                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
-                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
-                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
-                        FROM products p
-                        LEFT JOIN categories c ON p.category_id = c.id
-                        LEFT JOIN brands b ON p.brand_id = b.id
-                        LEFT JOIN product_variants pv ON p.id = pv.product_id
-                        WHERE p.status = 'ACTIVE'
-                          AND (
-                              p.name LIKE %s OR 
-                              p.name LIKE %s OR
-                              p.name LIKE %s
-                          )
-                        GROUP BY p.id
-                        ORDER BY 
-                            CASE WHEN p.name LIKE %s THEN 1 
-                                 WHEN p.name LIKE %s THEN 2
-                                 WHEN p.name LIKE %s THEN 3
-                                 ELSE 4 END,
-                            p.view_count DESC
-                        LIMIT 1
-                    """, (
-                        f"% {model_code}%",  # Best match: space before model code (e.g., "Gtech F42")
-                        f"%{model_code} %",  # Model code with space after
-                        f"%{model_code}%",   # Model code anywhere in name
-                        f"% {model_code}%",  # For ORDER BY
-                        f"%{model_code} %",  # For ORDER BY
-                        f"%{model_code}%"    # For ORDER BY
-                    ))
-                else:
-                    # Tìm theo tên (LIKE search) cải tiến với fuzzy search
-                    # Tách từ khóa để tìm kiếm linh hoạt hơn
-                    # Ví dụ: "Smart F42" -> Tìm sản phẩm có cả "Smart" VÀ "F42"
-                    keywords = [kw.strip() for kw in product_name_or_id.split() if kw.strip()]
-                    
-                    if not keywords:
-                        # Nếu không có từ khóa, tìm theo toàn bộ chuỗi
-                        keywords = [product_name_or_id]
-                    
-                    # Xây dựng query động: name LIKE %kw1% AND name LIKE %kw2% ...
-                    # Sử dụng AND để đảm bảo tất cả từ khóa đều có trong tên sản phẩm
-                    like_clauses = []
-                    params = []
-                    
-                    for kw in keywords:
-                        # Tìm trong name, description, và slug
-                        like_clauses.append("(p.name LIKE %s OR p.description LIKE %s OR p.slug LIKE %s)")
-                        kw_param = f"%{kw}%"
-                        params.extend([kw_param, kw_param, kw_param])
-                    
-                    where_sql = " AND ".join(like_clauses)
-                    
-                    # Thêm params cho ORDER BY (ưu tiên exact match trong name)
-                    order_by_params = []
-                    for kw in keywords:
-                        order_by_params.append(f"%{kw}%")
-                    
-                    sql = f"""
-                        SELECT 
-                            p.id, p.name, p.description, p.price, p.sale_price,
-                            p.slug, p.image_url, p.view_count,
-                            c.name as category_name, c.slug as category_slug,
-                            b.name as brand_name,
-                            GROUP_CONCAT(DISTINCT pv.material SEPARATOR ', ') as materials,
-                            GROUP_CONCAT(DISTINCT CONCAT(pv.width, 'x', pv.depth, 'x', pv.height) SEPARATOR '; ') as dimensions,
-                            GROUP_CONCAT(DISTINCT pv.color SEPARATOR ', ') as colors
-                        FROM products p
-                        LEFT JOIN categories c ON p.category_id = c.id
-                        LEFT JOIN brands b ON p.brand_id = b.id
-                        LEFT JOIN product_variants pv ON p.id = pv.product_id
-                        WHERE p.status = 'ACTIVE' AND ({where_sql})
-                        GROUP BY p.id
-                        ORDER BY 
-                            CASE WHEN p.name LIKE %s THEN 1 ELSE 2 END,
-                            p.view_count DESC
-                        LIMIT 1
-                    """
-                    
-                    # Combine params: WHERE clauses + ORDER BY
-                    all_params = params + [order_by_params[0] if order_by_params else f"%{product_name_or_id}%"]
-                    
-                    await cur.execute(sql, all_params)
-            
-            row = await cur.fetchone()
-            
-            if not row:
-                return json.dumps({
-                    "success": False, 
-                    "error": "Không tìm thấy sản phẩm",
-                    "product_name_or_id": product_name_or_id
-                }, ensure_ascii=False)
-            
-            # Build product detail dictionary
-            product_detail = {
-                "success": True,
-                "product": {
-                    "id": row[0],
-                    "name": row[1],
-                    "description": row[2] or "",  # AI cần cái này để đọc thông số
-                    "price": float(row[3]) if row[3] else 0.0,
-                    "sale_price": float(row[4]) if row[4] else None,
-                    "slug": row[5] or "",
-                    "image_url": row[6] or "",
-                    "view_count": row[7] or 0,
-                    "category": row[8] or "",
-                    "category_slug": row[9] or "",
-                    "brand": row[10] or "",
-                    "specs": {
-                        "materials": row[11] or "",
-                        "dimensions": row[12] or "",
-                        "colors": row[13] or ""
-                    }
-                }
-            }
-            
-            return json.dumps(product_detail, ensure_ascii=False)
-            
-    except Exception as e:
-        logger.error(f"Error getting product details: {e}", exc_info=True)
-        return json.dumps({
-            "success": False, 
-            "error": str(e),
-            "product_name_or_id": product_name_or_id
-        }, ensure_ascii=False)
-    finally:
-        if conn:
-            await release_conn(conn)
-
