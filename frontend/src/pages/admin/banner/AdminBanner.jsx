@@ -26,7 +26,7 @@ export default function AdminBanner() {
     closeDetailModal,
   } = useAdminBanner();
 
-  // ✅ Chuẩn hóa fields để form CRUD đẹp
+  //  Chuẩn hóa fields để form CRUD đẹp
   const formFields = [
     {
       name: "title",
@@ -62,7 +62,7 @@ export default function AdminBanner() {
     },
   ];
 
-  // ✅ Chuẩn hóa fields cho modal Chi tiết (render theo table)
+  //  Chuẩn hóa fields cho modal Chi tiết (render theo table)
   const detailFields = [
     { name: "id", label: "ID" },
     { name: "title", label: "Tiêu đề" },
@@ -122,13 +122,13 @@ export default function AdminBanner() {
       render: (_, record) => (
         <Space>
           <Tooltip title="Xem chi tiết">
-            <Button variant="secondary" size="sm" onClick={() => handleView(record.id)}>
+            <Button variant="secondary" className={"cursor-pointer"}  size="sm" onClick={() => handleView(record.id)}>
               <FaEye />
             </Button>
           </Tooltip>
           <Tooltip title="Sửa">
             <Button
-              className="bg-blue-500 hover:bg-blue-600 text-white"
+              className="bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
               size="sm"
               onClick={() => openEditModal(record)}
             >
@@ -140,7 +140,7 @@ export default function AdminBanner() {
               title="Bạn có chắc muốn xóa banner này?"
               onConfirm={() => handleDelete(record.id)}
             >
-              <Button variant="destructive" size="sm">
+              <Button variant="destructive" size="sm" className="cursor-pointer">
                 <FaTrash />
               </Button>
             </Popconfirm>
@@ -227,6 +227,7 @@ export default function AdminBanner() {
         title="Chi tiết Banner"
         data={detailData}
         fields={detailFields}
+        maskClosable={false} //khi click ra ngoai modal se khong dong modal
       />
     </>
   );

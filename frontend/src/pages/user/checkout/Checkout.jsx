@@ -278,45 +278,56 @@ export default function Checkout() {
                           {formatPrice(price)} x {item.quantity}
                         </div>
                         {/* ✅ Nút cập nhật số lượng và xóa */}
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className="flex items-center gap-1 border rounded">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 border rounded">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 cursor-pointer"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                disabled={updatingQuantity || item.quantity <= 1}
+                              >
+                                <FaMinus className="h-3 w-3 " />
+                              </Button>
+                              <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 cursor-pointer"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                disabled={updatingQuantity || item.quantity >= (variant?.stock_quantity || 0)}
+                                title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : ""}
+                              >
+                                <FaPlus className="h-3 w-3 " />
+                              </Button>
+                            </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 cursor-pointer"
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                              disabled={updatingQuantity || item.quantity <= 1}
+                              className="h-7 text-red-600 cursor-pointer hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleRemoveItem(item.id)}
+                              disabled={isRemoving || updatingQuantity}
                             >
-                              <FaMinus className="h-3 w-3 " />
-                            </Button>
-                            <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 cursor-pointer"
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                              disabled={updatingQuantity || item.quantity >= (variant?.stock_quantity || 0)}
-                              title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : ""}
-                            >
-                              <FaPlus className="h-3 w-3 " />
+                              {isRemoving ? (
+                                <span className="text-xs">Đang xóa...</span>
+                              ) : (
+                                <>
+                                  <FaTrash className="h-3 w-3 mr-1" />
+                                  Xóa
+                                </>
+                              )}
                             </Button>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-red-600 cursor-pointer hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleRemoveItem(item.id)}
-                            disabled={isRemoving || updatingQuantity}
-                          >
-                            {isRemoving ? (
-                              <span className="text-xs">Đang xóa...</span>
-                            ) : (
-                              <>
-                                <FaTrash className="h-3 w-3 mr-1" />
-                                Xóa
-                              </>
+
+                          {/* Thông báo giới hạn tồn kho */}
+                          <div className="min-h-[14px] leading-none">
+                            {item.quantity >= (variant?.stock_quantity || 0) && (variant?.stock_quantity || 0) > 0 && (
+                              <p className="text-[11px] text-red-600 font-bold animate-pulse">
+                                Đã đạt giới hạn tồn kho ({variant?.stock_quantity})
+                              </p>
                             )}
-                          </Button>
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -429,35 +440,58 @@ export default function Checkout() {
                         className="w-full"
                         loading={validatingCoupon}
                         disabled={validatingCoupon}
+                        optionLabelProp="label"
                       >
                         {userCoupons.map((userCoupon) => (
-                          <Select.Option key={userCoupon.id} value={userCoupon.coupon.code}>
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-semibold">{userCoupon.coupon.code}</div>
-                                <div className="text-xs text-gray-500">{userCoupon.coupon.name}</div>
+                          <Select.Option
+                            key={userCoupon.id}
+                            value={userCoupon.coupon.code}
+                            label={
+                              <div className="flex items-center justify-between w-full">
+                                <span className="font-semibold">{userCoupon.coupon.code}</span>
+                                <span className="text-orange-600 font-bold ml-2">
+                                  {userCoupon.coupon.discountType === 'AMOUNT'
+                                    ? formatPrice(userCoupon.coupon.discountValue)
+                                    : `${userCoupon.coupon.discountValue}%`
+                                  }
+                                </span>
                               </div>
-                              <div className="text-right">
-                                <div className="font-semibold text-orange-600">
+                            }
+                          >
+                            <div className="flex flex-col gap-1 py-1">
+                              <div className="flex items-center justify-between">
+                                <div className="font-semibold text-base">{userCoupon.coupon.code}</div>
+                                <div className="font-bold text-orange-600 ml-2">
                                   {userCoupon.coupon.discountType === 'AMOUNT'
                                     ? formatPrice(userCoupon.coupon.discountValue)
                                     : `${userCoupon.coupon.discountValue}%`
                                   }
                                 </div>
-                                {userCoupon.coupon.minimumAmount > 0 && (
-                                  <div className="text-xs text-gray-400">
-                                    Đơn tối thiểu {formatPrice(userCoupon.coupon.minimumAmount)}
-                                  </div>
-                                )}
                               </div>
+                              <div className="text-xs text-gray-600">{userCoupon.coupon.name}</div>
+                              {userCoupon.coupon.minimumAmount > 0 && (
+                                <div className="text-xs text-gray-500">
+                                  Đơn tối thiểu: {formatPrice(userCoupon.coupon.minimumAmount)}
+                                </div>
+                              )}
                             </div>
                           </Select.Option>
                         ))}
                       </Select>
                       {couponError && (
-                        <p className="text-sm text-red-600">{couponError}</p>
+                        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 rounded-r-lg p-4 mt-3 shadow-sm">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                              <span className="text-white text-lg font-bold">!</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-base font-bold text-red-900 mb-1">Không thể áp dụng mã giảm giá</p>
+                              <p className="text-sm text-red-800 leading-relaxed">{couponError}</p>
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      <p className="text-xs text-gray-500">
+                      <p className="text-sm text-gray-800">
                         Chọn mã giảm giá để nhận ưu đãi cho đơn hàng của bạn
                       </p>
                     </>

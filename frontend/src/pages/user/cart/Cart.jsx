@@ -175,27 +175,38 @@ export default function Cart() {
                             <span className="text-xs text-gray-500">-</span>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 cursor-pointer"
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                              disabled={isUpdating || item.quantity <= 1}
-                            >
-                              <FaMinus className="h-3 w-3" />
-                            </Button>
-                            <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 cursor-pointer"
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                              disabled={isUpdating || item.quantity >= (variant?.stock_quantity || 0)}
-                              title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : "Tăng số lượng"}
-                            >
-                              <FaPlus className="h-3 w-3" />
-                            </Button>
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 cursor-pointer"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                disabled={isUpdating || item.quantity <= 1}
+                              >
+                                <FaMinus className="h-3 w-3" />
+                              </Button>
+                              <span className="min-w-[2rem] text-center font-medium text-sm">{item.quantity}</span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 cursor-pointer"
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                disabled={isUpdating || item.quantity >= (variant?.stock_quantity || 0)}
+                                title={item.quantity >= (variant?.stock_quantity || 0) ? "Đã đạt giới hạn tồn kho" : "Tăng số lượng"}
+                              >
+                                <FaPlus className="h-3 w-3" />
+                              </Button>
+                            </div>
+
+                            {/* Thông báo ngắn gọn dưới nút bấm */}
+                            <div className="min-h-[14px] leading-none">
+                              {item.quantity >= (variant?.stock_quantity || 0) && (variant?.stock_quantity || 0) > 0 && (
+                                <p className="text-[10px] text-orange-600 font-bold animate-pulse">
+                                  Đã đạt giới hạn tồn kho ({variant?.stock_quantity})
+                                </p>
+                              )}
+                            </div>
                           </div>
                         )}
                       </TableCell>

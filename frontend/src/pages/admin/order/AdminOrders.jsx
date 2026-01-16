@@ -138,13 +138,19 @@ export default function AdminOrders() {
       ),
     },
     {
-      title: "Trạng thái",
+      title: "T.Thái đơn hàng",
       dataIndex: "status",
       width: 150,
       render: (status) => (
         <Tag color={getStatusColor(status)}>{getStatusLabel(status)}</Tag>
       ),
     },
+    {
+      title: "T.Thái thanh toán",
+      width: 180,
+      render: (_, record) => renderPaymentStatusTag(record),
+    },
+
     {
       title: "Ngày đặt",
       dataIndex: "createdAt",
@@ -252,15 +258,17 @@ export default function AdminOrders() {
           )}
 
           {/* Nút cập nhật ghi chú */}
-          <Tooltip title="Cập nhật ghi chú">
-            <Button
-              className="bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
-              size="sm"
-              onClick={() => openNotesModal(record)}
-            >
-              <FaEdit />
-            </Button>
-          </Tooltip>
+          {record.status !== 'DELIVERED' ? (
+            <Tooltip title="Cập nhật ghi chú">
+              <Button
+                className="bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+                size="sm"
+                onClick={() => openNotesModal(record)}
+              >
+                <FaEdit />
+              </Button>
+            </Tooltip>
+          ) : null}
         </Space>
       ),
     },
@@ -483,6 +491,7 @@ export default function AdminOrders() {
         fields={detailFields}
         columns={2}
         width={900}
+        maskClosable={false}
       />
     </>
   );

@@ -12,17 +12,19 @@ import { Modal, Descriptions, Empty } from "antd";
  * @param {number} props.columns - Number of columns for descriptions
  * @param {string} props.size - Size of descriptions
  * @param {boolean} props.bordered - Whether descriptions are bordered
+ * @param {boolean} props.maskClosable - Whether to close modal when clicking mask
  */
-export default function DetailModal({ 
-  open, 
-  onCancel, 
-  title, 
-  data = {}, 
+export default function DetailModal({
+  open,
+  onCancel,
+  title,
+  data = {},
   fields = [],
   width = 600,
   columns = 1,
   size = "small",
-  bordered = true
+  bordered = true,
+  maskClosable = true //để đóng modal khi click 
 }) {
   // Kiểm tra nếu không có data hoặc fields
   if (!data || Object.keys(data).length === 0) {
@@ -33,6 +35,7 @@ export default function DetailModal({
         title={title}
         footer={null}
         width={width}
+        maskClosable={maskClosable} //để đóng modal khi click vào ngoài
       >
         <Empty description="Không có dữ liệu để hiển thị" />
       </Modal>
@@ -46,10 +49,11 @@ export default function DetailModal({
       title={title}
       footer={null}
       width={width}
+      maskClosable={maskClosable} //để đóng modal khi click vào ngoài
     >
-      <Descriptions 
-        bordered={bordered} 
-        column={columns} 
+      <Descriptions
+        bordered={bordered}
+        column={columns}
         size={size}
       >
         {fields.map((field) => {

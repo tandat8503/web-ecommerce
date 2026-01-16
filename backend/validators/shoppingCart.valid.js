@@ -17,23 +17,21 @@ export const addToCartSchema = Joi.object({
       'number.positive': 'ID biến thể phải là số dương'
     }),
   
-  quantity: Joi.number().integer().min(1).max(10).default(1)
+  quantity: Joi.number().integer().min(1).default(1)
     .messages({
       'number.base': 'Số lượng phải là số',
       'number.integer': 'Số lượng phải là số nguyên',
-      'number.min': 'Số lượng phải lớn hơn 0',
-      'number.max': 'Không thể thêm quá 10 sản phẩm cùng lúc'
+      'number.min': 'Số lượng phải lớn hơn 0'
     })
 });
 
 // Schema cho cập nhật số lượng sản phẩm trong giỏ hàng
 export const updateCartItemSchema = Joi.object({
-  quantity: Joi.number().integer().min(1).max(10).required()
+  quantity: Joi.number().integer().min(1).required()
     .messages({
       'number.base': 'Số lượng phải là số',
       'number.integer': 'Số lượng phải là số nguyên',
       'number.min': 'Số lượng phải lớn hơn 0',
-      'number.max': 'Không thể thêm quá 10 sản phẩm cùng lúc',
       'any.required': 'Số lượng là bắt buộc'
     })
 });

@@ -125,7 +125,7 @@ const ProductDetails = () => {
                   {selectedVariant.dimensionNote && (
                     <>
                       <Separator className="my-4" />
-                      <div>
+                      <div className='flex items-baseline gap-1 '>
                         <span className="text-gray-600 text-base block mb-1">Ghi chú kích thước:</span>
                         <span className="text-gray-700 text-sm">{selectedVariant.dimensionNote}</span>
                       </div>

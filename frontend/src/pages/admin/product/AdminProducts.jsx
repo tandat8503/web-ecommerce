@@ -447,6 +447,8 @@ export default function AdminProducts() {
         data={detailData}
         fields={detailFields}
         width={600}
+        maskClosable={false} //khi click ra ngoai modal se khong dong modal
+
       />
 
       {/* Modal Quản lý ảnh */}

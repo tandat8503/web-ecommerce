@@ -243,6 +243,7 @@ export default function AdminBrands() {
         data={detailData}
         fields={detailFields}
         width={600}
+        maskClosable={false} //khi click ra ngoai modal se khong dong modal
       />
     </>
   );

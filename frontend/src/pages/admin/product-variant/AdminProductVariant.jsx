@@ -426,6 +426,7 @@ export default function AdminProductVariant() {
         title="Chi tiết Biến thể"
         data={detailData}
         fields={detailFields}
+        maskClosable={false} //khi click ra ngoai modal se khong dong modal
       />
     </>
   );

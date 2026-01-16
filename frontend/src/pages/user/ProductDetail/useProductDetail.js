@@ -18,7 +18,7 @@ import { toast } from '../../../lib/utils';
 
 /**
  * ========================================
- * USE PRODUCT DETAIL HOOK - XỬ LÝ LOGIC PRODUCT DETAIL ✨
+ * USE PRODUCT DETAIL HOOK - XỬ LÝ LOGIC PRODUCT DETAIL 
  * ========================================
  * 
  * Hook này chứa TẤT CẢ logic cho trang ProductDetail
@@ -389,24 +389,18 @@ export function useProductDetail(productId) {
   };
 
   const handleQuantityChange = (newQuantity) => {
-    const MAX_PER_ACTION = 10; // BE giới hạn max số lượng sản phẩm mỗi lần thêm vào giỏ hàng  là 10
-
     // Giới hạn dưới
     if (newQuantity < 1) {
       setQuantity(1);
       return;
     }
 
-    // Giới hạn trên theo tồn kho & giới hạn BE
-    const maxAllowed = Math.min(displayStock || MAX_PER_ACTION, MAX_PER_ACTION);
+    // Giới hạn trên theo tồn kho thực tế từ DB
+    const maxAllowed = displayStock || 0;
     
-    if (newQuantity > maxAllowed) {
+    if (newQuantity > maxAllowed && maxAllowed > 0) {
       setQuantity(maxAllowed);
-      if (maxAllowed < (displayStock || MAX_PER_ACTION)) {
-        toast.warning(`Chỉ được chọn tối đa ${MAX_PER_ACTION} sản phẩm mỗi lần thêm vào giỏ hàng`);
-      } else {
-        toast.info(`Chỉ còn ${displayStock} sản phẩm trong kho`);
-      }
+      toast.info(`Chỉ còn ${maxAllowed} sản phẩm trong kho`);
       return;
     }
 

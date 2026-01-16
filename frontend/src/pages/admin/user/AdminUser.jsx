@@ -365,6 +365,7 @@ export default function AdminUser() {
           title="Chi tiết người dùng"
           data={detailData}
           fields={detailFields}
+          maskClosable={false} //khi click ra ngoai modal se khong dong modal
         />
       </Row>
     </>

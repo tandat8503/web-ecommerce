@@ -20,7 +20,7 @@ import VariantSelector from './VariantSelector';
  */
 const ProductInfo = () => {
   const { id: productId } = useParams(); // Lấy ID sản phẩm từ URL
-  
+
   // ============================================
   // LẤY DATA TỪ CONTEXT - Không cần nhận props
   // ============================================
@@ -51,7 +51,7 @@ const ProductInfo = () => {
           </p>
         </div>
         {/* Nút yêu thích - icon trái tim ở góc phải */}
-        <WishlistButton 
+        <WishlistButton
           productId={Number(productId)}
           size="lg"
           className="mt-1 cursor-pointer"
@@ -91,26 +91,24 @@ const ProductInfo = () => {
       {/* ============================================
           PHẦN 3: TRẠNG THÁI TỒN KHO
           ============================================ */}
-      <Badge 
+      <Badge
         variant={!isInStock ? "destructive" : "outline"}
-        className={`text-sm ${
-          !isInStock 
+        className={`text-sm ${!isInStock
             ? '' // Hết hàng - màu đỏ mặc định
-            : isLowStock 
-            ? 'border-orange-500 text-orange-700 bg-orange-50' // Sắp hết - màu cam
-            : 'border-green-500 text-green-700 bg-green-50' // Còn hàng - màu xanh
-        }`}
+            : isLowStock
+              ? 'border-orange-500 text-orange-700 bg-orange-50' // Sắp hết - màu cam
+              : 'border-green-500 text-green-700 bg-green-50' // Còn hàng - màu xanh
+          }`}
       >
         {/* Chấm tròn màu để hiển thị trạng thái */}
-        <span className={`w-2 h-2 rounded-full inline-block mr-2 ${
-          !isInStock ? 'bg-red-500' : isLowStock ? 'bg-orange-500' : 'bg-green-500'
-        }`}></span>
+        <span className={`w-2 h-2 rounded-full inline-block mr-2 ${!isInStock ? 'bg-red-500' : isLowStock ? 'bg-orange-500' : 'bg-green-500'
+          }`}></span>
         {/* Text hiển thị số lượng tồn kho */}
-        {!isInStock 
-          ? 'Hết hàng' 
-          : isLowStock 
-          ? `Sắp hết: ${displayStock} sản phẩm` 
-          : `Còn lại: ${displayStock} sản phẩm`
+        {!isInStock
+          ? 'Hết hàng'
+          : isLowStock
+            ? `Sắp hết: ${displayStock} sản phẩm`
+            : `Còn lại: ${displayStock} sản phẩm`
         }
       </Badge>
 
@@ -145,14 +143,30 @@ const ProductInfo = () => {
               variant="outline"
               size="icon"
               onClick={() => handleQuantityChange(quantity + 1)}
-              // Giới hạn UI theo tồn kho & max 10 giống BE
-              disabled={quantity >= Math.min(displayStock || 10, 10)}
+              // Giới hạn UI theo tồn kho thực tế từ DB
+              disabled={quantity >= Math.min(displayStock || 0)}
               className="cursor-pointer"
             >
               +
             </Button>
           </div>
         </div>
+
+        {/* Thông báo giải thích lý do không thể tăng số lượng 
+          isInStock làm nhiệm vụ kiểm tra tồn kho
+          displayStock là số lượng tồn kho hiện tại
+          quantity là số lượng sản phẩm đã chọn
+        */}
+        {isInStock && (
+          <div className="min-h-[20px]">
+            {quantity >= displayStock && displayStock > 0 && (
+              <p className="text text-orange-600 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                Số lượng bạn chọn đã đạt mức tối đa của sản phẩm này ({displayStock} sản phẩm)
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Nút thêm vào giỏ hàng và mua ngay */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -179,20 +193,20 @@ const ProductInfo = () => {
             Mua ngay
           </Button>
         </div>
-        
+
         {/* ============================================
             PHẦN 6: THÔNG BÁO CẢNH BÁO
             ============================================ */}
         {/* Cảnh báo khi chưa chọn màu sắc/kích thước */}
         {variants.length > 0 && !selectedVariant && isInStock && (
           <Badge variant="outline" className="w-full justify-center bg-orange-50 text-orange-700 border-orange-300">
-             Vui lòng chọn màu sắc và kích thước trước khi thêm vào giỏ hàng
+            Vui lòng chọn màu sắc và kích thước trước khi thêm vào giỏ hàng
           </Badge>
         )}
         {/* Cảnh báo khi hết hàng */}
         {!isInStock && (
           <Badge variant="destructive" className="w-full justify-center">
-             Sản phẩm đã hết hàng. Vui lòng chọn sản phẩm khác.
+            Sản phẩm đã hết hàng. Vui lòng chọn sản phẩm khác.
           </Badge>
         )}
       </div>
