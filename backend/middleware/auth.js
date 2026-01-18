@@ -18,9 +18,9 @@ export const authenticateToken = async (req, res, next) => {
 
     if (!token) {
       console.log('Auth middleware - No token provided');
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token không được cung cấp' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token không được cung cấp'
       })
     }
 
@@ -36,7 +36,7 @@ export const authenticateToken = async (req, res, next) => {
         message: 'Token không hợp lệ (không có userId)'
       })
     }
-    
+
     // Tìm user trong database (chỉ 1 bảng User duy nhất)
     let user;
     try {
@@ -58,22 +58,24 @@ export const authenticateToken = async (req, res, next) => {
         throw dbError
       }
       // Nếu là lỗi khác, return 401 như bình thường
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token không hợp lệ hoặc user đã bị vô hiệu hóa' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ hoặc user đã bị vô hiệu hóa'
       })
     }
 
     if (!user || !user.isActive) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token không hợp lệ hoặc user đã bị vô hiệu hóa' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ hoặc user đã bị vô hiệu hóa'
       })
     }
 
     // Phân loại user type dựa trên role
     if (user.role === 'ADMIN') {
       user.userType = 'admin'
+    } else if (user.role === 'STAFF') {
+      user.userType = 'staff'
     } else {
       user.userType = 'user'
     }
@@ -84,52 +86,90 @@ export const authenticateToken = async (req, res, next) => {
     next()
   } catch (error) {
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token không hợp lệ' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token không hợp lệ'
       })
     }
-    
+
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token đã hết hạn' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token đã hết hạn'
       })
     }
 
     console.error('Auth middleware error:', error)
-    
+
     // Xử lý lỗi database connection
     if (error.code === 'P1001' || error.message?.includes('connect') || error.message?.includes('database')) {
       console.error('Database connection error in auth middleware:', error.message)
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Lỗi kết nối database' 
+      return res.status(500).json({
+        success: false,
+        message: 'Lỗi kết nối database'
       })
     }
-    
-    return res.status(500).json({ 
-      success: false, 
+
+    return res.status(500).json({
+      success: false,
       message: 'Lỗi server',
       error: process.env.NODE_ENV !== 'production' ? error.message : undefined
     })
   }
 }
 
-// Middleware kiểm tra quyền admin
+// Middleware kiểm tra quyền admin (chỉ ADMIN)
 export const requireAdmin = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Chưa đăng nhập' 
+    return res.status(401).json({
+      success: false,
+      message: 'Chưa đăng nhập'
     })
   }
-  
+
   if (req.user.role !== 'ADMIN') {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Không có quyền truy cập' 
+    return res.status(403).json({
+      success: false,
+      message: 'Không có quyền truy cập'
     })
   }
   next()
+}
+
+// Middleware kiểm tra quyền admin hoặc staff (flexible)
+export const requireAdminOrStaff = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Chưa đăng nhập'
+    })
+  }
+
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'STAFF') {
+    return res.status(403).json({
+      success: false,
+      message: 'Không có quyền truy cập'
+    })
+  }
+  next()
+}
+
+// Middleware check specific roles (generic)
+export const requireRoles = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Chưa đăng nhập'
+      })
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Không có quyền truy cập chức năng này'
+      })
+    }
+    next()
+  }
 }
