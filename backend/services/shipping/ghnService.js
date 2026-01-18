@@ -5,10 +5,10 @@ import logger from '../../utils/logger.js';
 const getGHNConfig = () => {
   // Default: Production URL (vì token production phổ biến hơn)
   let baseUrl = process.env.GHN_API_URL || 'https://online-gateway.ghn.vn';
-  
+
   // Trim whitespace và loại bỏ quotes nếu có
   baseUrl = baseUrl.trim().replace(/^["']|["']$/g, '');
-  
+
   // Xử lý URL - Nếu có /shiip/public-api/v2 thì lấy base domain
   // Ví dụ: https://online-gateway.ghn.vn/shiip/public-api/v2 
   //     -> https://online-gateway.ghn.vn
@@ -21,21 +21,21 @@ const getGHNConfig = () => {
   else if (baseUrl.match(/\/v\d+$/)) {
     baseUrl = baseUrl.replace(/\/v\d+$/, '');
   }
-  
+
   // Đảm bảo không có trailing slash
   baseUrl = baseUrl.replace(/\/$/, '');
-  
+
   // Trim whitespace và loại bỏ quotes từ env variables
   let token = process.env.GHN_TOKEN || null;
   let shopId = process.env.GHN_SHOP_ID || null;
-  
+
   if (token) {
     token = token.trim().replace(/^["']|["']$/g, ''); // Trim và bỏ quotes
   }
   if (shopId) {
     shopId = shopId.trim().replace(/^["']|["']$/g, ''); // Trim và bỏ quotes
   }
-  
+
   return {
     apiUrl: baseUrl, // Base URL, ví dụ: https://online-gateway.ghn.vn (prod) hoặc https://dev-online-gateway.ghn.vn (dev)
     token,
@@ -52,15 +52,15 @@ const getGHNConfig = () => {
 export const getProvinces = async () => {
   try {
     const { apiUrl, token } = getGHNConfig();
-    
+
     if (!token) {
       throw new Error('GHN_TOKEN không được cấu hình trong môi trường');
     }
-    
+
     const finalToken = token.trim(); // Trim whitespace
-    
+
     const fullUrl = `${apiUrl}/shiip/public-api/master-data/province`;
-    
+
     // Debug: Log để kiểm tra (chỉ log một phần token để bảo mật)
     logger.info('GHN getProvinces request', {
       url: fullUrl,
@@ -68,7 +68,7 @@ export const getProvinces = async () => {
       tokenPreview: `${finalToken.substring(0, 10)}...${finalToken.substring(finalToken.length - 5)}`,
       apiUrlSource: process.env.GHN_API_URL || 'default',
     });
-    
+
     const response = await axios.get(fullUrl, {
       headers: {
         'Token': finalToken,
@@ -93,9 +93,9 @@ export const getProvinces = async () => {
       responseData: error.response?.data,
       requestUrl: error.config?.url,
     };
-    
+
     logger.error('GHN get provinces error', errorInfo);
-    
+
     // Nếu là lỗi 401, cung cấp thêm thông tin
     if (error.response?.status === 401) {
       const { token, apiUrl } = getGHNConfig();
@@ -106,7 +106,7 @@ export const getProvinces = async () => {
         suggestion: 'Vui lòng kiểm tra lại GHN_TOKEN trong file .env. Đảm bảo token đúng với môi trường (dev/prod).',
       });
     }
-    
+
     return {
       success: false,
       data: [],
@@ -134,11 +134,11 @@ export const getDistricts = async (provinceId) => {
     }
 
     const { apiUrl, token } = getGHNConfig();
-    
+
     if (!token) {
       throw new Error('GHN_TOKEN không được cấu hình trong môi trường');
     }
-    
+
     // GHN hỗ trợ cả GET và POST, dùng GET với query params
     const response = await axios.get(
       `${apiUrl}/shiip/public-api/master-data/district`,
@@ -193,11 +193,11 @@ export const getWards = async (districtId) => {
     }
 
     const { apiUrl, token } = getGHNConfig();
-    
+
     if (!token) {
       throw new Error('GHN_TOKEN không được cấu hình trong môi trường');
     }
-    
+
     // Theo tài liệu GHN: https://api.ghn.vn/home/docs/detail?id=92
     // API này dùng POST với district_id trong body
     const response = await axios.post(
@@ -254,11 +254,11 @@ export const calculateShippingFee = async (params) => {
       toDistrictId,
       toWardCode,
       weight = 500, // Default 500g
-      length = 20,
+      length = 20, // Default 20cm
       width = 20,
       height = 20,
       codAmount = 0,
-      serviceTypeId = 2, // 2 = Chuẩn
+      serviceTypeId = 2, // 2 = Hàng nhẹ (theo GHN)
     } = params;
 
     if (!toDistrictId || !toWardCode) {
@@ -271,6 +271,7 @@ export const calculateShippingFee = async (params) => {
 
     // Ưu tiên GHN_FROM_DISTRICT_ID (theo naming mới), fallback về GHN_WAREHOUSE_DISTRICT_ID
     const fromDistrictId = Number(process.env.GHN_FROM_DISTRICT_ID || process.env.GHN_WAREHOUSE_DISTRICT_ID);
+    const fromWardCode = process.env.GHN_FROM_WARD_CODE || process.env.GHN_WAREHOUSE_WARD_CODE;
 
     if (!fromDistrictId) {
       logger.warn('GHN_FROM_DISTRICT_ID or GHN_WAREHOUSE_DISTRICT_ID not configured');
@@ -282,30 +283,38 @@ export const calculateShippingFee = async (params) => {
     }
 
     const { apiUrl, token, shopId } = getGHNConfig();
-    
+
     if (!token) {
       throw new Error('GHN_TOKEN không được cấu hình trong môi trường');
     }
-    
+
     if (!shopId) {
       throw new Error('GHN_SHOP_ID không được cấu hình trong môi trường');
     }
-    
+
+    // Payload theo tài liệu GHN API: https://api.ghn.vn/home/docs/detail?id=95
+    const payload = {
+      service_type_id: serviceTypeId, // 2 = Hàng nhẹ
+      insurance_value: 0,
+      coupon: null,
+      from_district_id: fromDistrictId,
+      to_district_id: toDistrictId,
+      to_ward_code: toWardCode,
+      height: height,
+      length: length,
+      weight: weight,
+      width: width,
+      cod_amount: codAmount,
+    };
+
+    // Thêm from_ward_code nếu có cấu hình (để tính phí chính xác hơn)
+    if (fromWardCode) {
+      payload.from_ward_code = fromWardCode;
+    }
+
     const response = await axios.post(
       `${apiUrl}/shiip/public-api/v2/shipping-order/fee`,
-      {
-        service_type_id: serviceTypeId,
-        insurance_value: 0,
-        coupon: null,
-        from_district_id: fromDistrictId,
-        to_district_id: toDistrictId,
-        to_ward_code: toWardCode,
-        height: height,
-        length: length,
-        weight: weight,
-        width: width,
-        cod_amount: codAmount,
-      },
+      payload,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +329,7 @@ export const calculateShippingFee = async (params) => {
     }
 
     const shippingFee = response.data.data.total || 0;
-    
+
     logger.info('GHN calculate shipping fee', {
       toDistrictId,
       toWardCode,
@@ -341,7 +350,7 @@ export const calculateShippingFee = async (params) => {
       params,
       response: error.response?.data,
     });
-    
+
     // Fallback: Trả về phí mặc định nếu lỗi
     return {
       success: false,

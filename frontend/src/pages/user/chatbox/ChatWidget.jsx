@@ -7,12 +7,14 @@ import {
   RobotOutlined,
   WifiOutlined,
   DisconnectOutlined,
+  PictureOutlined,
 } from "@ant-design/icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { aiChatbotAPI, aiUtils } from "../../../api/aiChatbotAPI";
+import { handleImageError, NO_IMAGE_SMALL, NO_IMAGE_TINY } from "../../../utils/imagePlaceholder";
 
 const { Text, Link } = Typography;
 
@@ -20,8 +22,8 @@ export default function ChatWidget() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { 
-      from: "bot", 
+    {
+      from: "bot",
       text: "Xin chào! Tôi là AI tư vấn chuyên nghiệp của cửa hàng nội thất văn phòng. Bạn cần tư vấn gì ạ?",
       timestamp: new Date().toISOString(),
       metadata: {
@@ -35,6 +37,7 @@ export default function ChatWidget() {
   const [sessionId, setSessionId] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("checking");
+  const [selectedImage, setSelectedImage] = useState(null); // For image upload
   const scrollRef = useRef(null);
 
   // Initialize session and check connection
@@ -63,7 +66,7 @@ export default function ChatWidget() {
 
         if (isAvailable) {
           console.log("✅ Professional AI Chatbot connected (HTTP mode)");
-          
+
           // Note: Backend currently doesn't support WebSocket
           // Using HTTP API only - no WebSocket connection needed
           // WebSocket can be enabled in the future if backend supports it
@@ -84,22 +87,54 @@ export default function ChatWidget() {
     }
   };
 
+  const handleImageUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      message.error('Vui lòng chọn file ảnh!');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 5MB.');
+      return;
+    }
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result.split(',')[1]; // Remove data:image/jpeg;base64, prefix
+      setSelectedImage(base64String);
+      message.success('Đã chọn ảnh! Nhấn gửi để tìm sản phẩm tương tự.');
+    };
+    reader.onerror = () => {
+      message.error('Lỗi khi đọc file ảnh!');
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   const handleSend = async () => {
-    if (!input.trim() || typing) return;
+    if ((!input.trim() && !selectedImage) || typing) return;
 
-    const userMsg = { 
-      from: "user", 
-      text: input,
-      timestamp: new Date().toISOString()
+    const userMsg = {
+      from: "user",
+      text: input || (selectedImage ? "🖼️ [Hình ảnh]" : ""),
+      timestamp: new Date().toISOString(),
+      image: selectedImage // Store image preview
     };
     setMessages(prev => [...prev, userMsg]);
+    const currentInput = input;
+    const currentImage = selectedImage;
     setInput("");
+    setSelectedImage(null); // Clear image after send
     setTyping(true);
 
     try {
-      // Use HTTP API (backend doesn't support WebSocket currently)
-      // Get user_id from localStorage if available
+      // Use HTTP API
       let userId = null;
       try {
         const userData = localStorage.getItem('user');
@@ -110,21 +145,28 @@ export default function ChatWidget() {
       } catch (e) {
         // Ignore localStorage errors
       }
-      
-      const response = await aiChatbotAPI.sendMessage(input, sessionId, "user", userId);
-      
+
+      // Send with image if available
+      const response = await aiChatbotAPI.sendMessage(
+        currentInput || "Tìm sản phẩm tương tự như trong ảnh",
+        sessionId,
+        "user",
+        userId,
+        currentImage // Pass base64 image
+      );
+
       // Update session_id if returned from backend
       if (response.session_id && response.session_id !== sessionId) {
         setSessionId(response.session_id);
       }
-      
+
       // Handle structured response (new format) or string response (old format)
       let responseData = response.response;
       if (typeof responseData === 'string') {
         // Old format - convert to structured
         responseData = { text: responseData, type: "text" };
       }
-      
+
       const botMsg = {
         from: "bot",
         text: responseData.text || responseData || "Xin lỗi, không thể xử lý yêu cầu.",
@@ -144,10 +186,10 @@ export default function ChatWidget() {
       setTyping(false);
     } catch (error) {
       console.error("Error sending message:", error);
-      
+
       const errorMsg = {
         from: "bot",
-        text: isConnected 
+        text: isConnected
           ? "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn. Vui lòng thử lại sau."
           : "AI Chatbot hiện không khả dụng. Vui lòng liên hệ trực tiếp với chúng tôi qua hotline: 0123-456-789",
         timestamp: new Date().toISOString(),
@@ -207,9 +249,8 @@ export default function ChatWidget() {
             src={product.image_url}
             alt={product.name}
             className="w-full h-36 object-cover rounded mb-3 border border-gray-100"
-            onError={(e) => {
-              e.target.src = "https://via.placeholder.com/200x144?text=No+Image";
-            }}
+            onError={(e) => handleImageError(e, 'small')}
+
           />
         ) : (
           <div className="w-full h-36 bg-gray-100 rounded mb-3 flex items-center justify-center border border-gray-200">
@@ -290,7 +331,7 @@ export default function ChatWidget() {
             // Close chat widget after navigation
             setOpen(false);
           }}
-          style={{ 
+          style={{
             color: "#1890ff",
             textDecoration: "underline",
             cursor: "pointer"
@@ -352,11 +393,11 @@ export default function ChatWidget() {
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             className="bg-white rounded-lg shadow-2xl w-96 h-[500px] flex flex-col border border-gray-200"
           >
-              {/* Header */}
+            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-lg">
               <div className="flex items-center space-x-2">
-                <Avatar 
-                  icon={<RobotOutlined />} 
+                <Avatar
+                  icon={<RobotOutlined />}
                   style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
                 />
                 <div>
@@ -368,46 +409,45 @@ export default function ChatWidget() {
                     </Text>
                   </div>
                 </div>
-                </div>
-                <Button
-                  type="text"
-                  icon={<CloseOutlined />}
-                  onClick={() => setOpen(false)}
-                style={{ color: "white" }}
-                />
               </div>
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={() => setOpen(false)}
+                style={{ color: "white" }}
+              />
+            </div>
 
             {/* Messages */}
-              <div
-                ref={scrollRef}
+            <div
+              ref={scrollRef}
               className="flex-1 overflow-y-auto p-4 space-y-3"
-              >
+            >
               {messages.map((msg, index) => (
-                  <motion.div
+                <motion.div
                   key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}
-                  >
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                        msg.from === "user"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 text-gray-800"
-                    }`}
+                    className={`max-w-[80%] p-3 rounded-lg ${msg.from === "user"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-100 text-gray-800"
+                      }`}
                   >
                     {/* Render text message with Markdown support */}
                     <div className="text-sm break-words">
                       {msg.from === "bot" ? (
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
                             // Customize HTML tags rendering
-                            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                            ul: ({node, ...props}) => <ul className="mb-2 ml-4 list-disc" {...props} />,
-                            ol: ({node, ...props}) => <ol className="mb-2 ml-4 list-decimal" {...props} />,
-                            li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                            a: ({node, href, ...props}) => {
+                            p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="mb-2 ml-4 list-disc" {...props} />,
+                            ol: ({ node, ...props }) => <ol className="mb-2 ml-4 list-decimal" {...props} />,
+                            li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                            a: ({ node, href, ...props }) => {
                               // Handle product links
                               if (href && (href.startsWith('/san-pham/') || href.startsWith('/product/'))) {
                                 return (
@@ -417,7 +457,7 @@ export default function ChatWidget() {
                                       navigate(href);
                                       setOpen(false);
                                     }}
-                                    style={{ 
+                                    style={{
                                       color: "#1890ff",
                                       textDecoration: "underline",
                                       cursor: "pointer"
@@ -430,26 +470,26 @@ export default function ChatWidget() {
                               }
                               return <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline" {...props} />;
                             },
-                            strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
-                            em: ({node, ...props}) => <em className="italic" {...props} />,
-                            blockquote: ({node, ...props}) => (
+                            strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+                            em: ({ node, ...props }) => <em className="italic" {...props} />,
+                            blockquote: ({ node, ...props }) => (
                               <blockquote className="border-l-4 border-gray-300 pl-3 my-2 italic text-gray-600" {...props} />
                             ),
-                            code: ({node, inline, ...props}) => 
+                            code: ({ node, inline, ...props }) =>
                               inline ? (
                                 <code className="bg-gray-200 px-1 py-0.5 rounded text-xs" {...props} />
                               ) : (
                                 <code className="block bg-gray-100 p-2 rounded text-xs overflow-x-auto" {...props} />
                               ),
-                            img: ({node, src, alt, ...props}) => (
-                              <img 
-                                src={src} 
-                                alt={alt} 
+                            img: ({ node, src, alt, ...props }) => (
+                              <img
+                                src={src}
+                                alt={alt}
                                 className="max-w-full h-auto rounded my-2"
                                 onError={(e) => {
-                                  e.target.src = "https://via.placeholder.com/300x200?text=No+Image";
+                                  handleImageError(e, 'small');
                                 }}
-                                {...props} 
+                                {...props}
                               />
                             ),
                           }}
@@ -457,10 +497,23 @@ export default function ChatWidget() {
                           {msg.text}
                         </ReactMarkdown>
                       ) : (
-                        <span className="whitespace-pre-wrap">{msg.text}</span>
+                        <>
+                          {/* Show image if user uploaded one */}
+                          {msg.image && (
+                            <div className="mb-2">
+                              <img
+                                src={`data:image/jpeg;base64,${msg.image}`}
+                                alt="Uploaded"
+                                className="max-w-full rounded border border-blue-300"
+                                style={{ maxHeight: '200px', objectFit: 'contain' }}
+                              />
+                            </div>
+                          )}
+                          <span className="whitespace-pre-wrap">{msg.text}</span>
+                        </>
                       )}
                     </div>
-                    
+
                     {/* Render product cards if type is product_recommendation */}
                     {msg.from === "bot" && msg.type === "product_recommendation" && msg.data && (
                       <div className="mt-4 pt-3 border-t border-gray-200">
@@ -472,7 +525,7 @@ export default function ChatWidget() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Render cross-sell products */}
                     {msg.from === "bot" && msg.cross_sell && msg.cross_sell.length > 0 && (
                       <div className="mt-4 pt-3 border-t border-gray-200">
@@ -484,7 +537,7 @@ export default function ChatWidget() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Suggest contact form if needed */}
                     {msg.from === "bot" && msg.suggest_contact && (
                       <div className="mt-3 pt-3 border-t border-gray-300">
@@ -524,10 +577,9 @@ export default function ChatWidget() {
                         </Button>
                       </div>
                     )}
-                    
-                    <div className={`text-xs mt-1 ${
-                      msg.from === "user" ? "text-blue-100" : "text-gray-500"
-                    }`}>
+
+                    <div className={`text-xs mt-1 ${msg.from === "user" ? "text-blue-100" : "text-gray-500"
+                      }`}>
                       {formatTime(msg.timestamp)}
                       {msg.metadata?.response_time && (
                         <span className="ml-2">
@@ -540,14 +592,14 @@ export default function ChatWidget() {
                         ⚠️ {msg.metadata.error_message}
                       </div>
                     )}
-                    </div>
-                  </motion.div>
-                ))}
+                  </div>
+                </motion.div>
+              ))}
 
-                  {typing && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+              {typing && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   className="flex justify-start"
                 >
                   <div className="bg-gray-100 p-3 rounded-lg">
@@ -561,21 +613,74 @@ export default function ChatWidget() {
                         AI đang suy nghĩ...
                       </span>
                     </div>
-                      </div>
-                    </motion.div>
-                  )}
-              </div>
+                  </div>
+                </motion.div>
+              )}
+            </div>
 
-              {/* Input */}
+            {/* Input */}
             <div className="p-4 border-t border-gray-200">
+              {/* Image preview */}
+              {selectedImage && (
+                <div className="mb-2 relative inline-block">
+                  <div className="w-20 h-20 rounded border border-gray-300 overflow-hidden">
+                    <img
+                      src={`data:image/jpeg;base64,${selectedImage}`}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <Button
+                    size="small"
+                    danger
+                    icon={<CloseOutlined />}
+                    className="absolute -top-2 -right-2"
+                    onClick={() => setSelectedImage(null)}
+                  />
+                </div>
+              )}
+
               <div className="flex space-x-2">
+                {/* Image upload button */}
+                <Tooltip title="Upload ảnh sản phẩm để tìm kiếm">
+                  <label
+                    htmlFor="image-upload"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      cursor: (!isConnected || typing) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      style={{ display: 'none' }}
+                      id="image-upload"
+                      disabled={!isConnected || typing}
+                    />
+                    <div
+                      className={`ant-btn ant-btn-default ${(!isConnected || typing) ? 'ant-btn-disabled' : ''}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '4px 15px',
+                        pointerEvents: (!isConnected || typing) ? 'none' : 'auto'
+                      }}
+                    >
+                      <PictureOutlined />
+                    </div>
+                  </label>
+                </Tooltip>
+
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder={
-                    isConnected 
-                      ? "Nhập tin nhắn của bạn..." 
+                    isConnected
+                      ? "Nhập tin nhắn hoặc upload ảnh..."
                       : "AI không khả dụng..."
                   }
                   disabled={!isConnected || typing}
@@ -585,7 +690,7 @@ export default function ChatWidget() {
                   type="primary"
                   icon={<SendOutlined />}
                   onClick={handleSend}
-                  disabled={!input.trim() || typing || !isConnected}
+                  disabled={(!input.trim() && !selectedImage) || typing || !isConnected}
                   loading={typing}
                 />
               </div>

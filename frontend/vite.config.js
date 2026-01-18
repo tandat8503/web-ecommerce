@@ -5,16 +5,23 @@ import react from '@vitejs/plugin-react-swc'
 
 // https://vite.dev/config/
 export default defineConfig({
- plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    build: {
+  },
+  build: {
     outDir: "dist",
   },
   server: {
-    historyApiFallback: true, // <- quan trọng khi chạy local
+    historyApiFallback: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
-  },
 })

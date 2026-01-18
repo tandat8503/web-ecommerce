@@ -11,19 +11,39 @@ import { handleVNPayPayment } from "@/features/payment/vnpayPayment";
 import axiosClient from "@/api/axiosClient";
 
 const DEFAULT_SHIPPING_FEE = 30000;
-const DEFAULT_WEIGHT_PER_ITEM = 500; // gram
-const DEFAULT_DIMENSION_CM = 30;
+const DEFAULT_WEIGHT_PER_ITEM = 500; // gram - Trọng lượng mặc định mỗi sản phẩm
+const DEFAULT_DIMENSION_CM = 20; // cm - Kích thước mặc định
 
+/**
+ * Chuyển đổi kích thước từ mm (trong DB) sang cm (cho GHN API)
+ * Database lưu width/depth/height bằng đơn vị mm
+ */
 const mmToCm = (value) => {
   if (value === null || value === undefined) return null;
   const parsed = Number(value);
-  if (Number.isNaN(parsed)) return null;
-  return Math.max(DEFAULT_DIMENSION_CM, Math.ceil(parsed / 10));
+  if (Number.isNaN(parsed) || parsed <= 0) return null;
+  // DB lưu mm, GHN cần cm → chia 10
+  return Math.ceil(parsed / 10);
 };
 
 /**
  * Tính toán metrics vận chuyển từ danh sách items
+ * 
+ * QUAN TRỌNG - Theo tài liệu GHN:
+ * - Volumetric Weight = (Length x Width x Height) / 5 (đơn vị gram)
+ * - GHN so sánh Volumetric Weight với Weight thực tế, lấy giá trị LỚN HƠN để tính cước
+ * 
+ * Đối với nội thất văn phòng:
+ * - Sản phẩm thường được THÁO RỜI khi vận chuyển
+ * - Kích thước đóng gói nhỏ hơn nhiều so với sản phẩm đã lắp ráp
+ * - Ví dụ: Bàn 180x80x75cm khi tháo rời đóng gói ~80x60x20cm (2-3 thùng)
+ * 
+ * Giới hạn GHN:
+ * - Mỗi chiều tối đa 200cm
+ * - Weight tối đa 1,600,000g (1.6 tấn)
  */
+const MAX_DIMENSION_CM = 50; // Giới hạn tối đa mỗi chiều cho đóng gói tháo rời thực tế
+
 const buildShippingMetrics = (items) => {
   const metrics = {
     weight: 0,
@@ -38,13 +58,16 @@ const buildShippingMetrics = (items) => {
 
     const variant = item.variant;
     if (variant) {
+      // Convert mm -> cm
       const lengthCm = mmToCm(variant.width);
       const widthCm = mmToCm(variant.depth);
       const heightCm = mmToCm(variant.height);
 
-      if (lengthCm) metrics.length = Math.max(metrics.length, lengthCm);
-      if (widthCm) metrics.width = Math.max(metrics.width, widthCm);
-      if (heightCm) metrics.height = Math.max(metrics.height, heightCm);
+      // Cap dimension để phản ánh kích thước đóng gói thực tế (hàng tháo rời)
+      // Nội thất lớn được tháo rời và đóng thùng nhỏ hơn
+      if (lengthCm) metrics.length = Math.max(metrics.length, Math.min(lengthCm, MAX_DIMENSION_CM));
+      if (widthCm) metrics.width = Math.max(metrics.width, Math.min(widthCm, MAX_DIMENSION_CM));
+      if (heightCm) metrics.height = Math.max(metrics.height, Math.min(heightCm, MAX_DIMENSION_CM));
     }
   });
 
@@ -52,8 +75,10 @@ const buildShippingMetrics = (items) => {
     metrics.weight = DEFAULT_WEIGHT_PER_ITEM;
   }
 
+  // GHN giới hạn weight tối đa 30kg cho hàng nhẹ (service_type_id = 2)
   metrics.weight = Math.min(metrics.weight, 30000);
 
+  // Sắp xếp dimensions theo thứ tự giảm dần (GHN yêu cầu Length > Width > Height)
   const dimensions = [metrics.length, metrics.width, metrics.height].sort((a, b) => b - a);
   metrics.length = dimensions[0];
   metrics.width = dimensions[1];

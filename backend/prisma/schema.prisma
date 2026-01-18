@@ -400,7 +400,6 @@ model Payment {
   transactionId       String        @unique @map("transaction_id")
   paidAt              DateTime?     @map("paid_at")
   createdAt           DateTime      @default(now()) @map("created_at")
-  
   paymentUrl          String?       @map("payment_url") @db.LongText
   expiresAt           DateTime?     @map("expires_at")
   partnerCode         String?       @map("partner_code")
