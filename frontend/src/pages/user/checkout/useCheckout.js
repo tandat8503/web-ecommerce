@@ -536,6 +536,7 @@ export function useCheckout() {
         paymentMethod,
         customerNote: customerNote.trim() || undefined,
         cartItemIds,
+        shippingFee: shippingFee, // Gửi phí ship đã tính từ frontend lên backend
       };
 
       // Thêm couponCode nếu đã apply

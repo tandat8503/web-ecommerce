@@ -40,6 +40,16 @@ export const createOrderSchema = Joi.object({
       'string.max': 'Mã giảm giá tối đa 20 ký tự'
     }),
 
+  // Phí vận chuyển - không bắt buộc, nếu có thì phải là số dương
+  shippingFee: Joi.number()
+    .positive()
+    .optional()
+    .allow(null)
+    .messages({
+      'number.base': 'Phí vận chuyển phải là số',
+      'number.positive': 'Phí vận chuyển phải là số dương'
+    }),
+
   // Danh sách ID các cart items được chọn - bắt buộc, phải là mảng số nguyên dương
   cartItemIds: Joi.array()
     .items(Joi.number().integer().positive())

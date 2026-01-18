@@ -1,7 +1,7 @@
 import prisma from "../config/prisma.js";
 import logger from '../utils/logger.js';
 import { emitNewOrder, emitOrderStatusUpdate } from '../config/socket.js';
-import { calculateShippingFee as ghnCalculateShippingFee } from '../services/shipping/ghnService.js';
+import { calculateShippingFee } from '../services/shipping/shippingService.js';
 import { sendOrderConfirmationEmail } from '../services/Email/EmailServices.js';
 import {
   validateAndApplyCoupon,
@@ -126,7 +126,7 @@ export const createOrder = async (req, res) => {
   try {
     // BƯỚC 1: Lấy dữ liệu đầu vào cơ bản
     const userId = req.user.id;
-    const { addressId, paymentMethod, customerNote, cartItemIds, couponCode } = req.body;
+    const { addressId, paymentMethod, customerNote, cartItemIds, couponCode, shippingFee: frontendShippingFee } = req.body;
 
     // BƯỚC 2: Lấy giỏ hàng (chỉ item được chọn) và địa chỉ giao hàng của user
     if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
@@ -148,45 +148,60 @@ export const createOrder = async (req, res) => {
     if (!cartItems.length) return res.status(400).json({ message: "Giỏ hàng trống" });
     if (!shippingAddress) return res.status(400).json({ message: "Địa chỉ không hợp lệ" });
 
+
     const shipmentMetrics = buildShipmentMetrics(cartItems);
 
+    // ƯU TIÊN: Nếu frontend gửi shippingFee lên thì dùng, nếu không thì tính lại
     let shippingFee = DEFAULT_SHIPPING_FEE;
-    if (shippingAddress.districtId && shippingAddress.wardCode) {
-      try {
-        const feeResult = await ghnCalculateShippingFee({
-          toDistrictId: shippingAddress.districtId,
-          toWardCode: shippingAddress.wardCode,
-          weight: shipmentMetrics.weight,
-          length: shipmentMetrics.length,
-          width: shipmentMetrics.width,
-          height: shipmentMetrics.height,
-          serviceTypeId: 2,
-        });
+    
+    if (frontendShippingFee && Number(frontendShippingFee) > 0) {
+      // Frontend đã tính phí ship và gửi lên, dùng giá trị đó
+      shippingFee = Number(frontendShippingFee);
+      logger.info("Using shipping fee from frontend", {
+        shippingFee,
+        userId,
+        addressId,
+      });
+    } else {
+      // Backend tự tính phí ship (fallback khi frontend không gửi)
+      if (shippingAddress.districtId && shippingAddress.wardCode) {
+        try {
+          const feeResult = await calculateShippingFee({
+            toDistrictId: shippingAddress.districtId,
+            toWardCode: shippingAddress.wardCode,
+            weight: shipmentMetrics.weight,
+            length: shipmentMetrics.length,
+            width: shipmentMetrics.width,
+            height: shipmentMetrics.height,
+            serviceTypeId: 2,
+          });
 
-        if (feeResult?.success) {
-          shippingFee = feeResult.shippingFee ?? shippingFee;
-        } else {
-          logger.warn("GHN shipping fee fallback", {
-            reason: feeResult?.error || feeResult?.details,
+          if (feeResult?.success) {
+            shippingFee = feeResult.shippingFee ?? shippingFee;
+          } else {
+            logger.warn("GHN shipping fee fallback", {
+              reason: feeResult?.error || feeResult?.details,
+              userId,
+              addressId,
+            });
+          }
+        } catch (error) {
+          logger.warn("GHN shipping fee error", {
+            error: error.message,
             userId,
             addressId,
           });
         }
-      } catch (error) {
-        logger.warn("GHN shipping fee error", {
-          error: error.message,
-          userId,
+      } else {
+        logger.warn("Shipping address missing GHN codes", {
           addressId,
+          userId,
+          districtId: shippingAddress.districtId,
+          wardCode: shippingAddress.wardCode,
         });
       }
-    } else {
-      logger.warn("Shipping address missing GHN codes", {
-        addressId,
-        userId,
-        districtId: shippingAddress.districtId,
-        wardCode: shippingAddress.wardCode,
-      });
     }
+
 
     // BƯỚC 3: Chuẩn hóa item và tính tiền
     let subtotal = 0;
@@ -255,23 +270,30 @@ export const createOrder = async (req, res) => {
     }
 
     // BƯỚC 4: Tính tổng đơn (áp dụng coupon nếu có)
-    let discountAmount = 0;//giảm giá
+    let discountAmount = 0;//giảm giá sản phẩm
     let couponId = null;//id của coupon
     let discountShipping = 0;//giảm phí ship
+    
+    // LƯU PHÍ SHIP GỐC (trước khi áp dụng coupon)
+    const originalShippingFee = shippingFee;
+    
+    // DEBUG: Log giá trị phí ship
+    console.log('DEBUG SHIPPING FEE:', {
+      originalShippingFee,
+      shippingFee,
+      subtotal,
+      discountAmount,
+      discountShipping
+    });
     
     // Nếu có couponCode, validate và tính discount
     if (couponCode) {
       const couponResult = await validateAndApplyCoupon(userId, couponCode, subtotal, shippingFee);
       
       if (couponResult.success) {
-        discountAmount = Number(couponResult.discountAmount || 0);//giảm giá
+        discountAmount = Number(couponResult.discountAmount || 0);//giảm giá sản phẩm
         discountShipping = Number(couponResult.discountShipping || 0);//giảm phí ship
         couponId = couponResult.coupon.id;//id của coupon
-        
-        // Giảm phí ship nếu coupon áp dụng cho shipping
-        if (discountShipping > 0) {
-          shippingFee = Math.max(0, shippingFee - discountShipping);
-        }
       } else {
         // Nếu coupon không hợp lệ, trả về lỗi
         return res.status(400).json({ 
@@ -281,8 +303,19 @@ export const createOrder = async (req, res) => {
       }
     }
     
-    //tổng tiền cuối cùng của đơn hàng = tổng tiền của đơn hàng + phí ship - giảm giá
-    const totalAmount = subtotal + shippingFee - discountAmount;
+    // TÍNH TỔNG TIỀN: subtotal + phí ship GỐC - discount sản phẩm - discount ship
+    const totalAmount = subtotal + originalShippingFee - discountAmount - discountShipping;
+    
+    // TỔNG DISCOUNT để lưu vào DB (bao gồm discount sản phẩm + discount ship)
+    const totalDiscount = discountAmount + discountShipping;
+    
+    // DEBUG: Log giá trị trước khi lưu vào DB
+    console.log('DEBUG BEFORE SAVE TO DB:', {
+      subtotal,
+      originalShippingFee,
+      totalDiscount,
+      totalAmount
+    });
 
     // BƯỚC 5: Tạo mã đơn hàng và mã giao dịch thanh toán
     const orderNumber = await generateOrderNumber(userId);//tạo mã đơn hàng
@@ -311,13 +344,22 @@ export const createOrder = async (req, res) => {
           status: "PENDING",
           paymentStatus: "PENDING",
           subtotal,
-          shippingFee,
-          discountAmount,
+          shippingFee: originalShippingFee, // LƯU PHÍ SHIP GỐC
+          discountAmount: totalDiscount, // LƯU TỔNG DISCOUNT
           totalAmount,
           shippingAddress: shippingAddressString,
           paymentMethod,
           customerNote
         }
+      });
+      
+      // DEBUG: Log giá trị sau khi tạo order
+      console.log('DEBUG AFTER CREATE ORDER:', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        shippingFee: order.shippingFee,
+        discountAmount: order.discountAmount,
+        totalAmount: order.totalAmount
       });
 
       // 6.2 Tạo Payment (mỗi Order 1 Payment)
