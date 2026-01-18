@@ -1,0 +1,26 @@
+# Core dependencies
+fastapi
+uvicorn
+pydantic
+
+# Database
+aiomysql
+
+# AI/ML
+google-generativeai
+sentence-transformers
+chromadb
+
+# MCP
+fastmcp
+
+# Monitoring
+ddtrace
+
+# Utilities
+python-dotenv
+jinja2
+
+# Legal document parsing
+PyMuPDF
+python-docx

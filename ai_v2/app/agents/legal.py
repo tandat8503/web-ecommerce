@@ -25,16 +25,39 @@ class LegalAgent(BaseAgent):
         tool_name = "consult_legal_documents" # Default
         params = {"query": input_message}
         
-        # 1. Deterministic Selection
-        if re.search(r"(vat|gtgt|giá trị gia tăng)", msg_lower) and re.search(r"(thuế|tính)", msg_lower):
+        # 1. PRIORITY: Legal Consultation Keywords (override tax)
+        # These indicate user wants to CONSULT legal documents, not calculate tax
+        legal_consult_keywords = [
+            r"theo luật", r"luật\s+\w+", r"văn bản", r"nghị định", r"thông tư",
+            r"điều kiện", r"quy định", r"quyền lợi", r"nghĩa vụ", 
+            r"bộ luật", r"điều\s+\d+", r"khoản\s+\d+",
+            r"như thế nào theo", r"có được", r"có phải",
+            r"bảo vệ quyền", r"thành lập", r"giải quyết tranh chấp",
+            r"chế độ", r"trường hợp", r"khi nào"
+        ]
+        
+        is_legal_consult = any(re.search(pattern, msg_lower) for pattern in legal_consult_keywords)
+        
+        if is_legal_consult:
+            # Force legal consultation, skip tax calculation
+            tool_name = "consult_legal_documents"
+            logger.info(f"[LegalAgent] Detected Legal Consultation Query")
+            
+        # 2. Tax Calculation Detection (only if NOT legal consult)
+        elif re.search(r"(vat|gtgt|giá trị gia tăng)", msg_lower) and re.search(r"(thuế|tính)", msg_lower):
             tool_name = "calculate_vat"
             
         elif re.search(r"(tndn|doanh nghiệp|lợi nhuận|doanh thu)", msg_lower) and re.search(r"(thuế|tính)", msg_lower):
             tool_name = "calculate_corporate_tax"
             
-        elif re.search(r"(tncn|lương|thu nhập cá nhân)", msg_lower) and re.search(r"(thuế|tính)", msg_lower):
+        elif re.search(r"(tncn|thu nhập cá nhân)", msg_lower) and re.search(r"(thuế|tính|đóng)", msg_lower):
             tool_name = "calculate_pit"
             
+        # 3. Special case: lương + số tiền → likely tax calculation
+        elif re.search(r"lương\s+(?:gross\s+)?(\d+)", msg_lower) and re.search(r"(thuế|tính|đóng|net)", msg_lower):
+            tool_name = "calculate_pit"
+            
+
         # 2. Parameter Extraction (Heuristic)
         def parse_val(text):
             if not text: return 0.0

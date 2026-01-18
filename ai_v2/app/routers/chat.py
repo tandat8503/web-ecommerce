@@ -10,7 +10,16 @@ router = APIRouter()
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-        logger.info(f"Chat request: {request.message}")
+        logger.info("="*80)
+        logger.info("[CHAT REQUEST] User message received")
+        logger.info(f"  Query: {request.message}")
+        logger.info(f"  Role: {request.role or 'user'}")
+        logger.info(f"  Session ID: {request.session_id}")
+        logger.info(f"  Has history: {bool(request.history)}")
+        logger.info(f"  Has image: {bool(request.image_data)}")
+        if request.image_data:
+            logger.info(f"  Image size: {len(request.image_data)} bytes")
+        logger.info("="*80)
         
         # Build context with image_data if provided
         context = {
@@ -20,7 +29,6 @@ async def chat_endpoint(request: ChatRequest):
         }
         if request.image_data:
             context["image_data"] = request.image_data
-            logger.info("[Chat] Image-based search request detected")
         
         result = await chatbot_service.process_message(
             user_message=request.message,

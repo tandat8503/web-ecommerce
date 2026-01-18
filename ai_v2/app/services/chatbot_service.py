@@ -29,20 +29,27 @@ class ChatbotService:
              history_summary = history_summary[-MAX_HISTORY_CHARS:]
              context["history"] = history_summary
              
-        # Retrieve Cache
+        # Retrieve Cache and inject into context
         session_data = {}
         if session_id:
              session_data = self._sessions.get(session_id, {})
+             # Inject cached full product data into context
+             if session_data:
+                 context["last_products_data"] = {
+                     "product_ids": session_data.get("last_products", []),
+                     "all_products": session_data.get("all_products", [])
+                 }
              context["session_data"] = session_data
         
         result = await self.manager.run(user_message, context)
         
-        # Update Cache
+        # Update Cache with FULL product objects
         if session_id:
              data = result.get("data", {})
              if data and "products" in data and data["products"]:
                   self._sessions[session_id] = {
                       "last_products": [p.get('id') for p in data["products"] if p.get('id') is not None],
+                      "all_products": data["products"],  # Cache full objects for 'show remaining'
                       "last_action": result.get("action")
                   }
                   

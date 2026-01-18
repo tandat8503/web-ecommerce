@@ -34,7 +34,9 @@ class ManagerAgent(BaseAgent):
             }
 
         # 2. Role-Based Routing
-        logger.info(f"[Manager] Direct Routing based on Role: {role}")
+        logger.info("[MANAGER] Routing decision")
+        logger.info(f"  Role: {role}")
+        logger.info(f"  Target Agent: {'LegalAgent' if role == 'admin' else 'ProductAgent'}")
         
         agent_result = {}
         action_type = ""

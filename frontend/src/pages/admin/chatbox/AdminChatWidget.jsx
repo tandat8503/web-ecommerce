@@ -21,8 +21,8 @@ const { Text } = Typography;
 export default function AdminChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { 
-      from: "bot", 
+    {
+      from: "bot",
       text: "Xin chào Admin! Tôi là AI Business Assistant. Tôi có thể giúp bạn:\n• Phân tích doanh thu và KPI\n• Phân tích sentiment khách hàng\n• Tạo báo cáo tự động\n• Phân tích hiệu suất sản phẩm\n• Tư vấn luật pháp & Tính thuế\n\nBạn muốn hỏi gì ạ?",
       timestamp: new Date().toISOString(),
       metadata: {
@@ -69,17 +69,17 @@ export default function AdminChatWidget() {
 
         if (isAvailable) {
           console.log("✅ Admin AI Chatbot connected");
-          
+
           // Initialize WebSocket for real-time features (optional)
           try {
             const ws = new AIWebSocketClient();
             await ws.connect(newSessionId);
-            
+
             // Set up WebSocket event listeners
             ws.addEventListener("message", handleWebSocketMessage);
             ws.addEventListener("typing", handleTypingIndicator);
             ws.addEventListener("error", handleWebSocketError);
-            
+
             setWsClient(ws);
           } catch (wsError) {
             // WebSocket not available - use HTTP fallback (expected)
@@ -226,8 +226,8 @@ export default function AdminChatWidget() {
     if (!input.trim() || typing || generatingReport) return;
 
     const userInput = input.trim();
-    const userMsg = { 
-      from: "user", 
+    const userMsg = {
+      from: "user",
       text: userInput,
       timestamp: new Date().toISOString()
     };
@@ -239,7 +239,7 @@ export default function AdminChatWidget() {
       // Check if this is a report generation request
       if (isReportRequest(userInput)) {
         const reportType = extractReportType(userInput);
-        
+
         const botMsg = {
           from: "bot",
           text: `Đang tạo báo cáo ${reportType}...`,
@@ -251,45 +251,23 @@ export default function AdminChatWidget() {
         };
         setMessages(prev => [...prev, botMsg]);
         setTyping(false);
-        
+
         // Start report generation
         await handleGenerateReport(reportType, userInput);
         return;
       }
 
-      // Check if this is a legal/tax query
-      if (isLegalOrTaxQuery(userInput)) {
-        try {
-          const response = await aiChatbotAPI.askLegalAdvisor(userInput, 1); // Default region 1 (Vùng I)
-          
-          const botMsg = {
-            from: "bot",
-            text: response.response || "Xin lỗi, tôi không thể xử lý yêu cầu của bạn.",
-            timestamp: response.timestamp || new Date().toISOString(),
-            metadata: {
-              response_time: 0,
-              model: response.metadata?.model || "legal_assistant",
-              query_type: response.query_type || "legal",
-              success: response.success
-            }
-          };
-          setMessages(prev => [...prev, botMsg]);
-          setTyping(false);
-          return;
-        } catch (legalError) {
-          console.error("Legal advisor error:", legalError);
-          // Fall through to regular admin chatbot
-        }
-      }
+      // All queries (including legal/tax) go through sendAdminMessage
+      // Manager Agent automatically routes to LegalAgent based on keywords
 
       if (isConnected && wsClient) {
         // Use WebSocket for real-time communication
         wsClient.sendMessage(userInput);
         setStreaming(true);
       } else {
-        // Fallback to HTTP API - Admin chatbot for business intelligence
+        // Fallback to HTTP API - Admin chatbot for business intelligence AND legal
         const response = await aiChatbotAPI.sendAdminMessage(userInput);
-        
+
         // Handle both string and object response formats
         let responseText = "";
         if (typeof response.response === "string") {
@@ -300,7 +278,7 @@ export default function AdminChatWidget() {
         } else {
           responseText = response.message || "Xin lỗi, tôi không thể xử lý yêu cầu của bạn.";
         }
-        
+
         const botMsg = {
           from: "bot",
           text: responseText,
@@ -316,10 +294,10 @@ export default function AdminChatWidget() {
       }
     } catch (error) {
       console.error("Error sending message:", error);
-      
+
       const errorMsg = {
         from: "bot",
-        text: isConnected 
+        text: isConnected
           ? "Xin lỗi, có lỗi xảy ra khi xử lý tin nhắn của bạn. Vui lòng thử lại sau."
           : "AI Business Assistant hiện không khả dụng. Vui lòng kiểm tra lại kết nối.",
         timestamp: new Date().toISOString(),
@@ -390,8 +368,8 @@ export default function AdminChatWidget() {
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-t-lg">
               <div className="flex items-center space-x-2">
-                <Avatar 
-                  icon={<BarChartOutlined />} 
+                <Avatar
+                  icon={<BarChartOutlined />}
                   style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
                 />
                 <div>
@@ -439,38 +417,37 @@ export default function AdminChatWidget() {
                   className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      msg.from === "user"
+                    className={`max-w-[80%] p-3 rounded-lg ${msg.from === "user"
                         ? "bg-purple-500 text-white"
                         : "bg-gray-100 text-gray-800"
-                    }`}
+                      }`}
                   >
                     {msg.from === "bot" ? (
                       <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
                             // Customize HTML tags rendering
-                            p: ({node, ...props}) => <p className="mb-2 last:mb-0 text-sm" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 text-sm" {...props} />,
-                            ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 text-sm" {...props} />,
-                            li: ({node, ...props}) => <li className="mb-1 text-sm" {...props} />,
-                            a: ({node, ...props}) => <a className="text-blue-600 hover:underline" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-bold text-gray-900" {...props} />,
-                            em: ({node, ...props}) => <em className="italic" {...props} />,
-                            blockquote: ({node, ...props}) => (
+                            p: ({ node, ...props }) => <p className="mb-2 last:mb-0 text-sm" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 text-sm" {...props} />,
+                            ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 text-sm" {...props} />,
+                            li: ({ node, ...props }) => <li className="mb-1 text-sm" {...props} />,
+                            a: ({ node, ...props }) => <a className="text-blue-600 hover:underline" {...props} />,
+                            strong: ({ node, ...props }) => <strong className="font-bold text-gray-900" {...props} />,
+                            em: ({ node, ...props }) => <em className="italic" {...props} />,
+                            blockquote: ({ node, ...props }) => (
                               <blockquote className="border-l-4 border-purple-400 pl-4 italic text-gray-700 my-2 bg-purple-50 py-2 rounded-r" {...props} />
                             ),
-                            h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-2 mt-2" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 mt-2" {...props} />,
-                            h3: ({node, ...props}) => <h3 className="text-sm font-bold mb-1 mt-1" {...props} />,
-                            code: ({node, inline, ...props}) => 
+                            h1: ({ node, ...props }) => <h1 className="text-lg font-bold mb-2 mt-2" {...props} />,
+                            h2: ({ node, ...props }) => <h2 className="text-base font-bold mb-2 mt-2" {...props} />,
+                            h3: ({ node, ...props }) => <h3 className="text-sm font-bold mb-1 mt-1" {...props} />,
+                            code: ({ node, inline, ...props }) =>
                               inline ? (
                                 <code className="bg-gray-200 px-1 py-0.5 rounded text-xs font-mono" {...props} />
                               ) : (
                                 <code className="block bg-gray-200 p-2 rounded text-xs font-mono overflow-x-auto" {...props} />
                               ),
-                            pre: ({node, ...props}) => <pre className="bg-gray-200 p-2 rounded text-xs font-mono overflow-x-auto mb-2" {...props} />,
+                            pre: ({ node, ...props }) => <pre className="bg-gray-200 p-2 rounded text-xs font-mono overflow-x-auto mb-2" {...props} />,
                           }}
                         >
                           {msg.text}
@@ -479,9 +456,8 @@ export default function AdminChatWidget() {
                     ) : (
                       <span className="text-sm whitespace-pre-wrap">{msg.text}</span>
                     )}
-                    <div className={`text-xs mt-1 ${
-                      msg.from === "user" ? "text-purple-100" : "text-gray-500"
-                    }`}>
+                    <div className={`text-xs mt-1 ${msg.from === "user" ? "text-purple-100" : "text-gray-500"
+                      }`}>
                       {formatTime(msg.timestamp)}
                       {msg.metadata?.response_time && (
                         <span className="ml-2">
@@ -533,8 +509,8 @@ export default function AdminChatWidget() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder={
-                    isConnected 
-                      ? "Hỏi về doanh thu, sentiment, báo cáo, luật pháp, tính thuế..." 
+                    isConnected
+                      ? "Hỏi về doanh thu, sentiment, báo cáo, luật pháp, tính thuế..."
                       : "AI không khả dụng..."
                   }
                   disabled={!isConnected || typing}

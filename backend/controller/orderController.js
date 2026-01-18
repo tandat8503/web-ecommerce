@@ -76,10 +76,10 @@ const buildShipmentMetrics = (cartItems) => {
 };
 
 /**
- * Tạo mã đơn hàng: <maKH><YYYYMMDD><SEQ3>
+ * Tạo mã đơn hàng: <maKH><YYYYMMDD><TIMESTAMP>
  * - maKH: userId padStart(3)
  * - YYYYMMDD: ngày đặt hàng
- * - SEQ3: số thứ tự đơn của user trong ngày (001, 002, ...)
+ * - TIMESTAMP: milliseconds cuối để đảm bảo unique (6 chữ số)
  */
 const generateOrderNumber = async (userId) => {
   try {
@@ -88,6 +88,7 @@ const generateOrderNumber = async (userId) => {
       select: { id: true }
     });
     if (!user) throw new Error("User không tồn tại");
+
     //lấy mã người dùng và định dạng thành 3 chữ số vd: 001
     const userCode = String(user.id).padStart(3, "0");
     const now = new Date();//lấy ngày hiện tại vd: 2025-10-30
@@ -96,28 +97,17 @@ const generateOrderNumber = async (userId) => {
     const day = String(now.getDate()).padStart(2, "0");//lấy ngày hiện tại vd: 30
     const dateCode = `${year}${month}${day}`;//định dạng thành YYYYMMDD vd: 20251030
 
-    // Tính khoảng thời gian trong ngày hiện tại vd: 2025-10-30 00:00:00 đến 2025-10-30 23:59:59
-    //lấy thời gian đầu tiên của ngày hiện tại vd: 2025-10-30 00:00:00
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    //lấy thời gian cuối cùng của ngày hiện tại vd: 2025-10-31 00:00:00
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    // Sử dụng timestamp (milliseconds) để đảm bảo tính unique
+    // Lấy 6 chữ số cuối của timestamp để tránh quá dài
+    const timestamp = Date.now().toString().slice(-6);
 
-    // Đếm số đơn đã tạo bởi user trong hôm nay
-    const todayCount = await prisma.order.count({
-      where: {
-        userId: user.id,
-        createdAt: { gte: startOfDay, lt: endOfDay }//lấy thời gian đầu tiên của ngày hiện tại đến thời gian cuối cùng của ngày hiện tại
-      }
-    });
-    //lấy số thứ tự đơn của user trong ngày (001, 002, ...)
-    const seq = String(todayCount + 1).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
-    //định dạng thành <maKH><YYYYMMDD><SEQ3> vd: 00120251030001
-    return `${userCode}${dateCode}${seq}`;
+    //định dạng thành <maKH><YYYYMMDD><TIMESTAMP> vd: 00120251030123456
+    return `${userCode}${dateCode}${timestamp}`;
   } catch (e) {
     logger.error('Failed to generate order number', { error: e.message, stack: e.stack });
     const userCode = String(userId).padStart(3, "0");//định dạng thành 3 chữ số vd: 001
-    return `${userCode}${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${Date.now().toString().slice(-3)}`;
-
+    const timestamp = Date.now().toString().slice(-6);
+    return `${userCode}${new Date().toISOString().slice(0, 10).replace(/-/g, '')}${timestamp}`;
   }
 };
 
@@ -153,7 +143,7 @@ export const createOrder = async (req, res) => {
 
     // ƯU TIÊN: Nếu frontend gửi shippingFee lên thì dùng, nếu không thì tính lại
     let shippingFee = DEFAULT_SHIPPING_FEE;
-    
+
     if (frontendShippingFee && Number(frontendShippingFee) > 0) {
       // Frontend đã tính phí ship và gửi lên, dùng giá trị đó
       shippingFee = Number(frontendShippingFee);
@@ -257,14 +247,14 @@ export const createOrder = async (req, res) => {
 
     // Nếu có sản phẩm không tồn tại, trả về lỗi
     if (unavailableProducts.length > 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: `Không thể đặt hàng vì có sản phẩm không còn: ${unavailableProducts.join(', ')}. Vui lòng xóa các sản phẩm này khỏi giỏ hàng.`
       });
     }
 
     // Nếu không có sản phẩm nào tồn tại
     if (orderItems.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Không có sản phẩm nào tồn tại trong giỏ hàng để đặt hàng"
       });
     }
@@ -273,10 +263,10 @@ export const createOrder = async (req, res) => {
     let discountAmount = 0;//giảm giá sản phẩm
     let couponId = null;//id của coupon
     let discountShipping = 0;//giảm phí ship
-    
+
     // LƯU PHÍ SHIP GỐC (trước khi áp dụng coupon)
     const originalShippingFee = shippingFee;
-    
+
     // DEBUG: Log giá trị phí ship
     console.log('DEBUG SHIPPING FEE:', {
       originalShippingFee,
@@ -285,30 +275,30 @@ export const createOrder = async (req, res) => {
       discountAmount,
       discountShipping
     });
-    
+
     // Nếu có couponCode, validate và tính discount
     if (couponCode) {
       const couponResult = await validateAndApplyCoupon(userId, couponCode, subtotal, shippingFee);
-      
+
       if (couponResult.success) {
         discountAmount = Number(couponResult.discountAmount || 0);//giảm giá sản phẩm
         discountShipping = Number(couponResult.discountShipping || 0);//giảm phí ship
         couponId = couponResult.coupon.id;//id của coupon
       } else {
         // Nếu coupon không hợp lệ, trả về lỗi
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: couponResult.message || 'Mã giảm giá không hợp lệ' 
+          message: couponResult.message || 'Mã giảm giá không hợp lệ'
         });
       }
     }
-    
+
     // TÍNH TỔNG TIỀN: subtotal + phí ship GỐC - discount sản phẩm - discount ship
     const totalAmount = subtotal + originalShippingFee - discountAmount - discountShipping;
-    
+
     // TỔNG DISCOUNT để lưu vào DB (bao gồm discount sản phẩm + discount ship)
     const totalDiscount = discountAmount + discountShipping;
-    
+
     // DEBUG: Log giá trị trước khi lưu vào DB
     console.log('DEBUG BEFORE SAVE TO DB:', {
       subtotal,
@@ -352,7 +342,7 @@ export const createOrder = async (req, res) => {
           customerNote
         }
       });
-      
+
       // DEBUG: Log giá trị sau khi tạo order
       console.log('DEBUG AFTER CREATE ORDER:', {
         orderId: order.id,
@@ -534,8 +524,8 @@ export const getUserOrders = async (req, res) => {
     const { page = 1, limit = 10, status } = req.query;
 
     console.log("[getUserOrders] Request:", { userId, page, limit, status, statusType: typeof status });
-//lấy order của user theo userId và lọc theo status đơn hàng 
-    const where = { 
+    //lấy order của user theo userId và lọc theo status đơn hàng 
+    const where = {
       userId,
       // Chỉ lấy orders có paymentMethod hợp lệ (COD hoặc VNPAY)
       // Tránh lỗi khi database có dữ liệu cũ với paymentMethod rỗng
@@ -543,7 +533,7 @@ export const getUserOrders = async (req, res) => {
         in: ['COD', 'VNPAY', 'TINGEE']
       }
     };
-    
+
     // Lọc theo trạng thái (nếu có) - giống logic admin
     if (status && status.trim() !== '') {
       const statusValue = status.trim().toUpperCase();

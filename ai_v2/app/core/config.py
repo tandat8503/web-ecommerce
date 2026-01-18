@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     
     # LLM (Gemini)
     GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     LLM_TEMPERATURE: float = 0.6
     LLM_MAX_TOKENS: int = 5000
     

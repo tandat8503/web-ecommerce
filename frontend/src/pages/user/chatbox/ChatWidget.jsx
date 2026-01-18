@@ -54,9 +54,12 @@ export default function ChatWidget() {
 
   const initializeChat = async () => {
     try {
-      // Generate session ID
-      const newSessionId = aiUtils.generateSessionId();
-      setSessionId(newSessionId);
+      let sid = localStorage.getItem('ai_user_session_id');
+      if (!sid) {
+        sid = aiUtils.generateSessionId();
+        localStorage.setItem('ai_user_session_id', sid);
+      }
+      setSessionId(sid);
 
       // Check AI service availability (suppress errors - service may not be running)
       try {
@@ -65,7 +68,7 @@ export default function ChatWidget() {
         setConnectionStatus(isAvailable ? "connected" : "disconnected");
 
         if (isAvailable) {
-          console.log("✅ Professional AI Chatbot connected (HTTP mode)");
+          console.log("Professional AI Chatbot connected (HTTP mode)");
 
           // Note: Backend currently doesn't support WebSocket
           // Using HTTP API only - no WebSocket connection needed
@@ -80,7 +83,7 @@ export default function ChatWidget() {
     } catch (error) {
       // Only log unexpected errors (not connection refused)
       if (error.code !== 'ECONNREFUSED' && error.code !== 'ERR_NETWORK') {
-        console.error("❌ Failed to initialize chat:", error);
+        console.error("Failed to initialize chat:", error);
       }
       setIsConnected(false);
       setConnectionStatus("error");
@@ -160,27 +163,30 @@ export default function ChatWidget() {
         setSessionId(response.session_id);
       }
 
-      // Handle structured response (new format) or string response (old format)
-      let responseData = response.response;
-      if (typeof responseData === 'string') {
-        // Old format - convert to structured
-        responseData = { text: responseData, type: "text" };
+      let messageText = response.answer || response.response?.text || response.response || "Xin lỗi, không thể xử lý yêu cầu.";
+      let messageType = response.type || response.response?.type || "text";
+      let messageData = response.products || response.response?.data || null;
+
+      // Backward compatibility for old string format
+      if (typeof response.response === 'string') {
+        messageText = response.response;
+        messageType = "text";
       }
 
       const botMsg = {
         from: "bot",
-        text: responseData.text || responseData || "Xin lỗi, không thể xử lý yêu cầu.",
+        text: messageText,
         timestamp: response.timestamp || new Date().toISOString(),
         metadata: {
           response_time: response.response_time || 0,
           model: response.metadata?.model || response.metadata?.agent_type || "professional_ai_chatbot",
           success: response.success !== false
         },
-        // Add structured response data
-        type: responseData.type || "text",
-        data: responseData.data || null,
-        cross_sell: responseData.cross_sell || null,
-        suggest_contact: responseData.suggest_contact || false
+        //Map to product_recommendation when products array is available
+        type: (messageType === "product" && messageData?.length > 0) ? "product_recommendation" : messageType,
+        data: messageData,
+        cross_sell: response.cross_sell || null,
+        suggest_contact: response.suggest_contact || false
       };
       setMessages(prev => [...prev, botMsg]);
       setTyping(false);
