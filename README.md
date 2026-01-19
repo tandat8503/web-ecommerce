@@ -113,7 +113,6 @@ Hệ thống E-Commerce hiện đại được xây dựng với mục tiêu cun
 #### 📦 Quản lý Đơn hàng
 - **Danh sách đơn hàng**: Lọc, tìm kiếm, phân trang
 - **Cập nhật trạng thái**: Xác nhận, đang xử lý, giao hàng, hủy
-- **In hóa đơn**: Export PDF
 - **Quản lý vận chuyển**: Tích hợp GHN API
 
 #### 🏷️ Quản lý Khuyến mãi
@@ -168,7 +167,7 @@ Hệ thống E-Commerce hiện đại được xây dựng với mục tiêu cun
 
 ### Backend
 - **Core**:
-  - 🟢 Node.js 18+ - Runtime environment
+  - 🟢 Node.js - Runtime environment
   - ⚡ Express 5 - Web framework
   - 🗄️ MySQL - Relational database
   - 🔍 Prisma ORM - Database toolkit
